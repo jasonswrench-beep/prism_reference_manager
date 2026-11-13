@@ -400,6 +400,7 @@ export async function start() {
   on("changed", (p) => { S.undo = p.undo; S.redo = p.redo; S.saveState = "Saved locally"; renderStatus(); });
   on("job", (j) => { S.jobs.push(j); toast(j.message, j.ok ? "success" : "error"); renderStatus(); });
   on("api-pair", (p) => dialogs.pairRequest(p));
+  on("update-available", (u) => toast(`Version ${u.version} is available.`, "info", { sticky: true, action: { label: "Review", run: () => go("settings", { tab: "about" }) } }));
   on("capture", (c) => {
     const what = c.count === 1 ? `“${(c.title || "a source").slice(0, 80)}”` : `${c.count} sources`;
     toast(`Saved from your browser: ${what}. It waits for your review before joining the library.`, "info", { sticky: true, action: { label: "Review", run: async () => dialogs.importReview(await call("import.get", { id: c.batch_id })) } });

@@ -1,9 +1,44 @@
 // Settings: appearance, storage and backup, network, citation keys, local connections, privacy.
 
-import { call } from "../api.js";
+import { call, on } from "../api.js";
 import { h, clear, icon, btn, toast, select, field, showError, fmtDate, tabs, confirmDialog } from "../dom.js";
 import { S, registerView, go, saveSettings, refresh } from "../app.js";
 import * as dialogs from "../dialogs.js";
+
+// Updates: built in but not set up until releases are published. Checks happen only when asked,
+// or once a day if the person turns that on; installing always needs a click.
+async function updatesCard(card) {
+  const u = await call("update.state");
+  const out = h("div", { "aria-live": "polite" });
+  const last = u.last_check ? h("p.small.muted", "Last checked " + fmtDate(u.last_check) + ".") : null;
+  if (!u.configured) {
+    return card("Updates", h("p", h("span.badge.neutral", "Not set up"), " This version cannot check for updates by itself. New versions are published on the project's release page; download and run the new installer, and your settings and libraries are kept."),
+      h("p.small.muted", "When automatic updates are set up in a later version, they stay off until you turn them on, and nothing is downloaded without your go-ahead."));
+  }
+  const install = async (version) => {
+    const ok = await confirmDialog("Install version " + version + "?", "The update is downloaded, its signature is checked, and the installer runs. The program closes while it installs; your library is saved and closed first.", { ok: "Download and install" });
+    if (!ok) return;
+    clear(out); out.append(h("p", "Downloading…"));
+    const off = await on("update-progress", (p) => { clear(out); out.append(h("p", p.total ? `Downloading… ${Math.round((p.received / p.total) * 100)}%` : `Downloading… ${Math.round(p.received / 1024)} KB`)); });
+    try { await call("update.install"); } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); } finally { if (typeof off === "function") off(); }
+  };
+  const check = async () => {
+    clear(out); out.append(h("p", "Checking…"));
+    try {
+      const r = await call("update.check");
+      clear(out);
+      out.append(r.available
+        ? h("div", h("p", h("strong", `Version ${r.version} is available.`), ` You have ${u.version}.`), r.notes ? h("pre.small", { style: { whiteSpace: "pre-wrap" } }, r.notes) : null, btn("Download and install…", { kind: "primary", onClick: () => install(r.version) }))
+        : h("p", `You have the latest version (${u.version}).`));
+    } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); }
+  };
+  const auto = h("input", { type: "checkbox", checked: u.automatic, disabled: u.locked, on: { change: (e) => saveSettings({ update_check: e.target.checked }) } });
+  return card("Updates",
+    h("p", `Update address: ${u.host}. A check sends this program's version and Windows architecture, and appears in the network log.`),
+    h("label.row", auto, h("span", "Check for updates once a day")), u.locked ? h("p.small.muted", "Set by your administrator.") : null,
+    h("p.small.muted", "Automatic checks only tell you a new version exists. Nothing is downloaded or installed without your go-ahead."),
+    h("div.btn-row", btn("Check now", { onClick: check })), last, out);
+}
 
 registerView("settings", {
   async render(el, params) {
@@ -101,6 +136,7 @@ registerView("settings", {
         h("p", `Version ${S.info.version}. Licensed under the Apache License 2.0; third-party components are listed in THIRD-PARTY.md in the install folder.`),
         h("p", "Settings are stored in your Windows profile. Libraries live only in the folders you choose. Uninstalling removes the program and its settings, never your libraries."),
         S.info.policy?.source ? h("p.small", "Administrator policy: " + S.info.policy.source) : null));
+      body.append(await updatesCard(card));
     }
   },
 });

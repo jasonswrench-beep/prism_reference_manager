@@ -20,6 +20,7 @@ pub const NETWORK_INVENTORY: &[(&str, &str, &str)] = &[
     ("isbn", "openlibrary.org", "Resolve ISBNs for books. Sends the ISBN."),
     ("webpage", "(the page's own site)", "Read embedded citation metadata from a web page you entered. Sends a request for that URL."),
     ("retraction", "api.crossref.org", "Check for retraction and correction notices. Sends DOIs."),
+    ("update", "(the update feed, once set up)", "Check for a newer version of this program when you ask, or once a day if you turn that on. Sends the program's version and Windows architecture."),
 ];
 
 #[derive(Debug, Clone, Serialize)]

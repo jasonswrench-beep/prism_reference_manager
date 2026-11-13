@@ -18,7 +18,7 @@ removed by the uninstaller.
 
 ## What leaves the computer
 
-Nothing, unless the person uses an optional online lookup. There is no telemetry, no account and
+Nothing, unless the person uses an optional online lookup or checks for updates. There is no telemetry, no account and
 no background synchronization. Each outbound request is listed in Settings › Network (with a
 switch per kind) and logged in Tools › Network activity with what was sent.
 
@@ -31,6 +31,7 @@ switch per kind) and logged in Tools › Network activity with what was sent.
 | arXiv | export.arxiv.org | The identifier |
 | ISBN | openlibrary.org | The ISBN |
 | Web page metadata | The site the person entered | A request for that page |
+| Update check (not set up in this version; see `docs/updates.md`) | The update feed | The program's version and Windows architecture |
 
 PDF contents, notes, annotations and quotations are never sent anywhere. A project can block all
 outbound requests (Settings › Network and privacy). Administrators can turn network use off for

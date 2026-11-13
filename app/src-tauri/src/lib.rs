@@ -3,6 +3,7 @@
 //! The window calls one command, `call(method, args)`, which dispatches to validated core
 //! operations. The optional local API (loopback only, token scopes) uses the same dispatcher.
 
+mod updates;
 mod api;
 mod capture;
 mod clipboard;
@@ -92,6 +93,7 @@ fn device_id(dir: &std::path::Path) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![call, read_attachment, read_picked])
         .setup(|app| {
             let default_cfg = app.path().app_config_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -113,6 +115,16 @@ pub fn run() {
                 jobs: vec![],
             }));
             app.manage(state.clone());
+
+            // Automatic update checks (off unless the person turns them on and updates are set up).
+            let uh = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                loop {
+                    updates::maybe_auto_check(&uh);
+                    std::thread::sleep(std::time::Duration::from_secs(3600));
+                }
+            });
 
             // Background: library heartbeat, mirror catch-up, trash retention, scheduled backup.
             let st2 = state.clone();

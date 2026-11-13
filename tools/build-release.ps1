@@ -2,6 +2,10 @@
 # Output: dist\  (installer, portable zip, SHA-256 checksums)
 # Signing is a separate, approved step; nothing here publishes anything.
 
+# Update files: set TAURI_SIGNING_PRIVATE_KEY (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD) and pass
+# -UpdateBaseUrl to also produce the installer's update signature and latest.json. See docs\updates.md.
+param([string]$UpdateBaseUrl = "")
+
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -22,7 +26,14 @@ if ($LASTEXITCODE -ne 0) { throw "A dependency license needs review; release sto
 
 Write-Host "== Installer"
 Push-Location app
-npx tauri build
+$updates = [bool]$env:TAURI_SIGNING_PRIVATE_KEY -and [bool]$UpdateBaseUrl
+if ($updates) {
+  $cfg = Join-Path $env:TEMP "prm-updater-config.json"
+  [IO.File]::WriteAllText($cfg, '{"bundle":{"createUpdaterArtifacts":true}}')
+  npx tauri build --config $cfg
+} else {
+  npx tauri build
+}
 if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
 Pop-Location
 
@@ -31,6 +42,20 @@ $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force $dist | Out-Null
 $setup = Get-ChildItem "target\release\bundle\nsis\*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 Copy-Item $setup.FullName (Join-Path $dist "Prism-Reference-Manager-$version-setup.exe") -Force
+
+if ($updates) {
+  Write-Host "== Update signature and latest.json"
+  $setupName = "Prism-Reference-Manager-$version-setup.exe"
+  $sig = Get-Content ($setup.FullName + ".sig") -Raw
+  Copy-Item ($setup.FullName + ".sig") (Join-Path $dist "$setupName.sig") -Force
+  $manifest = [ordered]@{
+    version   = $version
+    notes     = "See the release notes for this version."
+    pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    platforms = @{ "windows-x86_64" = @{ signature = $sig.Trim(); url = ($UpdateBaseUrl.TrimEnd("/") + "/" + $setupName) } }
+  }
+  [IO.File]::WriteAllText((Join-Path $dist "latest.json"), ($manifest | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+}
 
 Write-Host "== Browser capture extension"
 $extZip = Join-Path $dist "Prism-Reference-Manager-$version-browser-capture.zip"

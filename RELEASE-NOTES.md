@@ -14,6 +14,10 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Updates.** An updater with signature-verified downloads is built in but not set up in this
+build, so it never contacts the network. Once set up, automatic checks stay off until turned on,
+follow the network settings, are logged, and never install without a click.
+
 **Browser capture.** A capture extension for Chromium-based browsers saves the paper on the
 current page (citation metadata, structured data, embedded citation spans, identifier links)
 with its PDF, or several papers from a results page, into the import review with a project,

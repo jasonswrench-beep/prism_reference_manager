@@ -9,8 +9,11 @@ already pass are listed at the end for reference.
 - [x] **Shipping license.** Apache-2.0, approved by the owner on 2026-11-13.
 - [ ] **Code signing.** Approved in principle: sign once there is a working version. Until then
       builds stay unsigned (Windows SmartScreen will warn).
-- [ ] **Update channel.** No automatic update check exists yet. It needs a signed update feed and
-      a place to host it, which means publishing. Decide whether and where (spec PLT-009).
+- [x] **Update channel.** Decided 2026-11-13: full updater built in, switched off. It stays
+      "Not set up" until an update-signing key and a feed address are added at publishing time
+      (see `docs/updates.md`). Automatic checks are off by default even then.
+- [ ] When publishing: generate and safely store the update-signing key, choose the feed address,
+      and do one real update from an installed version to a newer one on a test machine.
 - [x] **Service names in the interface.** Decided 2026-11-13: real names appear in
       interoperability labels only (Connections, the import dialog, import history). Code
       comments, commits, docs and release notes stay generic, with no comparisons.

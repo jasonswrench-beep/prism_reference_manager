@@ -218,6 +218,11 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             open_with_shell(&url);
             return ok(true);
         }
+        // Network work for updates runs without holding the state lock. Never for API clients.
+        "update.check" | "update.install" if client.is_none() => {
+            let r = if method == "update.check" { crate::updates::check(app, shared) } else { crate::updates::install(app, shared) };
+            return r.map_err(|m| user(&m));
+        }
         _ => {}
     }
     if client.is_some() && method.starts_with("dialog.") {
@@ -320,6 +325,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
                 "network_inventory": prm_core::lookup::NETWORK_INVENTORY.iter().map(|(k, h, p)| json!({"kind": k, "host": h, "purpose": p})).collect::<Vec<_>>(),
             }))
         }
+        "update.state" => ok(crate::updates::state(st)),
         "settings.set" => {
             let patch = a.get("settings").cloned().unwrap_or(Value::Null);
             let mut v = serde_json::to_value(&st.settings).unwrap_or_default();
