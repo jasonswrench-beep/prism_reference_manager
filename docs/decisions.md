@@ -109,6 +109,18 @@ Off by default, loopback only, per-client tokens with scopes, approval in the wi
 revocation, and an activity log. Requests carrying a web-page origin are refused. Items created
 by API clients are marked as machine-created.
 
+## D2a. Confidence of automatically filled values (DAT-002)
+
+Each field's provenance holds its source, time, a user-edited flag, a review state and, for values
+filled in automatically, a confidence from 0 to 1 (`prm_core::provenance`). The scale is coarse
+and rule-based rather than a statistical estimate: 0.95 for a registration record found by its
+identifier, 0.85 for a book catalogue record, 0.5 to 0.8 for a web page depending on whether it
+carries scholarly citation tags, the parser's own estimate for pasted references, and 0.4 to 0.5
+for guesses from a PDF. A value a second resolver contradicts drops to 0.6. Typed values, values
+copied from another program's export file and tidying rules carry none. Below 0.7 a value asks to
+be checked; checking keeps the source and confidence and records the review, and editing makes the
+value the person's own.
+
 ## D7a. Text recognition (OCR)
 
 Scanned PDFs are recognized with the optical character recognizer that ships with Windows 10 and

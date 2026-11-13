@@ -767,3 +767,34 @@ fn moved_renamed_duplicate_and_unused_files() {
     assert!(named.path.ends_with("/Ode2021.pdf"), "{}", named.path);
     assert_eq!(named.original_name, "download (3).pdf");
 }
+
+#[test]
+fn automatic_values_carry_confidence_until_checked_or_edited() {
+    let (mut lib, _root) = open("prov");
+    let text = "Smith, J. (2019). Notes on teaching practice. Journal of Teaching, 4(2), 10-20.\n\nsome thoughts teaching learning blah";
+    let b = lib.stage_import("pasted.txt", text, "paste", "", "", "", None).unwrap();
+    let rep = lib.commit_import(&b.id).unwrap();
+    assert!(rep.added >= 1);
+    let refs: Vec<Reference> = lib.store.all().unwrap();
+    for r in &refs {
+        let p = &r.provenance["title"];
+        assert_eq!(p.source, "import:paste");
+        assert!(p.confidence.is_some(), "pasted values carry the parser's confidence");
+    }
+    let low = refs.iter().find(|r| r.provenance["title"].confidence.unwrap() < 0.7).expect("the vague entry is low confidence");
+    let fields = Library::values_to_check(low);
+    assert!(fields.contains(&"title".to_string()));
+    let checked = lib.confirm_values(&low.id, &fields).unwrap();
+    assert!(Library::values_to_check(&checked).is_empty());
+    assert_eq!(checked.provenance["title"].confidence, low.provenance["title"].confidence, "checking keeps source and confidence");
+    assert_eq!(checked.fields, low.fields);
+    // Editing a value makes it the person's own: no confidence.
+    let mut e = checked.clone();
+    e.fields.insert("title".into(), "A corrected title".into());
+    let e = lib.update_reference(e, "user").unwrap();
+    assert_eq!(e.provenance["title"].confidence, None);
+    assert!(e.provenance["title"].user_edited);
+    // Values typed in by hand never carry a confidence.
+    let typed = lib.add_reference(article("Typed", 2020, &[("Lee", "K")]), None).unwrap();
+    assert!(typed.provenance.values().all(|p| p.confidence.is_none()));
+}

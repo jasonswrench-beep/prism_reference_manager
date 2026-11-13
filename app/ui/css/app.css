@@ -386,3 +386,5 @@ details.support pre { white-space: pre-wrap; font-size: 12px; background: var(--
 .menu-item { background: none; border: 0; padding: 7px 10px; border-radius: 4px; text-align: left; color: var(--text); }
 .menu-item:hover, .menu-item:focus { background: var(--primary-soft); outline: none; }
 .popover hr { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; }
+/* A value filled in automatically with low confidence: check it against the source. */
+.field.needs-check > input, .field.needs-check > textarea { border-color: var(--attention); box-shadow: inset 3px 0 0 var(--attention); }

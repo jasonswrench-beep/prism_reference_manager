@@ -23,6 +23,7 @@ pub mod search;
 pub mod dedupe;
 pub mod backup;
 pub mod pdf;
+pub mod provenance;
 pub mod lookup;
 pub mod health;
 pub mod cleanup;

@@ -81,6 +81,9 @@ already pass are listed at the end for reference.
       the quality warning appears for the poor scan, the time per page, and that Stop leaves the
       remaining files untouched. The quality figure is an estimate; note scans it rates wrongly.
 - [ ] On a computer without any recognition language installed, the program says how to add one.
+- [ ] Look up a handful of real DOIs, ISBNs and web pages, import a PDF folder, and paste a messy
+      reference list. In each source's History tab, check that the sources and confidence figures
+      make sense and that the values flagged for checking are the ones that really need it.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder

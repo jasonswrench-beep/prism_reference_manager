@@ -33,6 +33,14 @@ fn cancelled() -> bool {
 
 /// The record's identity inside the program that exported it, used to recognize the same record
 /// when a later export of that library is imported again.
+/// Provenance for a value taken from a staged record: what staging recorded, else the import.
+fn staged_prov(incoming: &Reference, field: &str, source: &str, t: &str) -> Provenance {
+    match incoming.provenance.get(field) {
+        Some(p) if !p.source.is_empty() => Provenance { time: t.into(), ..p.clone() },
+        _ => Provenance { source: source.into(), time: t.into(), user_edited: false, confidence: None, review: "unreviewed".into() },
+    }
+}
+
 pub fn source_key(adapter: &str, r: &Reference) -> Option<String> {
     let o = |k: &str| r.overflow.get(k).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
     match adapter {
@@ -185,6 +193,11 @@ impl Library {
             }
             let mut rec = p.record;
             rec.origin = "import".into();
+            // A pasted reference list is parsed from free text: its values carry the parser's
+            // own confidence.
+            if fmt == "paste" {
+                crate::provenance::stamp(&mut rec, "import:paste", Some(p.confidence), &now());
+            }
             import_rating(&mut rec);
             if let Some(k) = source_key(fmt, &rec) {
                 rec.overflow.insert("import:key".into(), k);
@@ -400,8 +413,15 @@ impl Library {
                     r.citekey = crate::citekey::unique(&base, &taken);
                     taken.insert(r.citekey.clone());
                     let keys: Vec<String> = r.fields.keys().cloned().chain(["creators".to_string(), "issued".to_string()]).collect();
+                    // Provenance recorded at staging (a lookup, a PDF guess, a pasted list) is kept;
+                    // other values are attributed to the import.
                     for f in keys {
-                        r.provenance.insert(f, Provenance { source: source.clone(), time: t.clone(), user_edited: false, confidence: None, review: "unreviewed".into() });
+                        match r.provenance.get_mut(&f) {
+                            Some(p) if !p.source.is_empty() => p.time = t.clone(),
+                            _ => {
+                                r.provenance.insert(f, Provenance { source: source.clone(), time: t.clone(), user_edited: false, confidence: None, review: "unreviewed".into() });
+                            }
+                        }
                     }
                     if sr.decision == "keep_both" && !sr.match_ref_id.is_empty() {
                         decisions.push(DuplicateDecision { id: DuplicateDecision::key(&r.id, &sr.match_ref_id), a: r.id.clone(), b: sr.match_ref_id.clone(), decision: "keep_both".into(), time: t.clone() });
@@ -475,7 +495,7 @@ impl Library {
                             }
                         }
                     }
-                    e.provenance.insert(f.clone(), Provenance { source: source.clone(), time: t.clone(), user_edited: false, confidence: None, review: "unreviewed".into() });
+                    e.provenance.insert(f.clone(), staged_prov(incoming, f, &source, &t));
                 }
                 for tag in &incoming.tags {
                     if !e.tags.contains(tag) {
@@ -516,7 +536,7 @@ impl Library {
                     match e.fields.get(k) {
                         None => {
                             e.fields.insert(k.clone(), v.clone());
-                            e.provenance.insert(k.clone(), Provenance { source: source.clone(), time: t.clone(), user_edited: false, confidence: None, review: "unreviewed".into() });
+                            e.provenance.insert(k.clone(), staged_prov(incoming, k, &source, &t));
                         }
                         Some(cur) if crate::util::sort_key(cur) != crate::util::sort_key(v) => {
                             if !e.conflicts.iter().any(|c| &c.field == k && &c.value == v) {

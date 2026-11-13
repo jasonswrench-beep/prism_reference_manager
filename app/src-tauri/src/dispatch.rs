@@ -709,6 +709,10 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         }
         "refs.set_labels" => ok(lib_mut(st)?.set_labels(&arg::<Vec<String>>(a, "ids")?, &s(a, "label"), opt(a, "on")).map_err(err)?),
         "refs.set_rating" => ok(lib_mut(st)?.set_rating(&arg::<Vec<String>>(a, "ids")?, opt(a, "rating")).map_err(err)?),
+        "refs.confirm_values" => {
+            let fields: Vec<String> = arg(a, "fields")?;
+            ok(lib_mut(st)?.confirm_values(&s(a, "id"), &fields).map_err(err)?)
+        }
         "refs.regenerate_citekey" => ok(lib_mut(st)?.regenerate_citekey(&s(a, "id")).map_err(err)?),
         "refs.impact" => ok(lib_mut(st)?.impact(&s(a, "id")).map_err(err)?),
         "refs.confirm_absent" => ok(lib_mut(st)?.confirm_absent(&s(a, "id"), &s(a, "field"), opt(a, "absent")).map_err(err)?),
@@ -1202,7 +1206,17 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             // Stage looked-up candidates through the same review pipeline.
             let refs: Vec<Reference> = arg(a, "refs")?;
             let items: Vec<Value> = refs.iter().map(prm_core::formats::csljson::to_csl).collect();
-            ok(lib_mut(st)?.stage_import(&s(a, "name"), &serde_json::to_string(&items).unwrap_or_default(), "csljson", &s(a, "service"), &s(a, "project_id"), "", None).map_err(err)?)
+            let l = lib_mut(st)?;
+            let mut b = l.stage_import(&s(a, "name"), &serde_json::to_string(&items).unwrap_or_default(), "csljson", &s(a, "service"), &s(a, "project_id"), "", None).map_err(err)?;
+            // Keep each value's source and confidence from the lookup (the exchange format has none).
+            for sr in b.records.iter_mut() {
+                if let Some(src) = refs.get(sr.index) {
+                    sr.record.provenance = src.provenance.clone();
+                    prm_core::provenance::fill(&mut sr.record, "lookup:other", None, &prm_core::util::now());
+                }
+            }
+            l.save_staged(&b).map_err(err)?;
+            ok(b)
         }
         "lookup.identifiers" => ok(prm_core::formats::paste::identifiers(&s(a, "text"))),
         "capture.options" => {

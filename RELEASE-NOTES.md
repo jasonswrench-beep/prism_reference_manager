@@ -59,6 +59,12 @@ recognized text is searchable, shown beside the page for checking, and used for 
 Area marks; a quality estimate warns about poor scans. The PDF is never changed, and an edited
 quotation keeps the original recognized text.
 
+**Where values came from.** Every value records its source and time, and values filled in
+automatically also record how sure that source is: a record found by its DOI is near certain, a
+web page's tags or a pasted reference less so, a guess from a PDF's properties least. Values below
+70% are highlighted in the editor and marked for review in the list until you check or correct
+them. A value two resolvers disagree on is marked as a conflict.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

@@ -260,6 +260,7 @@ fn urlencode_path(s: &str) -> String {
 /// Resolve one identifier. `kind`: doi, pmid, pmcid, arxiv, isbn, url.
 pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> LookupResult {
     let mut res = LookupResult { kind: kind.into(), id: id.into(), candidate: None, corroboration: vec![], conflicts: vec![], message: String::new(), ok: false };
+    let mut web_base: Option<f32> = None;
     let outcome: Result<Reference> = (|| match kind {
         "doi" => {
             let doi = crate::util::normalize_doi(id).ok_or_else(|| Error::user("That is not a DOI."))?;
@@ -397,6 +398,10 @@ pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool,
             let host = id.split('/').nth(2).unwrap_or("").to_string();
             log("webpage", &host, id, body.is_ok(), "");
             let html = body?;
+            // How much the page says about itself: scholarly citation tags, general tags, or
+            // only a page title.
+            let low = html.to_lowercase();
+            web_base = Some(if low.contains("citation_title") { 0.8 } else if low.contains("dc.title") || low.contains("og:title") { 0.65 } else { 0.5 });
             Ok(from_meta_tags(&html, id))
         }
         _ => Err(Error::user("Unknown identifier type.")),
@@ -405,6 +410,15 @@ pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool,
         Ok(mut r) => {
             formats::finish(&mut r);
             r.origin = "import".into();
+            crate::provenance::stamp(&mut r, &format!("lookup:{kind}"), web_base, &crate::util::now());
+            for c in &res.conflicts {
+                if c.contains("title") {
+                    crate::provenance::contradicted(&mut r, "title");
+                }
+                if c.contains("year") {
+                    crate::provenance::contradicted(&mut r, "issued");
+                }
+            }
             res.ok = true;
             res.message = if res.conflicts.is_empty() { "Found. Review before adding.".into() } else { "Found, with disagreements between resolvers. Review carefully.".into() };
             res.candidate = Some(r);

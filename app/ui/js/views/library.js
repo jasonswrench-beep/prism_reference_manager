@@ -4,7 +4,7 @@ import { call } from "../api.js";
 import { h, clear, icon, iconBtn, btn, toast, modal, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml, tabs, announce } from "../dom.js";
 import { S, registerView, go, refresh, manuscript } from "../app.js";
 import * as dialogs from "../dialogs.js";
-import { sourceEditor, fieldLabel } from "../editor.js";
+import { sourceEditor, fieldLabel, needsCheck, sourceLabel, confidenceBadge } from "../editor.js";
 
 const st = { scope: "project", view: "all", collection: "", label: "", search: "", sort: "authors", desc: false, selected: new Set(), focus: null, inspectorTab: "details", bottomTab: "abstract", layout: null, offset: 0, filters: [], showFilters: false };
 
@@ -658,10 +658,15 @@ registerView("library", {
           n.locator ? h("footer", `${n.locator_label || "page"} ${n.locator}`) : n.anchor_state === "unresolved" ? h("footer.status-review", icon("warn", 13), " Locator not confirmed") : null));
         if (!d.notes.length) body.append(h("div.empty.small", "No notes for this source in this project."));
       } else {
-        body.append(h("p.small.muted", "Every field keeps its earlier values. Choose a field to see who changed it and when, and restore an earlier value."));
+        body.append(h("p.small.muted", "Where each value came from, when, and for values filled in automatically how sure that source is. Choose a field to see who changed it and restore an earlier value."));
         const fs = ["title", "creators", "issued", ...Object.keys(r.fields).filter((f) => f !== "title"), "type"];
-        body.append(h("table.table", h("tbody", fs.map((f) => h("tr", h("td", fieldLabel(f) === f ? f : fieldLabel(f)), h("td.small.muted", r.provenance?.[f] ? `${r.provenance[f].source}${r.provenance[f].user_edited ? " (edited)" : ""} • ${fmtDate(r.provenance[f].time)}` : ""),
-          h("td", btn("History", { small: true, onClick: () => dialogs.fieldHistory(r.id, f) })))))),
+        const toCheck = fs.filter((f) => needsCheck(r.provenance?.[f]));
+        if (toCheck.length) body.append(h("div.notice.warn", icon("warn"), h("span.grow", `${toCheck.length === 1 ? "One value was" : toCheck.length + " values were"} filled in automatically with low confidence: ${toCheck.map((f) => fieldLabel(f)).join(", ")}. Check ${toCheck.length === 1 ? "it" : "them"} against the source.`),
+          btn("Mark all as checked", { small: true, onClick: async () => { await call("refs.confirm_values", { id: r.id, fields: toCheck }); toast("Marked as checked. Undo is available.", "success"); drawInspector(); } })));
+        body.append(h("table.table", h("tbody", fs.map((f) => { const p = r.provenance?.[f]; return h("tr", h("td", fieldLabel(f) === f ? f : fieldLabel(f)),
+          h("td.small.muted", p ? `${sourceLabel(p.source)}${p.user_edited ? " (edited)" : ""} • ${fmtDate(p.time)}` : ""),
+          h("td.small", confidenceBadge(p), needsCheck(p) ? btn("Checked", { small: true, kind: "ghost", title: "I checked this value against the source", onClick: async () => { await call("refs.confirm_values", { id: r.id, fields: [f] }); drawInspector(); } }) : null),
+          h("td", btn("History", { small: true, onClick: () => dialogs.fieldHistory(r.id, f) }))); }))),
           h("div.btn-row", { style: { marginTop: "10px" } }, (r.fields.doi || r.fields.pmid || r.fields.arxiv || r.fields.isbn) ? btn("Refresh from online record…", { small: true, icon: "refresh", onClick: () => dialogs.refreshFromSource(r.id) }) : null, btn("Regenerate citation key", { small: true, onClick: async () => { try { await call("refs.regenerate_citekey", { id: r.id }); drawInspector(); } catch (e) { showError(e); } } }),
             btn("Copy citation key", { small: true, onClick: async () => { await call("refs.citekey_copy", { ids: [r.id], syntax: "pandoc" }); toast("Copied @" + r.citekey, "success"); } })));
       }

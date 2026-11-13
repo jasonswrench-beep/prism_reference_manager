@@ -184,8 +184,9 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
       if (SUGGEST.includes(f)) suggestFor(inp, f);
       inp.addEventListener("input", () => { if (inp.value.trim()) r.fields[f] = inp.value; else delete r.fields[f]; });
       const prov = r.provenance?.[f];
-      const helpTxt = [HELP[f], prov ? `From ${prov.source}${prov.review ? ", " + prov.review : ""}` : ""].filter(Boolean).join(" · ");
+      const helpTxt = [HELP[f], prov ? `From ${sourceLabel(prov.source)}${prov.confidence != null ? `, ${Math.round(prov.confidence * 100)}% confidence` : ""}${needsCheck(prov) ? ": check this value" : prov.review === "reviewed" && prov.confidence != null ? ", checked" : ""}` : ""].filter(Boolean).join(" · ");
       const fl = field(fieldLabel(f), inp, helpTxt || null);
+      if (needsCheck(prov)) fl.classList.add("needs-check");
       if (f === "doi" || f === "page") fl.append(absentToggle(f === "doi" ? "doi" : "page", f === "doi" ? "Has no DOI (confirmed)" : "Has no pages (confirmed)"));
       if (big) fl.style.gridColumn = "1 / -1";
       grid.append(fl);
@@ -289,4 +290,26 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
   }).done;
   if (res && mode === "new") toast("Source added", "success");
   return res;
+}
+
+/** Values filled in automatically below this confidence ask to be checked (matches the core). */
+export const REVIEW_BELOW = 0.7;
+export function needsCheck(p) {
+  return !!p && !p.user_edited && p.review !== "reviewed" && p.confidence != null && p.confidence < REVIEW_BELOW;
+}
+export function sourceLabel(src = "") {
+  const [kind, detail = ""] = src.split(":");
+  const named = { doi: "DOI record", pmid: "PubMed record", pmcid: "PubMed Central record", arxiv: "arXiv record", isbn: "book catalogue (ISBN)", url: "the web page", webpage: "the web page", crossref: "registration record", "crossref-search": "a title search", other: "an online lookup" };
+  if (kind === "user") return detail === "bulk" ? "you (bulk edit)" : "you";
+  if (kind === "lookup") return named[detail] || "an online lookup";
+  if (kind === "import") return detail === "paste" ? "a pasted reference list" : `an imported file (${detail})`;
+  if (kind === "pdf") return "the PDF file";
+  if (kind === "capture") return "the browser capture";
+  if (kind === "rule") return "a tidying rule";
+  return src;
+}
+export function confidenceBadge(p) {
+  if (!p || p.confidence == null) return null;
+  const pct = Math.round(p.confidence * 100);
+  return h("span.badge." + (needsCheck(p) ? "attention" : "neutral"), { title: "How sure the automatic source is about this value" + (p.review === "reviewed" ? "; you checked it" : "") }, `${pct}%${p.review === "reviewed" ? " ✓" : ""}`);
 }

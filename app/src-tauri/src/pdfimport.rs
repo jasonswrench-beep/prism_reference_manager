@@ -108,6 +108,7 @@ pub fn stage(st: &mut AppState, found: &[Found], looked: &[Looked], log: &[(Stri
         lib.store.log_network(k, h, "PDF import lookup", sent, *ok, d);
     }
     let mut items = vec![];
+    let mut provs = vec![];
     for (f, l) in found.iter().zip(looked) {
         let mut r = l.candidate.clone().unwrap_or_else(|| {
             let mut r = Reference { rtype: if f.info.arxiv.is_empty() { "article-journal".into() } else { "preprint".into() }, ..Default::default() };
@@ -126,6 +127,9 @@ pub fn stage(st: &mut AppState, found: &[Found], looked: &[Looked], log: &[(Stri
         });
         r.overflow.insert("pdf:path".into(), f.path.to_string_lossy().to_string());
         r.overflow.insert("pdf:state".into(), f.info.state.clone());
+        // Values guessed from the file itself carry low confidence; looked-up ones keep theirs.
+        prm_core::provenance::fill(&mut r, "pdf", None, &prm_core::util::now());
+        provs.push(r.provenance.clone());
         items.push(prm_core::formats::csljson::to_csl(&r));
     }
     let text = serde_json::to_string(&items).unwrap_or_default();
@@ -133,6 +137,9 @@ pub fn stage(st: &mut AppState, found: &[Found], looked: &[Looked], log: &[(Stri
     let mut seen_hashes: BTreeSet<String> = BTreeSet::new();
     for (i, rec) in b.records.iter_mut().enumerate() {
         let (Some(f), Some(l)) = (found.get(i), looked.get(i)) else { continue };
+        if let Some(p) = provs.get(i) {
+            rec.record.provenance = p.clone();
+        }
         rec.record.overflow.insert("pdf:path".into(), f.path.to_string_lossy().to_string());
         rec.record.overflow.insert("pdf:hash".into(), f.hash.clone());
         if mirror && !f.folder.is_empty() {

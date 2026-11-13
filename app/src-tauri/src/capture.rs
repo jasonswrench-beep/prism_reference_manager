@@ -124,9 +124,17 @@ pub fn stage(lib: &mut Library, req: &CaptureRequest, mut lookup: impl FnMut(&Li
                 }
             }
         }
-        if r.title().trim().is_empty() && !it.title.trim().is_empty() {
+        let page_title_only = r.title().trim().is_empty() && !it.title.trim().is_empty();
+        if page_title_only {
             r.fields.insert("title".into(), it.title.trim().to_string());
             issues.push("Only the page title was found; check every field.".into());
+        }
+        // Looked-up values keep their provenance; what the page supplied is attributed to it.
+        prm_core::provenance::fill(&mut r, "capture", Some(0.75), &prm_core::util::now());
+        if page_title_only {
+            if let Some(p) = r.provenance.get_mut("title") {
+                p.confidence = Some(0.4);
+            }
         }
         if r.rtype.is_empty() || r.rtype == "document" {
             r.rtype = if r.has("container_title") { "article-journal".into() } else { "webpage".into() };
@@ -145,7 +153,8 @@ pub fn stage(lib: &mut Library, req: &CaptureRequest, mut lookup: impl FnMut(&Li
     let name = if req.page_url.is_empty() { "Browser capture".to_string() } else { format!("Browser capture: {}", req.page_url.chars().take(120).collect::<String>()) };
     let mut b = lib.stage_import(&name, &text, "csljson", "browser", &req.project_id, &req.collection_id, None).map_err(crate::dispatch::err)?;
     for (i, sr) in b.records.iter_mut().enumerate() {
-        let Some((_, pdf, issues)) = records.get(i) else { continue };
+        let Some((src, pdf, issues)) = records.get(i) else { continue };
+        sr.record.provenance = src.provenance.clone();
         if let Some(p) = pdf {
             sr.record.overflow.insert("pdf:path".into(), p.to_string_lossy().to_string());
         }

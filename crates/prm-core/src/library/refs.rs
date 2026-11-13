@@ -343,7 +343,7 @@ impl Library {
                 labels: r.labels.clone(),
                 modified: r.modified.clone(),
                 created: r.created.clone(),
-                issues: r.conflicts.len() + usize::from(r.title().is_empty()),
+                issues: r.conflicts.len() + usize::from(r.title().is_empty()) + usize::from(!Library::values_to_check(&r).is_empty()),
                 notices: r.notices.len(),
                 origin: r.origin.clone(),
             });
@@ -451,6 +451,36 @@ impl Library {
 
     /// Save an edited reference. Records provenance for changed fields, bumps the revision and
     /// re-checks copied output that used it.
+    /// Mark automatically filled values as checked by the person. The value, its source and its
+    /// confidence stay as they were; only the review state changes.
+    pub fn confirm_values(&mut self, id: &str, fields: &[String]) -> Result<Reference> {
+        let mut r = self.store.must::<Reference>(id)?;
+        let mut n = 0;
+        for f in fields {
+            if let Some(p) = r.provenance.get_mut(f) {
+                if p.review != "reviewed" {
+                    p.review = "reviewed".into();
+                    n += 1;
+                }
+            }
+        }
+        if n == 0 {
+            return Ok(r);
+        }
+        let rr = r.clone();
+        self.write(if n == 1 { "Mark value as checked" } else { "Mark values as checked" }, |tx| tx.put(&rr))?;
+        Ok(r)
+    }
+
+    /// Automatically filled values below the review threshold that nobody has checked yet.
+    pub fn values_to_check(r: &Reference) -> Vec<String> {
+        r.provenance
+            .iter()
+            .filter(|(_, p)| !p.user_edited && p.review != "reviewed" && p.confidence.map(|c| c < crate::provenance::REVIEW_BELOW).unwrap_or(false))
+            .map(|(k, _)| k.clone())
+            .collect()
+    }
+
     pub fn update_reference(&mut self, mut r: Reference, source: &str) -> Result<Reference> {
         let old = self.store.must::<Reference>(&r.id)?;
         crate::cleanup::apply_rules(&mut r, &self.save_rules, &self.protected_terms);
