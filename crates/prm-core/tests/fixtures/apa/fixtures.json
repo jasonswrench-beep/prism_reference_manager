@@ -1,0 +1,3218 @@
+[
+ {
+  "id": "ref-journal-two-authors",
+  "category": "journal article",
+  "reason": "Two authors joined with a comma and ampersand; journal and volume italic with the comma between them; issue in roman parentheses; page range with an en dash.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Chen, L., & Patel, M. (2024). Teaching with generative AI. Journal of Teaching Practice, 12(2), 115–132.",
+  "expected_italic": [
+   "Journal of Teaching Practice, 12"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-journal-article-number-doi",
+  "category": "journal article",
+  "reason": "An article number is written as “Article e1042” and is not treated as a page range; DOI shown as an https://doi.org link with no final period.",
+  "references": [
+   {
+    "id": "garcia",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Garcia",
+       "given": "Rosa"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Faculty development in the age of AI",
+     "container_title": "Journal of Higher Education Practice",
+     "volume": "8",
+     "issue": "1",
+     "article_number": "e1042",
+     "doi": "10.5555/jhep.2022.1042"
+    },
+    "issued": {
+     "year": 2022
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Garcia, R. (2022). Faculty development in the age of AI. Journal of Higher Education Practice, 8(1), Article e1042. https://doi.org/10.5555/jhep.2022.1042",
+  "expected_italic": [
+   "Journal of Higher Education Practice, 8"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-journal-three-authors",
+  "category": "journal article",
+  "reason": "Three to twenty authors are all listed, ampersand before the last.",
+  "references": [
+   {
+    "id": "kim",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kim",
+       "given": "Soo-Jin"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ortiz",
+       "given": "Lucia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Assessment practices for AI-era learning",
+     "container_title": "Assessment Review",
+     "volume": "31",
+     "issue": "4",
+     "page": "201-219",
+     "doi": "10.5555/ar.2024.31.4.201"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Kim, S.-J., Ortiz, L., & Baker, T. (2024). Assessment practices for AI-era learning. Assessment Review, 31(4), 201–219. https://doi.org/10.5555/ar.2024.31.4.201",
+  "expected_italic": [
+   "Assessment Review, 31"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-twenty-authors",
+  "category": "author count",
+  "reason": "Twenty authors are all listed with an ampersand before the last.",
+  "references": [
+   {
+    "id": "auth20",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Abbott",
+       "given": "Amy"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Bell",
+       "given": "Ben"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Cruz",
+       "given": "Cara"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Diaz",
+       "given": "Dev"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Evans",
+       "given": "Eli"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ford",
+       "given": "Fay"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Gray",
+       "given": "Gus"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Hughes",
+       "given": "Hana"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ibarra",
+       "given": "Ivo"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "James",
+       "given": "Jo"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Khan",
+       "given": "Kai"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Lowe",
+       "given": "Lea"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Mendez",
+       "given": "Max"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Nash",
+       "given": "Nia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Okafor",
+       "given": "Oto"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Price",
+       "given": "Pia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Quinn",
+       "given": "Quin"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ross",
+       "given": "Rae"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Shah",
+       "given": "Sol"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Tran",
+       "given": "Tea"
+      }
+     }
+    ],
+    "fields": {
+     "title": "A large collaboration",
+     "container_title": "Team Science",
+     "volume": "1",
+     "issue": "1",
+     "page": "1-2"
+    },
+    "issued": {
+     "year": 2021
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Abbott, A., Bell, B., Cruz, C., Diaz, D., Evans, E., Ford, F., Gray, G., Hughes, H., Ibarra, I., James, J., Khan, K., Lowe, L., Mendez, M., Nash, N., Okafor, O., Price, P., Quinn, Q., Ross, R., Shah, S., & Tran, T. (2021). A large collaboration. Team Science, 1(1), 1–2.",
+  "expected_italic": [
+   "Team Science, 1"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-twenty-one-authors",
+  "category": "author count",
+  "reason": "Twenty-one or more authors: the first nineteen, an ellipsis with no ampersand, then the final author.",
+  "references": [
+   {
+    "id": "auth21",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Abbott",
+       "given": "Amy"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Bell",
+       "given": "Ben"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Cruz",
+       "given": "Cara"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Diaz",
+       "given": "Dev"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Evans",
+       "given": "Eli"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ford",
+       "given": "Fay"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Gray",
+       "given": "Gus"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Hughes",
+       "given": "Hana"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ibarra",
+       "given": "Ivo"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "James",
+       "given": "Jo"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Khan",
+       "given": "Kai"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Lowe",
+       "given": "Lea"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Mendez",
+       "given": "Max"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Nash",
+       "given": "Nia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Okafor",
+       "given": "Oto"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Price",
+       "given": "Pia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Quinn",
+       "given": "Quin"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ross",
+       "given": "Rae"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Shah",
+       "given": "Sol"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Tran",
+       "given": "Tea"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Underwood",
+       "given": "Uma"
+      }
+     }
+    ],
+    "fields": {
+     "title": "A larger collaboration",
+     "container_title": "Team Science",
+     "volume": "1",
+     "issue": "1",
+     "page": "3-4"
+    },
+    "issued": {
+     "year": 2021
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Abbott, A., Bell, B., Cruz, C., Diaz, D., Evans, E., Ford, F., Gray, G., Hughes, H., Ibarra, I., James, J., Khan, K., Lowe, L., Mendez, M., Nash, N., Okafor, O., Price, P., Quinn, Q., Ross, R., Shah, S., . . . Underwood, U. (2021). A larger collaboration. Team Science, 1(1), 3–4.",
+  "expected_italic": [
+   "Team Science, 1"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-group-author-same-publisher",
+  "category": "group author",
+  "reason": "Group author; publisher omitted when it is the same as the author; edition in parentheses after the italic title.",
+  "references": [
+   {
+    "id": "apa",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "American Psychological Association"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Publication manual of the American Psychological Association",
+     "edition": "7",
+     "publisher": "American Psychological Association",
+     "doi": "10.1037/0000165-000"
+    },
+    "issued": {
+     "year": 2020
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "American Psychological Association. (2020). Publication manual of the American Psychological Association (7th ed.). https://doi.org/10.1037/0000165-000",
+  "expected_italic": [
+   "Publication manual of the American Psychological Association"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-no-author-book",
+  "category": "missing author",
+  "reason": "With no author the title moves to the author position, followed by the date.",
+  "references": [
+   {
+    "id": "dict",
+    "type": "book",
+    "creators": [],
+    "fields": {
+     "title": "Northfield's collegiate dictionary",
+     "edition": "11",
+     "publisher": "Northfield Press"
+    },
+    "issued": {
+     "year": 2003
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Northfield's collegiate dictionary (11th ed.). (2003). Northfield Press.",
+  "expected_italic": [
+   "Northfield's collegiate dictionary"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-no-date-webpage-retrieval",
+  "category": "missing date",
+  "reason": "No date is written as (n.d.); site name omitted when it matches the group author; a retrieval date is given for a page designed to change.",
+  "references": [
+   {
+    "id": "cte",
+    "type": "webpage",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "Center for Teaching Excellence"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Designing reflective assignments",
+     "container_title": "Center for Teaching Excellence",
+     "url": "https://example.edu/reflect"
+    },
+    "accessed": {
+     "year": 2024,
+     "month": 3,
+     "day": 5
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Center for Teaching Excellence. (n.d.). Designing reflective assignments. Retrieved March 5, 2024, from https://example.edu/reflect",
+  "expected_italic": [
+   "Designing reflective assignments"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-book-edition",
+  "category": "book",
+  "reason": "Authored book with an edition statement.",
+  "references": [
+   {
+    "id": "miller",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Miller",
+       "given": "James"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Developing AI communication competencies",
+     "edition": "2",
+     "publisher": "Northfield Press"
+    },
+    "issued": {
+     "year": 2021
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Miller, J. (2021). Developing AI communication competencies (2nd ed.). Northfield Press.",
+  "expected_italic": [
+   "Developing AI communication competencies"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-edited-book",
+  "category": "book",
+  "reason": "Editors in the author position are followed by (Eds.).",
+  "references": [
+   {
+    "id": "edbook",
+    "type": "edited-book",
+    "creators": [
+     {
+      "role": "editor",
+      "name": {
+       "family": "Nguyen",
+       "given": "Hoa"
+      }
+     },
+     {
+      "role": "editor",
+      "name": {
+       "family": "Clark",
+       "given": "Dana"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Mentoring faculty to use AI in teaching",
+     "publisher": "Riverbend Academic"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Nguyen, H., & Clark, D. (Eds.). (2024). Mentoring faculty to use AI in teaching. Riverbend Academic.",
+  "expected_italic": [
+   "Mentoring faculty to use AI in teaching"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-chapter-two-editors",
+  "category": "edited chapter",
+  "reason": "Chapter: editors with initials first after “In”, (Eds.), italic book title, page range with pp., publisher, DOI.",
+  "references": [
+   {
+    "id": "chapter",
+    "type": "chapter",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Rossi",
+       "given": "Elena"
+      }
+     },
+     {
+      "role": "editor",
+      "name": {
+       "family": "Nguyen",
+       "given": "Hoa"
+      }
+     },
+     {
+      "role": "editor",
+      "name": {
+       "family": "Clark",
+       "given": "Dana"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Ethical considerations in AI-assisted instruction",
+     "container_title": "Teaching in transition",
+     "page": "45-67",
+     "publisher": "Riverbend Academic",
+     "doi": "10.5555/tt.2022.003"
+    },
+    "issued": {
+     "year": 2022
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Rossi, E. (2022). Ethical considerations in AI-assisted instruction. In H. Nguyen & D. Clark (Eds.), Teaching in transition (pp. 45–67). Riverbend Academic. https://doi.org/10.5555/tt.2022.003",
+  "expected_italic": [
+   "Teaching in transition"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-chapter-edition-volume",
+  "category": "edited chapter",
+  "reason": "One editor (Ed.); edition, volume and pages share one parenthetical in that order.",
+  "references": [
+   {
+    "id": "chapter1",
+    "type": "chapter",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Owens",
+       "given": "Grace"
+      }
+     },
+     {
+      "role": "editor",
+      "name": {
+       "family": "Lee",
+       "given": "Ann"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Reflective cycles",
+     "container_title": "Handbook of pedagogy",
+     "edition": "3",
+     "volume": "2",
+     "page": "1-20",
+     "publisher": "Hill Press"
+    },
+    "issued": {
+     "year": 2019
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Owens, G. (2019). Reflective cycles. In A. Lee (Ed.), Handbook of pedagogy (3rd ed., Vol. 2, pp. 1–20). Hill Press.",
+  "expected_italic": [
+   "Handbook of pedagogy"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-report-number",
+  "category": "report",
+  "reason": "Report number in parentheses after the title; publisher omitted when it is the author.",
+  "references": [
+   {
+    "id": "report",
+    "type": "report",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "Office of Learning Research"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Faculty use of AI tools",
+     "number": "2023-04",
+     "publisher": "Office of Learning Research",
+     "url": "https://example.org/report"
+    },
+    "issued": {
+     "year": 2023
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Office of Learning Research. (2023). Faculty use of AI tools (Report No. 2023-04). https://example.org/report",
+  "expected_italic": [
+   "Faculty use of AI tools"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-thesis-published",
+  "category": "thesis",
+  "reason": "Published dissertation: degree and institution in square brackets, then the archive.",
+  "references": [
+   {
+    "id": "baker",
+    "type": "thesis",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "AI literacy for university educators",
+     "genre": "Doctoral dissertation",
+     "publisher": "Northfield University",
+     "archive": "Open Theses Repository",
+     "url": "https://example.org/thesis/123"
+    },
+    "issued": {
+     "year": 2023
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Baker, T. (2023). AI literacy for university educators [Doctoral dissertation, Northfield University]. Open Theses Repository. https://example.org/thesis/123",
+  "expected_italic": [
+   "AI literacy for university educators"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-thesis-unpublished",
+  "category": "thesis",
+  "reason": "Unpublished thesis: description in brackets, institution as the source.",
+  "references": [
+   {
+    "id": "thesis-u",
+    "type": "thesis",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Peer feedback in large lectures",
+     "genre": "Unpublished master's thesis",
+     "publisher": "Northfield University"
+    },
+    "issued": {
+     "year": 2019
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Baker, T. (2019). Peer feedback in large lectures [Unpublished master's thesis]. Northfield University.",
+  "expected_italic": [
+   "Peer feedback in large lectures"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-presentation-date-range",
+  "category": "conference paper",
+  "reason": "Presentation: full date range, bracketed description, event and location.",
+  "references": [
+   {
+    "id": "pres",
+    "type": "presentation",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Huang",
+       "given": "Yi"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Reeve",
+       "given": "Kara"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Communication pedagogy and generative tools",
+     "event": "Annual Meeting of the Eastern Communication Association",
+     "event_place": "Boston, MA, United States"
+    },
+    "issued": {
+     "year": 2023,
+     "month": 4,
+     "day": 12,
+     "end": {
+      "month": 4,
+      "day": 14
+     }
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Huang, Y., & Reeve, K. (2023, April 12–14). Communication pedagogy and generative tools [Paper presentation]. Annual Meeting of the Eastern Communication Association, Boston, MA, United States.",
+  "expected_italic": [
+   "Communication pedagogy and generative tools"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-dataset-version",
+  "category": "dataset",
+  "reason": "Dataset: version in parentheses, [Data set], publisher, DOI.",
+  "references": [
+   {
+    "id": "dataset",
+    "type": "dataset",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kim",
+       "given": "Soo-Jin"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Instructor AI survey responses",
+     "version": "2.1",
+     "publisher": "Open Data Archive",
+     "doi": "10.5555/data.2024.9"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Kim, S.-J. (2024). Instructor AI survey responses (Version 2.1) [Data set]. Open Data Archive. https://doi.org/10.5555/data.2024.9",
+  "expected_italic": [
+   "Instructor AI survey responses"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-software-version",
+  "category": "software",
+  "reason": "Software: version and [Computer software]; URL with no publisher.",
+  "references": [
+   {
+    "id": "software",
+    "type": "software",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Ortiz",
+       "given": "Lucia"
+      }
+     }
+    ],
+    "fields": {
+     "title": "CiteCheck",
+     "version": "1.4",
+     "url": "https://example.org/citecheck"
+    },
+    "issued": {
+     "year": 2022
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Ortiz, L. (2022). CiteCheck (Version 1.4) [Computer software]. https://example.org/citecheck",
+  "expected_italic": [
+   "CiteCheck"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-preprint",
+  "category": "preprint",
+  "reason": "Preprint: italic title, repository name, DOI.",
+  "references": [
+   {
+    "id": "preprint",
+    "type": "preprint",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Prompting practices in writing courses",
+     "publisher": "EduPrints",
+     "doi": "10.5555/edarxiv.abc"
+    },
+    "issued": {
+     "year": 2023
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Patel, M., & Chen, L. (2023). Prompting practices in writing courses. EduPrints. https://doi.org/10.5555/edarxiv.abc",
+  "expected_italic": [
+   "Prompting practices in writing courses"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-magazine-dated",
+  "category": "periodical",
+  "reason": "Magazine article with full date; magazine and volume italic.",
+  "references": [
+   {
+    "id": "magazine",
+    "type": "article-magazine",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Reed",
+       "given": "Alex"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Why teachers reflect",
+     "container_title": "Education Monthly",
+     "volume": "44",
+     "issue": "3",
+     "page": "22-25"
+    },
+    "issued": {
+     "year": 2021,
+     "month": 3,
+     "day": 2
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Reed, A. (2021, March 2). Why teachers reflect. Education Monthly, 44(3), 22–25.",
+  "expected_italic": [
+   "Education Monthly, 44"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-newspaper-online",
+  "category": "periodical",
+  "reason": "Online newspaper article: full date, italic newspaper name, URL.",
+  "references": [
+   {
+    "id": "newspaper",
+    "type": "article-newspaper",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Lopez",
+       "given": "Marta"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Colleges adopt AI guidelines",
+     "container_title": "The Daily Courier",
+     "url": "https://example.com/news/ai"
+    },
+    "issued": {
+     "year": 2024,
+     "month": 1,
+     "day": 9
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Lopez, M. (2024, January 9). Colleges adopt AI guidelines. The Daily Courier. https://example.com/news/ai",
+  "expected_italic": [
+   "The Daily Courier"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-translation-original-date",
+  "category": "translation",
+  "reason": "Translator in parentheses after the title; original publication date at the end.",
+  "references": [
+   {
+    "id": "transl",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Dupont",
+       "given": "André"
+      }
+     },
+     {
+      "role": "translator",
+      "name": {
+       "family": "Kerr",
+       "given": "Morag"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Lessons on teaching",
+     "publisher": "Harbor Books"
+    },
+    "issued": {
+     "year": 2015
+    },
+    "original_date": {
+     "year": 1952
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Dupont, A. (2015). Lessons on teaching (M. Kerr, Trans.). Harbor Books. (Original work published 1952)",
+  "expected_italic": [
+   "Lessons on teaching"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-particle-and-suffix",
+  "category": "names",
+  "reason": "A particle kept with the surname as written; a suffix follows the initials after a comma.",
+  "references": [
+   {
+    "id": "particle",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Berg",
+       "given": "Johanna",
+       "particle": "van der"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Jones",
+       "given": "Michael",
+       "suffix": "Jr."
+      }
+     }
+    ],
+    "fields": {
+     "title": "Names in scholarly metadata",
+     "container_title": "Metadata Quarterly",
+     "volume": "3",
+     "issue": "2",
+     "page": "9-18"
+    },
+    "issued": {
+     "year": 2020
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "van der Berg, J., & Jones, M., Jr. (2020). Names in scholarly metadata. Metadata Quarterly, 3(2), 9–18.",
+  "expected_italic": [
+   "Metadata Quarterly, 3"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-mononym",
+  "category": "names",
+  "reason": "A person known by one name is written as that name alone.",
+  "references": [
+   {
+    "id": "mono",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "mononym",
+       "literal": "Sukarno"
+      }
+     }
+    ],
+    "fields": {
+     "title": "An autobiography",
+     "publisher": "Harbor Books"
+    },
+    "issued": {
+     "year": 1965
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Sukarno. (1965). An autobiography. Harbor Books.",
+  "expected_italic": [
+   "An autobiography"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-unicode-names",
+  "category": "multilingual",
+  "reason": "Diacritics and non-English titles are preserved exactly.",
+  "references": [
+   {
+    "id": "uni",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Müller",
+       "given": "Änne"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Øberg",
+       "given": "Søren"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Lärande och reflektion",
+     "container_title": "Nordisk Pedagogik",
+     "volume": "5",
+     "issue": "1",
+     "page": "1-10"
+    },
+    "issued": {
+     "year": 2022
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Müller, Ä., & Øberg, S. (2022). Lärande och reflektion. Nordisk Pedagogik, 5(1), 1–10.",
+  "expected_italic": [
+   "Nordisk Pedagogik, 5"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "ref-in-press",
+  "category": "missing date",
+  "reason": "A work accepted for publication uses (in press).",
+  "references": [
+   {
+    "id": "inpress",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Garcia",
+       "given": "Rosa"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Mentoring new faculty",
+     "container_title": "Journal of Higher Education Practice"
+    },
+    "issued": {
+     "status": "in press"
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "reference",
+  "quote": "",
+  "expected_text": "Garcia, R. (in press). Mentoring new faculty. Journal of Higher Education Practice.",
+  "expected_italic": [
+   "Journal of Higher Education Practice"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "bib-same-author-same-year",
+  "category": "disambiguation",
+  "reason": "Same authors and year: letters a and b assigned by title order, in the reference list and the date.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   },
+   {
+    "id": "cp-a",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Faculty reflection in practice",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "1",
+     "page": "1-14"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "bibliography",
+  "quote": "",
+  "expected_text": "Chen, L., & Patel, M. (2024a). Faculty reflection in practice. Journal of Teaching Practice, 12(1), 1–14.\nChen, L., & Patel, M. (2024b). Teaching with generative AI. Journal of Teaching Practice, 12(2), 115–132.",
+  "expected_italic": [
+   "Journal of Teaching Practice, 12",
+   "Journal of Teaching Practice, 12"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "bib-sort-nothing-before-something",
+  "category": "sorting",
+  "reason": "One-author entries precede multi-author entries by the same first author; “Brown” precedes “Browning”.",
+  "references": [
+   {
+    "id": "browning",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Browning",
+       "given": "Amy"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Lecture craft",
+     "publisher": "Hill Press"
+    },
+    "issued": {
+     "year": 2017
+    }
+   },
+   {
+    "id": "brown-ali",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Brown",
+       "given": "Jane"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ali",
+       "given": "Karim"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Discussion methods",
+     "publisher": "Hill Press"
+    },
+    "issued": {
+     "year": 2018
+    }
+   },
+   {
+    "id": "brown",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Brown",
+       "given": "Jane"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Seminar teaching",
+     "publisher": "Hill Press"
+    },
+    "issued": {
+     "year": 2019
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "bibliography",
+  "quote": "",
+  "expected_text": "Brown, J. (2019). Seminar teaching. Hill Press.\nBrown, J., & Ali, K. (2018). Discussion methods. Hill Press.\nBrowning, A. (2017). Lecture craft. Hill Press.",
+  "expected_italic": [
+   "Seminar teaching",
+   "Discussion methods",
+   "Lecture craft"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "bib-nd-before-dated",
+  "category": "sorting",
+  "reason": "For the same author, an undated work comes before dated works.",
+  "references": [
+   {
+    "id": "smith20",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Smith",
+       "given": "Ava"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Course design",
+     "container_title": "Teaching Today",
+     "volume": "2",
+     "page": "5-9"
+    },
+    "issued": {
+     "year": 2020
+    }
+   },
+   {
+    "id": "smith-nd",
+    "type": "webpage",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Smith",
+       "given": "Ava"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Notes on course design",
+     "container_title": "Ava Smith's Teaching Blog",
+     "url": "https://example.net/notes"
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "bibliography",
+  "quote": "",
+  "expected_text": "Smith, A. (n.d.). Notes on course design. Ava Smith's Teaching Blog. https://example.net/notes\nSmith, A. (2020). Course design. Teaching Today, 2, 5–9.",
+  "expected_italic": [
+   "Notes on course design",
+   "Teaching Today, 2"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "bib-personal-communication-excluded",
+  "category": "personal communication",
+  "reason": "Personal communications are not placed in the reference list.",
+  "references": [
+   {
+    "id": "pc",
+    "type": "personal-communication",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Rivera",
+       "given": "Ana"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Email about course design"
+    },
+    "issued": {
+     "year": 2024,
+     "month": 3,
+     "day": 5
+    }
+   },
+   {
+    "id": "miller",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Miller",
+       "given": "James"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Developing AI communication competencies",
+     "edition": "2",
+     "publisher": "Northfield Press"
+    },
+    "issued": {
+     "year": 2021
+    }
+   }
+  ],
+  "context": [],
+  "cite": [],
+  "mode": "bibliography",
+  "quote": "",
+  "expected_text": "Miller, J. (2021). Developing AI communication competencies (2nd ed.). Northfield Press.",
+  "expected_italic": [
+   "Developing AI communication competencies"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-two-authors",
+  "category": "in-text",
+  "reason": "Parenthetical: both surnames joined by an ampersand.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Chen & Patel, 2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "narr-two-authors",
+  "category": "in-text",
+  "reason": "Narrative: surnames joined by “and”, year in parentheses. Composed separately, not by editing the parenthetical form.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp"
+   }
+  ],
+  "mode": "narrative",
+  "quote": "",
+  "expected_text": "Chen and Patel (2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-page-locator",
+  "category": "locators",
+  "reason": "Single page locator with p.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp",
+    "locator_label": "page",
+    "locator": "121"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Chen & Patel, 2024, p. 121)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "narr-page-locator",
+  "category": "locators",
+  "reason": "Narrative form with the locator inside the year parentheses.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp",
+    "locator_label": "page",
+    "locator": "121"
+   }
+  ],
+  "mode": "narrative",
+  "quote": "",
+  "expected_text": "Chen and Patel (2024, p. 121)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-page-range",
+  "category": "locators",
+  "reason": "Page range uses pp. and an en dash.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp",
+    "locator_label": "page",
+    "locator": "121-123"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Chen & Patel, 2024, pp. 121–123)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-paragraph",
+  "category": "locators",
+  "reason": "Paragraph locator for unpaginated works.",
+  "references": [
+   {
+    "id": "garcia",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Garcia",
+       "given": "Rosa"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Faculty development in the age of AI",
+     "container_title": "Journal of Higher Education Practice",
+     "volume": "8",
+     "issue": "1",
+     "article_number": "e1042",
+     "doi": "10.5555/jhep.2022.1042"
+    },
+    "issued": {
+     "year": 2022
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "garcia",
+    "locator_label": "paragraph",
+    "locator": "4"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Garcia, 2022, para. 4)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-three-authors",
+  "category": "in-text",
+  "reason": "Three or more authors: first surname and et al. from the first citation.",
+  "references": [
+   {
+    "id": "kim",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kim",
+       "given": "Soo-Jin"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ortiz",
+       "given": "Lucia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Assessment practices for AI-era learning",
+     "container_title": "Assessment Review",
+     "volume": "31",
+     "issue": "4",
+     "page": "201-219",
+     "doi": "10.5555/ar.2024.31.4.201"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "kim"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Kim et al., 2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "narr-three-authors",
+  "category": "in-text",
+  "reason": "Narrative et al. form.",
+  "references": [
+   {
+    "id": "kim",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kim",
+       "given": "Soo-Jin"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ortiz",
+       "given": "Lucia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Assessment practices for AI-era learning",
+     "container_title": "Assessment Review",
+     "volume": "31",
+     "issue": "4",
+     "page": "201-219",
+     "doi": "10.5555/ar.2024.31.4.201"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "kim"
+   }
+  ],
+  "mode": "narrative",
+  "quote": "",
+  "expected_text": "Kim et al. (2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-group-author",
+  "category": "group author",
+  "reason": "Group author written in full.",
+  "references": [
+   {
+    "id": "apa",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "American Psychological Association"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Publication manual of the American Psychological Association",
+     "edition": "7",
+     "publisher": "American Psychological Association",
+     "doi": "10.1037/0000165-000"
+    },
+    "issued": {
+     "year": 2020
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "apa"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(American Psychological Association, 2020)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-no-author-article",
+  "category": "missing author",
+  "reason": "No author, part of a work: title in title case in quotation marks, comma inside the closing mark.",
+  "references": [
+   {
+    "id": "news-na",
+    "type": "article-newspaper",
+    "creators": [],
+    "fields": {
+     "title": "Study finds reflection helps new instructors",
+     "container_title": "The Daily Courier",
+     "url": "https://example.com/news/reflection"
+    },
+    "issued": {
+     "year": 2021,
+     "month": 9,
+     "day": 14
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "news-na"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(“Study Finds Reflection Helps New Instructors,” 2021)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "narr-no-author-article",
+  "category": "missing author",
+  "reason": "Narrative form of a quoted title.",
+  "references": [
+   {
+    "id": "news-na",
+    "type": "article-newspaper",
+    "creators": [],
+    "fields": {
+     "title": "Study finds reflection helps new instructors",
+     "container_title": "The Daily Courier",
+     "url": "https://example.com/news/reflection"
+    },
+    "issued": {
+     "year": 2021,
+     "month": 9,
+     "day": 14
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "news-na"
+   }
+  ],
+  "mode": "narrative",
+  "quote": "",
+  "expected_text": "“Study Finds Reflection Helps New Instructors” (2021)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-no-author-book",
+  "category": "missing author",
+  "reason": "No author, standalone work: italic title in title case.",
+  "references": [
+   {
+    "id": "dict",
+    "type": "book",
+    "creators": [],
+    "fields": {
+     "title": "Northfield's collegiate dictionary",
+     "edition": "11",
+     "publisher": "Northfield Press"
+    },
+    "issued": {
+     "year": 2003
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "dict"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Northfield's Collegiate Dictionary, 2003)",
+  "expected_italic": [
+   "Northfield's Collegiate Dictionary"
+  ],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-no-date",
+  "category": "missing date",
+  "reason": "Undated work uses n.d.",
+  "references": [
+   {
+    "id": "cte",
+    "type": "webpage",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "Center for Teaching Excellence"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Designing reflective assignments",
+     "container_title": "Center for Teaching Excellence",
+     "url": "https://example.edu/reflect"
+    },
+    "accessed": {
+     "year": 2024,
+     "month": 3,
+     "day": 5
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cte"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Center for Teaching Excellence, n.d.)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-nd-suffix",
+  "category": "disambiguation",
+  "reason": "Two undated works by the same author: n.d.-a and n.d.-b, ordered by title.",
+  "references": [
+   {
+    "id": "cte2",
+    "type": "webpage",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "Center for Teaching Excellence"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Peer observation of teaching",
+     "url": "https://example.edu/peer"
+    }
+   }
+  ],
+  "context": [
+   {
+    "id": "cte",
+    "type": "webpage",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "kind": "organization",
+       "literal": "Center for Teaching Excellence"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Designing reflective assignments",
+     "container_title": "Center for Teaching Excellence",
+     "url": "https://example.edu/reflect"
+    },
+    "accessed": {
+     "year": 2024,
+     "month": 3,
+     "day": 5
+    }
+   }
+  ],
+  "cite": [
+   {
+    "ref_id": "cte2"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Center for Teaching Excellence, n.d.-b)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-year-suffix-context",
+  "category": "disambiguation",
+  "reason": "The manuscript context contains another 2024 work by the same authors, so the year takes a suffix.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [
+   {
+    "id": "cp-a",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Faculty reflection in practice",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "1",
+     "page": "1-14"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "cite": [
+   {
+    "ref_id": "cp"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Chen & Patel, 2024b)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-group-ordering",
+  "category": "clusters",
+  "reason": "Several works in one parenthesis are ordered as in the reference list and separated by semicolons.",
+  "references": [
+   {
+    "id": "kim",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kim",
+       "given": "Soo-Jin"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Ortiz",
+       "given": "Lucia"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Assessment practices for AI-era learning",
+     "container_title": "Assessment Review",
+     "volume": "31",
+     "issue": "4",
+     "page": "201-219",
+     "doi": "10.5555/ar.2024.31.4.201"
+    },
+    "issued": {
+     "year": 2024
+    }
+   },
+   {
+    "id": "baker",
+    "type": "thesis",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "AI literacy for university educators",
+     "genre": "Doctoral dissertation",
+     "publisher": "Northfield University",
+     "archive": "Open Theses Repository",
+     "url": "https://example.org/thesis/123"
+    },
+    "issued": {
+     "year": 2023
+    }
+   },
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "kim"
+   },
+   {
+    "ref_id": "baker"
+   },
+   {
+    "ref_id": "cp"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Baker, 2023; Chen & Patel, 2024; Kim et al., 2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-same-authors-years",
+  "category": "clusters",
+  "reason": "Same authors, different years: names once, years in order.",
+  "references": [
+   {
+    "id": "cp22",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Early classroom experiments",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "10",
+     "issue": "3",
+     "page": "40-52"
+    },
+    "issued": {
+     "year": 2022
+    }
+   },
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp"
+   },
+   {
+    "ref_id": "cp22"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Chen & Patel, 2022, 2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-etal-ambiguity-three",
+  "category": "disambiguation",
+  "reason": "Three-author works that shorten to the same form in the same year are written out in full.",
+  "references": [
+   {
+    "id": "kap1",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kapoor",
+       "given": "Asha"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Bloom",
+       "given": "Ben"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Zucker",
+       "given": "Carl"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Attention in lectures",
+     "container_title": "Learning Science",
+     "volume": "4",
+     "page": "1-9"
+    },
+    "issued": {
+     "year": 2017
+    }
+   }
+  ],
+  "context": [
+   {
+    "id": "kap2",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kapoor",
+       "given": "Asha"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Bloom",
+       "given": "Ben"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Wong",
+       "given": "Dee"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Memory in seminars",
+     "container_title": "Learning Science",
+     "volume": "4",
+     "page": "10-19"
+    },
+    "issued": {
+     "year": 2017
+    }
+   }
+  ],
+  "cite": [
+   {
+    "ref_id": "kap1"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Kapoor, Bloom, & Zucker, 2017)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-etal-ambiguity-five",
+  "category": "disambiguation",
+  "reason": "Five-author works: as many names as needed to distinguish them, then et al.",
+  "references": [
+   {
+    "id": "kap5a",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kapoor",
+       "given": "Asha"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Bloom",
+       "given": "Ben"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Montez",
+       "given": "Carla"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Warner",
+       "given": "Dan"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Hill",
+       "given": "Eve"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Note taking",
+     "container_title": "Learning Science",
+     "volume": "4",
+     "page": "20-29"
+    },
+    "issued": {
+     "year": 2017
+    }
+   }
+  ],
+  "context": [
+   {
+    "id": "kap5b",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Kapoor",
+       "given": "Asha"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Bloom",
+       "given": "Ben"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Zucker",
+       "given": "Carl"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Tang",
+       "given": "Fei"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Hill",
+       "given": "Eve"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Retrieval practice",
+     "container_title": "Learning Science",
+     "volume": "4",
+     "page": "30-39"
+    },
+    "issued": {
+     "year": 2017
+    }
+   }
+  ],
+  "cite": [
+   {
+    "ref_id": "kap5a"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Kapoor, Bloom, Montez, et al., 2017)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-first-author-initials",
+  "category": "disambiguation",
+  "reason": "Different first authors with the same surname: initials added in text.",
+  "references": [
+   {
+    "id": "jsmith",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Smith",
+       "given": "John"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Grading at scale",
+     "container_title": "Teaching Today",
+     "volume": "2",
+     "page": "10-19"
+    },
+    "issued": {
+     "year": 2020
+    }
+   }
+  ],
+  "context": [
+   {
+    "id": "smith20",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Smith",
+       "given": "Ava"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Course design",
+     "container_title": "Teaching Today",
+     "volume": "2",
+     "page": "5-9"
+    },
+    "issued": {
+     "year": 2020
+    }
+   }
+  ],
+  "cite": [
+   {
+    "ref_id": "jsmith"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(J. Smith, 2020)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "narr-multiple",
+  "category": "clusters",
+  "reason": "Narrative citation of two works joined with “and”.",
+  "references": [
+   {
+    "id": "baker",
+    "type": "thesis",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Baker",
+       "given": "Tom"
+      }
+     }
+    ],
+    "fields": {
+     "title": "AI literacy for university educators",
+     "genre": "Doctoral dissertation",
+     "publisher": "Northfield University",
+     "archive": "Open Theses Repository",
+     "url": "https://example.org/thesis/123"
+    },
+    "issued": {
+     "year": 2023
+    }
+   },
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "baker"
+   },
+   {
+    "ref_id": "cp"
+   }
+  ],
+  "mode": "narrative",
+  "quote": "",
+  "expected_text": "Baker (2023) and Chen and Patel (2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-prefix-suffix",
+  "category": "clusters",
+  "reason": "Prefix and suffix text inside the parentheses.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp",
+    "prefix": "see",
+    "suffix": "for a review"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(see Chen & Patel, 2024, for a review)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-original-date",
+  "category": "translation",
+  "reason": "Republished work: original and republication years separated by a slash.",
+  "references": [
+   {
+    "id": "transl",
+    "type": "book",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Dupont",
+       "given": "André"
+      }
+     },
+     {
+      "role": "translator",
+      "name": {
+       "family": "Kerr",
+       "given": "Morag"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Lessons on teaching",
+     "publisher": "Harbor Books"
+    },
+    "issued": {
+     "year": 2015
+    },
+    "original_date": {
+     "year": 1952
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "transl"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Dupont, 1952/2015)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-personal-communication",
+  "category": "personal communication",
+  "reason": "Personal communication: initials, surname, the words personal communication, exact date.",
+  "references": [
+   {
+    "id": "pc",
+    "type": "personal-communication",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Rivera",
+       "given": "Ana"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Email about course design"
+    },
+    "issued": {
+     "year": 2024,
+     "month": 3,
+     "day": 5
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "pc"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(A. Rivera, personal communication, March 5, 2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "narr-personal-communication",
+  "category": "personal communication",
+  "reason": "Narrative personal communication.",
+  "references": [
+   {
+    "id": "pc",
+    "type": "personal-communication",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Rivera",
+       "given": "Ana"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Email about course design"
+    },
+    "issued": {
+     "year": 2024,
+     "month": 3,
+     "day": 5
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "pc"
+   }
+  ],
+  "mode": "narrative",
+  "quote": "",
+  "expected_text": "A. Rivera (personal communication, March 5, 2024)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "quote-short",
+  "category": "quotations",
+  "reason": "Short quotation in double quotation marks, citation with page after it, sentence period after the citation.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp",
+    "locator_label": "page",
+    "locator": "121"
+   }
+  ],
+  "mode": "quote",
+  "quote": "Faculty learning benefits from structured opportunities to reflect on teaching practice.",
+  "expected_text": "“Faculty learning benefits from structured opportunities to reflect on teaching practice” (Chen & Patel, 2024, p. 121).",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-unicode",
+  "category": "multilingual",
+  "reason": "Diacritics preserved in text citations.",
+  "references": [
+   {
+    "id": "uni",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Müller",
+       "given": "Änne"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Øberg",
+       "given": "Søren"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Lärande och reflektion",
+     "container_title": "Nordisk Pedagogik",
+     "volume": "5",
+     "issue": "1",
+     "page": "1-10"
+    },
+    "issued": {
+     "year": 2022
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "uni"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(Müller & Øberg, 2022)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ },
+ {
+  "id": "paren-particle",
+  "category": "names",
+  "reason": "A kept particle appears with the surname in text.",
+  "references": [
+   {
+    "id": "particle",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Berg",
+       "given": "Johanna",
+       "particle": "van der"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Jones",
+       "given": "Michael",
+       "suffix": "Jr."
+      }
+     }
+    ],
+    "fields": {
+     "title": "Names in scholarly metadata",
+     "container_title": "Metadata Quarterly",
+     "volume": "3",
+     "issue": "2",
+     "page": "9-18"
+    },
+    "issued": {
+     "year": 2020
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "particle"
+   }
+  ],
+  "mode": "parenthetical",
+  "quote": "",
+  "expected_text": "(van der Berg & Jones, 2020)",
+  "expected_italic": [],
+  "reviewed_by": ""
+ }
+]
