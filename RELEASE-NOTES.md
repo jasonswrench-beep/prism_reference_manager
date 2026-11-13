@@ -14,6 +14,11 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Working with selections and projects.** Project tasks on the dashboard and from a selected
+source; rating a selection (per project or library-wide), adding it to a collection, renaming
+or exporting its files; a project's evaluation and tags for each source; unlinking versions;
+renaming projects, choosing their colour, and renaming the library.
+
 **Export.** Excel workbooks, copying selected sources as BibTeX, biblatex, RIS or CSL JSON,
 named export presets, and files kept up to date in any of those formats (not only BibTeX).
 Notes export to plain text; annotations export to DOCX and structured JSON.

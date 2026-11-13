@@ -386,6 +386,36 @@ registerView("library", {
             const item = (label, f) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: async () => { close(); try { const r = await call("export.copy", { ids, format: f }); toast(`${r.count} source${r.count === 1 ? "" : "s"} copied as ${label}`, "success"); } catch (err) { showError(err); } } } }, label);
             close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Copy as", style: { minWidth: "180px" } }, item("BibTeX", "bibtex"), item("biblatex", "biblatex"), item("RIS", "ris"), item("CSL JSON", "csljson")));
           } }),
+          btn("Rate", { small: true, icon: "star", onClick: (e) => {
+            const ids = [...st.selected];
+            const inProject = st.scope === "project" && S.project;
+            let close;
+            const item = (n) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: async () => {
+              close();
+              const k = inProject ? await call("membership.set_rating", { project_id: S.project.project.id, ids, rating: n }) : (await call("refs.set_rating", { ids, rating: n }), ids.length);
+              toast(`${n ? "★".repeat(n) : "Rating removed"} for ${k} source${k === 1 ? "" : "s"}${inProject ? " in this project" : ""}`, "success"); loadList();
+            } } }, n ? "★".repeat(n) : "No rating");
+            close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": inProject ? "Project rating" : "Rating" }, [5, 4, 3, 2, 1, 0].map(item)));
+          } }),
+          btn("Add to collection", { small: true, icon: "folder", onClick: (e) => {
+            const ids = [...st.selected];
+            const list = collections.filter((c) => !c.query && (!c.project_id || c.project_id === S.project?.project.id)).sort((a, b) => a.name.localeCompare(b.name));
+            let close;
+            close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Collections", style: { maxHeight: "300px", overflow: "auto", minWidth: "220px" } },
+              list.length ? list.map((c) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: async () => { close(); await call("collections.collect", { id: c.id, ids, add: true }); toast(`Added to “${c.name}”`, "success"); go("library"); } } }, c.name)) : h("p.small.muted", { style: { padding: "6px 10px" } }, "No collections yet. Create one with + beside Collections.")));
+          } }),
+          btn("Files", { small: true, icon: "chevronDown", onClick: (e) => {
+            const ids = [...st.selected];
+            let close;
+            const item = (label, run) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: () => { close(); run(); } } }, label);
+            close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Files", style: { minWidth: "240px" } },
+              item("Rename attached files…", () => dialogs.renameFiles(ids)),
+              item("Export attached files…", () => dialogs.exportFiles(ids))));
+          } }),
+          n === 1 && S.project ? btn("Add task", { small: true, icon: "check", onClick: async () => {
+            const t = await promptDialog("New task", "What needs doing with this source?", "", { ok: "Add task" });
+            if (t) { await call("tasks.save", { task: { title: t, project_id: S.project.project.id, ref_id: [...st.selected][0] } }); toast("Task added to the project", "success"); }
+          } }) : null,
           btn("Clean up", { small: true, icon: "chevronDown", onClick: (e) => {
             const ids = [...st.selected];
             let close;
@@ -583,7 +613,8 @@ registerView("library", {
           ...(r.notices || []).map((n) => h("div.notice.error", icon("warn"), h("div", h("strong", `${n.kind} notice`), h("div.small", `${n.date} • ${n.source}`), n.url ? h("a", { href: "#", on: { click: (e) => { e.preventDefault(); call("system.open_url", { url: n.url }); } } }, "Read the notice") : null))),
           (r.conflicts || []).length ? h("div.notice.warn", icon("warn"), h("div", h("strong", "Conflicting values"), ...r.conflicts.map((c) => h("div.small", `${fieldLabel(c.field)}: “${c.value}” from ${c.source}`, " ", btn("Use this", { small: true, onClick: async () => { await call("refs.resolve_conflict", { id: r.id, field: c.field, value: c.value }); drawInspector(); } }), btn("Keep current", { small: true, onClick: async () => { await call("refs.resolve_conflict", { id: r.id, field: c.field, value: null }); drawInspector(); } }))))) : null,
           h("table", { style: { width: "100%", borderCollapse: "collapse" } }, h("tbody", rows.map(([k, v]) => h("tr", h("td.muted", { style: { padding: "5px 8px 5px 0", verticalAlign: "top", width: "34%" } }, k), h("td", { style: { padding: "5px 0" } }, v))))),
-          d.versions.length ? h("div.card.pad", { style: { marginTop: "8px" } }, h("strong", "Other versions of this work"), ...d.versions.map((v) => h("div.small", `${v.version_label || v.type}: ${v.fields.title} (${v.issued?.year || "n.d."})${v.preferred_version ? " • cited version" : ""}`))) : null,
+          d.versions.length ? h("div.card.pad", { style: { marginTop: "8px" } }, h("strong", "Other versions of this work"), ...d.versions.map((v) => h("div.small", `${v.version_label || v.type}: ${v.fields.title} (${v.issued?.year || "n.d."})${v.preferred_version ? " • cited version" : ""}`)),
+            btn("Unlink this source from them", { small: true, kind: "ghost", onClick: async () => { await call("refs.unlink_version", { id: r.id }); toast("No longer linked as a version", "success", { action: { label: "Undo", run: async () => { await call("undo"); await refresh(); } } }); drawInspector(); } })) : null,
           membership ? h("div", { style: { marginTop: "12px" } }, h("h3", { style: { fontSize: "15px" } }, `In “${S.project.project.title}”`),
             h("div.grid2",
               field("Reading", select([["unread", "Not read"], ["reading", "Reading"], ["read", "Read"]], membership.reading || "unread", { on: { change: (e) => saveMembership({ ...membership, reading: e.target.value }) } })),
@@ -591,6 +622,8 @@ registerView("library", {
               field("Inclusion", select([["candidate", "Candidate"], ["included", "Included"], ["excluded", "Excluded"], ["undecided", "Undecided"]], membership.inclusion || "candidate", { on: { change: (e) => saveMembership({ ...membership, inclusion: e.target.value }) } })),
               field("Rating", select([["0", "None"], ["1", "★"], ["2", "★★"], ["3", "★★★"], ["4", "★★★★"], ["5", "★★★★★"]], String(membership.rating || 0), { on: { change: (e) => saveMembership({ ...membership, rating: +e.target.value }) } }))),
             membership.inclusion === "excluded" ? field("Exclusion reason", h("input", { value: membership.exclusion_reason || "", on: { change: (e) => saveMembership({ ...membership, exclusion_reason: e.target.value }) } })) : null,
+            field("Project tags", h("input", { value: (membership.tags || []).join("; "), placeholder: "Separate with semicolons", on: { change: (e) => saveMembership({ ...membership, tags: e.target.value.split(";").map((x) => x.trim()).filter(Boolean) }) } }), "Visible only in this project."),
+            field("Evaluation", h("textarea", { rows: 3, value: membership.evaluation || "", placeholder: "Strengths, limits, how it fits this project", on: { change: (e) => saveMembership({ ...membership, evaluation: e.target.value }) } }), "Kept with this project, not with the source."),
             h("div.small.muted", `Used in ${d.impact.projects.length} project${d.impact.projects.length === 1 ? "" : "s"}${d.impact.projects.length > 1 ? ": " + d.impact.projects.map((p) => p[1]).join(", ") : ""}`))
             : S.project ? h("div.btn-row", { style: { marginTop: "10px" } }, btn(`Add to “${S.project.project.title}”`, { small: true, onClick: async () => { await call("projects.add_sources", { id: S.project.project.id, ids: [r.id] }); await refresh(); } })) : null,
           await citationPreview(r));

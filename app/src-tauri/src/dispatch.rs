@@ -780,6 +780,20 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(true)
         }
         "membership.update" => ok(lib_mut(st)?.update_membership(arg(a, "membership")?).map_err(err)?),
+        "membership.set_rating" => {
+            let l = lib_mut(st)?;
+            let pid = s(a, "project_id");
+            let rating: u8 = opt(a, "rating");
+            let mut n = 0;
+            for id in arg::<Vec<String>>(a, "ids")? {
+                if let Some(mut m) = l.membership(&pid, &id).map_err(err)? {
+                    m.rating = rating.min(5);
+                    l.update_membership(m).map_err(err)?;
+                    n += 1;
+                }
+            }
+            ok(n)
+        }
         "membership.position" => ok(lib_mut(st)?.set_reading_position(&s(a, "project_id"), &s(a, "ref_id"), arg(a, "position")?).map_err(err)?),
         "manuscripts.create" => ok(lib_mut(st)?.create_manuscript(&s(a, "project_id"), &s(a, "title"), &s(a, "style"), &s(a, "locale")).map_err(err)?),
         "manuscripts.update" => ok(lib_mut(st)?.update_manuscript(arg(a, "manuscript")?).map_err(err)?),

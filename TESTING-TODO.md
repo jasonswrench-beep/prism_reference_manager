@@ -271,7 +271,7 @@ work that could not be verified here or an owner decision.
   bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other
   programs (EXT-013).
-- Text recognition (OCR) for scanned PDFs (FIL-010); tasks interface (KNW-012; the data model exists).
+- Text recognition (OCR) for scanned PDFs (FIL-010).
 
 ## Automated checks that pass in this build
 

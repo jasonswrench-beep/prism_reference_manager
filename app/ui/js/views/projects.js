@@ -1,7 +1,7 @@
 // Welcome (no library open) and the projects dashboard.
 
 import { call } from "../api.js";
-import { h, icon, btn, fmtDate, toast, confirmDialog, showError } from "../dom.js";
+import { h, icon, iconBtn, btn, fmtDate, toast, confirmDialog, showError, promptDialog } from "../dom.js";
 import { S, registerView, go, setProject, refresh, setManuscript } from "../app.js";
 import * as dialogs from "../dialogs.js";
 
@@ -25,6 +25,25 @@ registerView("welcome", {
     ));
   },
 });
+
+// Tasks for the active project: open first, then done; quick add; source links open the source.
+async function tasksCard(active) {
+  const tasks = await call("tasks.list", { project_id: active.project.id }).catch(() => []);
+  const box = h("div.card");
+  const input = h("input", { placeholder: "Add a task and press Enter", "aria-label": "New task" });
+  input.addEventListener("keydown", async (e) => { if (e.key === "Enter" && input.value.trim()) { await call("tasks.save", { task: { title: input.value.trim(), project_id: active.project.id } }); go("projects"); } });
+  const row = (t) => {
+    const cb = h("input", { type: "checkbox", checked: t.status === "done", "aria-label": `Done: ${t.title}`, on: { change: async (e) => { await call("tasks.save", { task: { ...t, status: e.target.checked ? "done" : "open" } }); go("projects"); } } });
+    return h("div.row", { style: { padding: "6px 12px", borderBottom: "1px solid var(--divider)", opacity: t.status === "done" ? 0.6 : 1 } }, cb,
+      h("div.grow", h("div", { style: { textDecoration: t.status === "done" ? "line-through" : "none" } }, t.title), t.due ? h("div.small.muted", "Due " + t.due) : null,
+        t.ref_id ? h("a.small", { href: "#", on: { click: (e) => { e.preventDefault(); go("library", { select: t.ref_id }); } } }, "Open source") : null),
+      iconBtn("trash", `Delete task ${t.title}`, async () => { await call("tasks.delete", { id: t.id }); go("projects"); }));
+  };
+  const open = tasks.filter((t) => t.status !== "done");
+  box.append(h("div", { style: { padding: "8px 12px" } }, input), ...open.map(row), ...tasks.filter((t) => t.status === "done").slice(0, 5).map(row));
+  if (!tasks.length) box.append(h("p.small.muted", { style: { padding: "0 12px 10px" } }, "No tasks yet. Add one here, or select a source in the Library and choose Add task."));
+  return h("div", h("h2.section-title", `Tasks (${open.length} open)`), box);
+}
 
 registerView("projects", {
   async render(el) {
@@ -62,6 +81,10 @@ registerView("projects", {
       h("div", h("h2.section-title", "Continue working"), active?.active_manuscript ? h("div.card.pad",
         h("div.row", icon("doc", 30), h("div", h("strong", { style: { fontSize: "17px" } }, active.active_manuscript.title), h("div.muted", (S.styles.find((s) => s.id === active.active_manuscript.style)?.title || active.active_manuscript.style) + " • " + active.project.title))),
         h("div.btn-row", { style: { marginTop: "10px" } }, btn("Open citation workspace", { kind: "primary", icon: "external", onClick: async () => { await setManuscript(active.active_manuscript.id); go("cite"); } }))) : h("div.card.pad.muted", "Create a project to begin.")),
+      active ? h("div.row.small", { style: { gap: "6px" } },
+        btn("Rename project…", { small: true, kind: "ghost", onClick: async () => { const t = await promptDialog("Rename project", "Name", active.project.title, { ok: "Rename" }); if (t && t.trim()) { try { await call("projects.update", { project: { ...active.project, title: t.trim() } }); await refresh(); go("projects"); } catch (e) { showError(e); } } } }),
+        h("label.row.small", "Colour ", h("input", { type: "color", value: active.project.color || "#1554D1", "aria-label": "Project colour", on: { change: async (e) => { await call("projects.update", { project: { ...active.project, color: e.target.value } }); await refresh(); go("projects"); } } }))) : null,
+      active ? await tasksCard(active) : null,
       h("div", h("h2.section-title", `Reading queue (${queue.length})`), h("div.card", queue.length ? queue.map((q) => h("button.proj-row", { type: "button", style: { gridTemplateColumns: "28px 1fr" }, on: { click: async () => { await setProject(q.project_id); go("reader", { ref: q.ref_id }); } } }, icon("doc"), h("span", h("div", { style: { fontWeight: 600 } }, q.title), h("div.small.muted", q.project + (q.priority === "high" ? " • high priority" : ""))))) : h("div.empty.small", "Mark sources as high priority or start reading to fill the queue."))));
     el.append(h("div", { style: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "20px" } },
       h("div", head, rows,

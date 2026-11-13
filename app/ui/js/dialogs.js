@@ -578,6 +578,37 @@ export async function checkLinks(ids) {
   await refresh();
 }
 
+/** Attachment ids of the given sources' current files. */
+async function attachmentIds(refIds) {
+  const out = [];
+  for (const id of refIds) for (const a of await call("files.list", { ref_id: id })) if (!a.superseded) out.push(a.id);
+  return out;
+}
+
+/** Rename managed files by a pattern, previewing the new names first. */
+export async function renameFiles(refIds) {
+  const ids = await attachmentIds(refIds);
+  if (!ids.length) return toast("The selected sources have no attached files.", "info");
+  const pat = h("input", { value: "[auth][year][shorttitle]" });
+  const prev = h("div", { style: { maxHeight: "40vh", overflow: "auto" } });
+  const draw = async () => { try { const plan = await call("files.rename", { ids, pattern: pat.value, apply: false }); clear(prev, h("table.table", h("tbody", plan.map(([, o, n]) => h("tr", h("td.small.mono", o.split("/").pop()), h("td", icon("arrowRight", 14)), h("td.small.mono", n.split("/").pop())))))); } catch (e) { clear(prev, h("div.notice.error", e.message)); } };
+  let t; pat.addEventListener("input", () => { clearTimeout(t); t = setTimeout(draw, 250); });
+  await draw();
+  const ok = await modal("Rename attached files", h("div", field("Name pattern", pat, "Tokens: [auth] [Auth] [authors2] [year] [shorttitle] [title3] [type]. Linked files outside the library are not renamed."), prev),
+    { size: "wide", buttons: [{ label: "Cancel" }, { label: "Rename", kind: "primary", run: () => call("files.rename", { ids, pattern: pat.value, apply: true }) }] }).done;
+  if (ok) toast(`${ok.length} files renamed`, "success");
+}
+
+/** Export the selected sources' files into a zip, named by a pattern. */
+export async function exportFiles(refIds) {
+  const ids = await attachmentIds(refIds);
+  if (!ids.length) return toast("The selected sources have no attached files.", "info");
+  const pat = h("input", { value: "[auth][year][shorttitle]" });
+  const r = await modal("Export attached files", h("div", h("p", `${ids.length} file${ids.length === 1 ? "" : "s"} will be copied into one zip archive. The library keeps its own copies.`), field("File name pattern", pat)),
+    { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Export…", kind: "primary", run: () => call("export.attachments", { ids, pattern: pat.value }) }] }).done;
+  if (r && !r.cancelled) toast(`Exported ${r.count ?? ids.length} files`, "success");
+}
+
 export async function health() {
   const body = h("div", h("p.muted", "Checking the library…"));
   modal("Library health report", body, { size: "wide", buttons: [{ label: "Close" }] });
