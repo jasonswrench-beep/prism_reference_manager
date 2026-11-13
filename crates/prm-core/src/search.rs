@@ -20,7 +20,7 @@ use crate::error::{Error, Result};
 use crate::util::fold;
 use rusqlite::{params, Connection};
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 const MAX_REGEX_SCAN: usize = 200_000;
 
@@ -53,6 +53,9 @@ pub fn reindex(conn: &Connection, table: &str, id: &str, data: Option<&str>) -> 
         _ => return Ok(()),
     };
     unindex(conn, entity, id)?;
+    if entity == "ref" {
+        index_sort_keys(conn, id, data)?;
+    }
     let Some(d) = data else { return Ok(()) };
     let v: serde_json::Value = serde_json::from_str(d)?;
     let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
@@ -102,6 +105,52 @@ pub fn reindex(conn: &Connection, table: &str, id: &str, data: Option<&str>) -> 
     Ok(())
 }
 
+/// Keep the list sort-key row for one reference current (a rebuildable cache).
+pub fn index_sort_keys(conn: &Connection, id: &str, data: Option<&str>) -> Result<()> {
+    conn.execute("DELETE FROM ref_index WHERE id=?1", params![id])?;
+    let Some(d) = data else { return Ok(()) };
+    let r: crate::model::Reference = serde_json::from_str(d)?;
+    let needs = !r.conflicts.is_empty() || r.title().trim().is_empty() || (r.issued.is_none() && !r.absent("issued")) || (r.creators.is_empty() && !r.absent("author"));
+    let year = r.issued.as_ref().map(|d| d.year.map(|y| format!("{y:05}")).unwrap_or(d.status.clone())).unwrap_or_default();
+    conn.execute(
+        "INSERT INTO ref_index(id,trashed,rtype,author_key,title_key,year_key,container_key,type_label,citekey,created,modified,rating,origin,needs_meta) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
+        params![
+            id,
+            r.trashed_at.is_some() as i64,
+            r.rtype,
+            crate::util::sort_key(&crate::library::author_short(&r)),
+            crate::util::sort_key(r.title()),
+            year,
+            crate::util::sort_key(r.f("container_title")),
+            crate::types::label(&r.rtype),
+            r.citekey,
+            r.created,
+            r.modified,
+            r.rating as i64,
+            r.origin,
+            needs as i64
+        ],
+    )?;
+    Ok(())
+}
+
+/// Rebuild the sort-key table when it does not match the store (new or older libraries).
+pub fn ensure_ref_index(conn: &Connection) -> Result<()> {
+    let a: i64 = conn.query_row("SELECT COUNT(*) FROM refs", [], |r| r.get(0))?;
+    let b: i64 = conn.query_row("SELECT COUNT(*) FROM ref_index", [], |r| r.get(0))?;
+    if a == b {
+        return Ok(());
+    }
+    let mut st = conn.prepare("SELECT id,data FROM refs")?;
+    let rows: Vec<(String, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<std::result::Result<_, _>>()?;
+    conn.execute_batch("BEGIN; DELETE FROM ref_index;")?;
+    for (id, d) in rows {
+        index_sort_keys(conn, &id, Some(&d))?;
+    }
+    conn.execute_batch("COMMIT")?;
+    Ok(())
+}
+
 /// Store extracted page text for an attachment (a cache; rebuildable from the file).
 pub fn index_pages(conn: &Connection, attachment_id: &str, pages: &[String]) -> Result<()> {
     unindex(conn, "page", attachment_id)?;
@@ -124,6 +173,34 @@ pub fn rebuild(conn: &Connection) -> Result<()> {
             reindex(conn, table, &id, Some(&d))?;
         }
     }
+    Ok(())
+}
+
+/// Version of the full-text index layout. When it changes, the index (a cache) is rebuilt from
+/// the store and from saved page text, so no PDF needs to be reopened.
+const FTS_VERSION: &str = "2";
+
+pub fn ensure_fts_version(conn: &Connection) -> Result<()> {
+    let v: Option<String> = conn.query_row("SELECT value FROM meta WHERE key='fts_version'", [], |r| r.get(0)).ok();
+    if v.as_deref() == Some(FTS_VERSION) {
+        return Ok(());
+    }
+    conn.execute_batch(
+        "BEGIN;
+         DROP TABLE IF EXISTS fts;
+         DELETE FROM fts_map;
+         CREATE VIRTUAL TABLE fts USING fts5(
+            entity UNINDEXED, entity_id UNINDEXED, scope UNINDEXED, field UNINDEXED, page UNINDEXED,
+            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4');",
+    )?;
+    rebuild(conn)?;
+    let mut st = conn.prepare("SELECT attachment_id, page, text FROM page_text ORDER BY attachment_id, page")?;
+    let rows: Vec<(String, i64, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<std::result::Result<_, _>>()?;
+    for (att, page, text) in rows {
+        ins(conn, "page", &att, "", "fulltext", page, &text)?;
+    }
+    conn.execute("INSERT INTO meta(key,value) VALUES('fts_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![FTS_VERSION])?;
+    conn.execute_batch("COMMIT")?;
     Ok(())
 }
 
@@ -357,6 +434,10 @@ pub struct Hit {
     pub field: String,
     pub page: i64,
     pub snippet: String,
+    /// Index row holding the original text; field, page and snippet are read only for
+    /// returned hits.
+    #[serde(skip)]
+    pub row: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -366,7 +447,8 @@ pub struct Results {
     pub truncated: bool,
 }
 
-type Key = (String, String); // (entity, id)
+/// (entity kind, id); the kind is one of a fixed set, so it is never allocated.
+type Key = (&'static str, String);
 
 fn fts_expr(value: &str, phrase: bool, near: Option<u32>) -> String {
     let f = fold(value);
@@ -417,37 +499,40 @@ fn field_filter(field: &str) -> Option<&'static [&'static str]> {
 
 struct Eval<'a> {
     conn: &'a Connection,
-    hits: BTreeMap<Key, Hit>,
+    /// Regex matches carry their own snippet.
+    hits: HashMap<Key, Hit>,
+    /// First index row for each entity matched by a word, read only for returned results.
+    rows: HashMap<Key, i64>,
     terms: Vec<String>,
 }
 
 impl<'a> Eval<'a> {
-    fn universe(&self) -> Result<BTreeSet<Key>> {
-        let mut s = BTreeSet::new();
+    fn universe(&self) -> Result<HashSet<Key>> {
+        let mut s = HashSet::new();
         let mut st = self.conn.prepare("SELECT id FROM refs WHERE trashed IS NULL")?;
         for r in st.query_map([], |r| r.get::<_, String>(0))? {
-            s.insert(("ref".to_string(), r?));
+            s.insert(("ref", r?));
         }
         Ok(s)
     }
 
-    fn term(&mut self, field: &str, value: &str, phrase: bool, near: Option<u32>) -> Result<BTreeSet<Key>> {
+    fn term(&mut self, field: &str, value: &str, phrase: bool, near: Option<u32>) -> Result<HashSet<Key>> {
         // Metadata fields that are not indexed text.
         if field == "type" {
             let mut st = self.conn.prepare("SELECT id FROM refs WHERE trashed IS NULL AND json_extract(data,'$.type')=?1")?;
-            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref".to_string(), id)).collect());
+            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref", id)).collect());
         }
         if field == "label" {
             let mut st = self.conn.prepare("SELECT refs.id FROM refs, json_each(refs.data,'$.labels') j WHERE refs.trashed IS NULL AND j.value IN (SELECT id FROM labels WHERE lower(json_extract(data,'$.name'))=lower(?1) OR id=?1)")?;
-            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref".to_string(), id)).collect());
+            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref", id)).collect());
         }
         if field == "collection" {
             let mut st = self.conn.prepare("SELECT j.value FROM collections, json_each(collections.data,'$.ref_ids') j WHERE collections.id=?1 OR lower(json_extract(collections.data,'$.name'))=lower(?1)")?;
-            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref".to_string(), id)).collect());
+            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref", id)).collect());
         }
         if field == "project" {
             let mut st = self.conn.prepare("SELECT ref_id FROM project_sources WHERE project_id=?1")?;
-            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref".to_string(), id)).collect());
+            return Ok(st.query_map(params![value], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref", id)).collect());
         }
         if field == "has" {
             let sql = match value {
@@ -459,40 +544,45 @@ impl<'a> Eval<'a> {
                 _ => return Err(Error::user(format!("has:{value} is not a known filter. Try has:pdf, has:doi, has:conflict, has:notes."))),
             };
             let mut st = self.conn.prepare(sql)?;
-            return Ok(st.query_map([], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref".to_string(), id)).collect());
+            return Ok(st.query_map([], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).map(|id| ("ref", id)).collect());
         }
         let expr = fts_expr(value, phrase, near);
         if expr.is_empty() {
-            return Ok(BTreeSet::new());
+            return Ok(HashSet::new());
         }
         for w in fold(value).split(|c: char| !c.is_alphanumeric()).filter(|w| w.len() > 1) {
             self.terms.push(w.to_string());
         }
         let filter = field_filter(field);
-        let mut sql = String::from("SELECT entity, entity_id, field, page, orig FROM fts WHERE fts MATCH ?1");
+        let mut sql = String::from("SELECT entity, entity_id, rowid FROM fts WHERE fts MATCH ?1");
         if let Some(fs) = filter {
             sql.push_str(&format!(" AND field IN ({})", fs.iter().map(|f| format!("'{f}'")).collect::<Vec<_>>().join(",")));
         }
-        sql.push_str(" ORDER BY bm25(fts) LIMIT 20000");
         let mut st = self.conn.prepare(&sql)?;
         let rows = st.query_map(params![format!("text : ({expr})")], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)?, r.get::<_, String>(4)?))
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
         })?;
-        let mut out = BTreeSet::new();
+        let mut out = HashSet::new();
         for row in rows {
-            let (entity, id, f, page, orig) = row?;
-            let key = (entity.clone(), id.clone());
-            self.hits.entry(key.clone()).or_insert(Hit { entity, entity_id: id, ref_id: String::new(), field: f, page, snippet: orig });
+            let (entity, id, rowid) = row?;
+            let kind: &'static str = match entity.as_str() {
+                "ref" => "ref",
+                "note" => "note",
+                "annotation" => "annotation",
+                _ => "page",
+            };
+            let key = (kind, id);
+            self.rows.entry(key.clone()).or_insert(rowid);
             out.insert(key);
         }
         Ok(out)
     }
 
-    fn range(&self, field: &str, op: &str, a: f64, b: f64) -> Result<BTreeSet<Key>> {
+    fn range(&self, field: &str, op: &str, a: f64, b: f64) -> Result<HashSet<Key>> {
         let col = match field {
             "year" => "json_extract(data,'$.issued.year')",
             "rating" => "json_extract(data,'$.rating')",
-            _ => return Ok(BTreeSet::new()),
+            _ => return Ok(HashSet::new()),
         };
         let cond = match op {
             "between" => format!("{col} BETWEEN ?1 AND ?2"),
@@ -509,10 +599,10 @@ impl<'a> Eval<'a> {
         } else {
             st.query_map(params![a], |r| r.get(0))?.filter_map(|r| r.ok()).collect()
         };
-        Ok(rows.into_iter().map(|id| ("ref".to_string(), id)).collect())
+        Ok(rows.into_iter().map(|id| ("ref", id)).collect())
     }
 
-    fn regex(&mut self, pat: &str) -> Result<BTreeSet<Key>> {
+    fn regex(&mut self, pat: &str) -> Result<HashSet<Key>> {
         let re = regex::RegexBuilder::new(pat)
             .case_insensitive(true)
             .size_limit(1 << 20)
@@ -521,16 +611,16 @@ impl<'a> Eval<'a> {
             .map_err(|e| Error::user(format!("The regular expression could not be used: {e}")))?;
         let mut st = self.conn.prepare("SELECT id, json_extract(data,'$.fields.title'), json_extract(data,'$.fields.abstract') FROM refs WHERE trashed IS NULL LIMIT ?1")?;
         let rows = st.query_map(params![MAX_REGEX_SCAN as i64], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, Option<String>>(2)?)))?;
-        let mut out = BTreeSet::new();
+        let mut out = HashSet::new();
         for row in rows {
             let (id, t, ab) = row?;
             for (f, text) in [("title", t), ("abstract", ab)] {
                 if let Some(text) = text {
                     if let Some(m) = re.find(&text) {
-                        let key = ("ref".to_string(), id.clone());
+                        let key = ("ref", id.clone());
                         let start = text[..m.start()].char_indices().rev().nth(40).map(|(i, _)| i).unwrap_or(0);
                         let end = text[m.end()..].char_indices().nth(40).map(|(i, _)| m.end() + i).unwrap_or(text.len());
-                        self.hits.entry(key.clone()).or_insert(Hit { entity: "ref".into(), entity_id: id.clone(), ref_id: id.clone(), field: f.into(), page: -1, snippet: format!("…{}…", &text[start..end]) });
+                        self.hits.entry(key.clone()).or_insert(Hit { entity: "ref".into(), entity_id: id.clone(), ref_id: id.clone(), field: f.into(), page: -1, snippet: format!("…{}…", &text[start..end]), row: 0 });
                         out.insert(key);
                         break;
                     }
@@ -540,14 +630,14 @@ impl<'a> Eval<'a> {
         Ok(out)
     }
 
-    fn eval(&mut self, q: &Q) -> Result<BTreeSet<Key>> {
+    fn eval(&mut self, q: &Q) -> Result<HashSet<Key>> {
         Ok(match q {
             Q::All => self.universe()?,
             Q::Term { field, value, phrase, near } => self.term(field, value, *phrase, *near)?,
             Q::Range { field, op, a, b } => self.range(field, op, *a, *b)?,
             Q::Regex(p) => self.regex(p)?,
             Q::And(v) => {
-                let mut acc: Option<BTreeSet<Key>> = None;
+                let mut acc: Option<HashSet<Key>> = None;
                 let mut nots = Vec::new();
                 for x in v {
                     if let Q::Not(inner) = x {
@@ -570,7 +660,7 @@ impl<'a> Eval<'a> {
                 a
             }
             Q::Or(v) => {
-                let mut acc = BTreeSet::new();
+                let mut acc = HashSet::new();
                 for x in v {
                     let e = self.eval(x)?; acc.extend(self.lift(e)?);
                 }
@@ -583,26 +673,26 @@ impl<'a> Eval<'a> {
         })
     }
 
-    fn eval_owned(&mut self, q: &Q) -> Result<BTreeSet<Key>> {
+    fn eval_owned(&mut self, q: &Q) -> Result<HashSet<Key>> {
         self.eval(q)
     }
 
     /// Map note, annotation and page hits to their references so Boolean logic combines at the
     /// reference level; unattached notes stay as notes.
-    fn lift(&self, s: BTreeSet<Key>) -> Result<BTreeSet<Key>> {
-        let mut out = BTreeSet::new();
+    fn lift(&self, s: HashSet<Key>) -> Result<HashSet<Key>> {
+        let mut out = HashSet::new();
         for (e, id) in s {
-            match e.as_str() {
+            match e {
                 "ref" => {
                     out.insert((e, id));
                 }
                 _ => {
-                    let refs = owner_refs(self.conn, &e, &id)?;
+                    let refs = owner_refs(self.conn, e, &id)?;
                     if refs.is_empty() {
                         out.insert((e, id));
                     } else {
                         for r in refs {
-                            out.insert(("ref".to_string(), r));
+                            out.insert(("ref", r));
                         }
                     }
                 }
@@ -645,7 +735,7 @@ pub fn snippet(orig: &str, terms: &[String]) -> String {
 /// `scope_refs` restricts to an explicit set (a collection).
 pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_refs: Option<&BTreeSet<String>>, limit: usize) -> Result<Results> {
     let q = parse(query)?;
-    let mut ev = Eval { conn, hits: BTreeMap::new(), terms: Vec::new() };
+    let mut ev = Eval { conn, hits: HashMap::new(), rows: HashMap::new(), terms: Vec::new() };
     let keys = ev.eval(&q)?;
     let keys = ev.lift(keys)?;
     let project_refs: Option<BTreeSet<String>> = match scope_project {
@@ -658,7 +748,7 @@ pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_re
     };
     let mut ref_ids = Vec::new();
     for (e, id) in &keys {
-        if e != "ref" {
+        if *e != "ref" {
             continue;
         }
         if let Some(pr) = &project_refs {
@@ -675,35 +765,60 @@ pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_re
     }
     let truncated = ref_ids.len() > limit;
     ref_ids.truncate(limit);
+    let keep: HashSet<&String> = ref_ids.iter().collect();
     let terms = ev.terms.clone();
     let mut hits: Vec<Hit> = Vec::new();
-    for (_, mut h) in ev.hits {
-        let owners = if h.entity == "ref" { vec![h.entity_id.clone()] } else { owner_refs(conn, &h.entity, &h.entity_id)? };
-        // Notes and annotations outside the active project are not shown in project scope.
-        if let Some(p) = scope_project {
-            if !p.is_empty() && (h.entity == "note" || h.entity == "annotation") {
-                let scope: String = conn
-                    .query_row(&format!("SELECT COALESCE(json_extract(data,'$.project_id'),'') FROM {} WHERE id=?1", if h.entity == "note" { "notes" } else { "annotations" }), params![h.entity_id], |r| r.get(0))
-                    .unwrap_or_default();
-                if !scope.is_empty() && scope != p {
-                    continue;
+    let mut pending: Vec<Hit> = ev.hits.into_values().collect();
+    for ((kind, id), row) in ev.rows {
+        pending.push(Hit { entity: kind.to_string(), entity_id: id, ref_id: String::new(), field: String::new(), page: -1, snippet: String::new(), row });
+    }
+    for mut h in pending {
+        if h.entity == "ref" {
+            if !keep.contains(&h.entity_id) {
+                continue;
+            }
+            h.ref_id = h.entity_id.clone();
+        } else {
+            if let Some(p) = scope_project {
+                if !p.is_empty() && (h.entity == "note" || h.entity == "annotation") {
+                    let scope: String = conn
+                        .query_row(&format!("SELECT COALESCE(json_extract(data,'$.project_id'),'') FROM {} WHERE id=?1", if h.entity == "note" { "notes" } else { "annotations" }), params![h.entity_id], |r| r.get(0))
+                        .unwrap_or_default();
+                    if !scope.is_empty() && scope != p {
+                        continue;
+                    }
                 }
             }
+            h.ref_id = owner_refs(conn, &h.entity, &h.entity_id)?.first().cloned().unwrap_or_default();
+            let unattached_note = h.entity == "note" && h.ref_id.is_empty();
+            if !unattached_note && !keep.contains(&h.ref_id) {
+                continue;
+            }
         }
-        h.ref_id = owners.first().cloned().unwrap_or_default();
-        if !h.snippet.starts_with('…') {
-            h.snippet = snippet(&h.snippet, &terms);
+        if hits.len() >= 2000 {
+            break;
         }
-        if h.entity == "note" && h.ref_id.is_empty() {
-            hits.push(h);
-            continue;
+        if h.row > 0 {
+            let (field, page, orig): (String, i64, String) = conn
+                .prepare_cached("SELECT field, page, orig FROM fts WHERE rowid=?1")?
+                .query_row(params![h.row], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .unwrap_or_default();
+            h.field = field;
+            h.page = page;
+            h.snippet = snippet(&orig, &terms);
         }
-        if ref_ids.contains(&h.ref_id) {
-            hits.push(h);
-        }
+        hits.push(h);
     }
-    hits.truncate(2000);
     Ok(Results { ref_ids, hits, truncated })
+}
+
+/// Why each of `ref_ids` matched (field, page, snippet), for a page of results.
+pub fn hits_for(conn: &Connection, query: &str, ref_ids: &[String], scope_project: Option<&str>) -> Result<Vec<Hit>> {
+    if ref_ids.is_empty() || query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let set: BTreeSet<String> = ref_ids.iter().cloned().collect();
+    Ok(run(conn, query, scope_project, Some(&set), usize::MAX)?.hits)
 }
 
 /// Whether the full-text index has unindexed attachments (to tell "no matching text" from

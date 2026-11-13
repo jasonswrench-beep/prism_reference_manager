@@ -138,9 +138,21 @@ fn benchmark_100k_references() {
     }
     let insert = t0.elapsed();
     println!("BENCH insert done {:.1}s", insert.as_secs_f64());
-    let tm = std::time::Instant::now();
-    l.store.advance_mirror().unwrap();
-    println!("BENCH mirror catch-up (background in the program) {:.1}s", tm.elapsed().as_secs_f64());
+    if std::env::var("PRM_BENCH_MIRROR").is_ok() {
+        let tm = std::time::Instant::now();
+        l.store.advance_mirror().unwrap();
+        println!("BENCH mirror catch-up (background in the program) {:.1}s", tm.elapsed().as_secs_f64());
+    }
+    for q in ["reflection", "author:muller", "faculty learning -assessment", "\"generative pedagogy\"", "year:2010..2015 practice"] {
+        let mut v = Vec::new();
+        for _ in 0..5 {
+            let t = std::time::Instant::now();
+            let _ = prm_core::search::run(&l.store.conn, q, None, None, 500).unwrap();
+            v.push(t.elapsed().as_secs_f64() * 1000.0);
+        }
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!("BENCH query {q:?} median={:.1}ms", v[2]);
+    }
     let time = |f: &mut dyn FnMut()| {
         let mut v = Vec::new();
         for _ in 0..10 {

@@ -41,6 +41,7 @@ impl Library {
         let file_hash = sha256_hex(text.as_bytes());
         let already = self.store.all::<ImportBatch>()?.into_iter().find(|b| b.file_hash == file_hash && b.state == "committed");
         let existing: Vec<Reference> = crate::store::list_in(&self.store.conn, "WHERE trashed IS NULL", &[])?;
+        let matcher = crate::dedupe::Matcher::new(&existing);
         let decided: std::collections::BTreeSet<String> = self.store.all::<DuplicateDecision>()?.into_iter().map(|d| d.id).collect();
         let mut records = Vec::new();
         let mut summary: BTreeMap<String, usize> = BTreeMap::new();
@@ -55,7 +56,7 @@ impl Library {
                 status = "unresolved".into();
                 issues.push("No title".into());
             }
-            if let Some((m, score, reasons, version)) = crate::dedupe::best_match(&rec, &existing, 0.82) {
+            if let Some((m, score, reasons, version)) = matcher.best(&rec, 0.82) {
                 if !decided.contains(&DuplicateDecision::key(&rec.id, &m.id)) {
                     match_id = m.id.clone();
                     reason = reasons.join(", ");

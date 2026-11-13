@@ -273,7 +273,7 @@ pub fn export_package(lib: &Library, dest: &Path, include_files: bool) -> Result
     {
         let f = std::fs::File::create(&part)?;
         let mut z = zip::ZipWriter::new(f);
-        let mut put = |z: &mut zip::ZipWriter<std::fs::File>, m: &mut Manifest, name: &str, bytes: &[u8]| -> Result<()> {
+        let put = |z: &mut zip::ZipWriter<std::fs::File>, m: &mut Manifest, name: &str, bytes: &[u8]| -> Result<()> {
             m.checksums.insert(name.to_string(), sha256_hex(bytes));
             z.start_file(name, zopt())?;
             z.write_all(bytes)?;

@@ -353,7 +353,7 @@ fn to_record(kind: &str, key: &str, f: &BTreeMap<String, String>) -> Reference {
             }
         }
     }
-    let mut set = |r: &mut Reference, k: &str, v: Option<String>| {
+    let set = |r: &mut Reference, k: &str, v: Option<String>| {
         if let Some(v) = v {
             if !v.trim().is_empty() {
                 r.fields.insert(k.into(), v);

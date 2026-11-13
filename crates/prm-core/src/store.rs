@@ -105,11 +105,19 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
          CREATE TABLE IF NOT EXISTS network_log(
             seq INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT NOT NULL, kind TEXT NOT NULL,
             host TEXT NOT NULL, purpose TEXT NOT NULL, sent TEXT NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS ref_index(
+            id TEXT PRIMARY KEY, trashed INTEGER NOT NULL, rtype TEXT NOT NULL, author_key TEXT NOT NULL,
+            title_key TEXT NOT NULL, year_key TEXT NOT NULL, container_key TEXT NOT NULL, type_label TEXT NOT NULL,
+            citekey TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, rating INTEGER NOT NULL,
+            origin TEXT NOT NULL, needs_meta INTEGER NOT NULL);
+         CREATE INDEX IF NOT EXISTS ref_index_author ON ref_index(trashed, author_key, title_key, id);
+         CREATE INDEX IF NOT EXISTS ref_index_title ON ref_index(trashed, title_key, id);
+         CREATE INDEX IF NOT EXISTS ref_index_year ON ref_index(trashed, year_key, title_key, id);
          CREATE TABLE IF NOT EXISTS fts_map(entity TEXT NOT NULL, entity_id TEXT NOT NULL, row INTEGER NOT NULL);
          CREATE INDEX IF NOT EXISTS fts_map_entity ON fts_map(entity, entity_id);
          CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
             entity UNINDEXED, entity_id UNINDEXED, scope UNINDEXED, field UNINDEXED, page UNINDEXED,
-            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2');",
+            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4');",
     )?;
     for t in TABLES {
         conn.execute_batch(&format!("CREATE TABLE IF NOT EXISTS {t}(id TEXT PRIMARY KEY, data TEXT NOT NULL);"))?;
@@ -156,6 +164,8 @@ impl Store {
         }
         if !read_only {
             init_schema(&conn)?;
+            crate::search::ensure_ref_index(&conn)?;
+            crate::search::ensure_fts_version(&conn)?;
             conn.execute(
                 "INSERT INTO meta(key,value) VALUES('schema_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 params![SCHEMA_VERSION.to_string()],

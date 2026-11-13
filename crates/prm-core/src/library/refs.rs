@@ -4,7 +4,7 @@
 use super::Library;
 use crate::error::{Error, Result};
 use crate::model::*;
-use crate::util::{new_id, now, sort_key};
+use crate::util::{new_id, now};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -145,24 +145,57 @@ pub struct BulkChange {
 
 impl Library {
     pub fn list_references(&self, q: &ListQuery) -> Result<RefPage> {
-        let mut refs: Vec<Reference> = self.list_lite(q.view == "trash")?;
-        let memberships: BTreeMap<String, ProjectSource> = if !q.project_id.is_empty() {
-            self.store.by::<ProjectSource>("project_id", &q.project_id)?.into_iter().map(|m| (m.ref_id.clone(), m)).collect()
-        } else {
-            BTreeMap::new()
-        };
-        if !q.project_id.is_empty() {
-            refs.retain(|r| memberships.contains_key(&r.id));
+        // Filtering, sorting and paging run in SQL over the sort-key table; only the rows on the
+        // requested page are read in full.
+        let conn = &self.store.conn;
+        let mut wh: Vec<String> = vec![format!("x.trashed={}", if q.view == "trash" { 1 } else { 0 })];
+        let mut args: Vec<String> = Vec::new();
+        fn bind(v: &str, args: &mut Vec<String>) -> String {
+            args.push(v.to_string());
+            format!("?{}", args.len())
         }
+        if !q.project_id.is_empty() && q.view != "trash" {
+            let p = bind(&q.project_id, &mut args);
+            wh.push(format!("x.id IN (SELECT ref_id FROM project_sources WHERE project_id={p})"));
+        }
+        if !q.label.is_empty() {
+            let p = bind(&q.label, &mut args);
+            wh.push(format!("x.id IN (SELECT refs.id FROM refs, json_each(refs.data,'$.labels') j WHERE j.value={p})"));
+        }
+        if !q.rtype.is_empty() {
+            let p = bind(&q.rtype, &mut args);
+            wh.push(format!("x.rtype={p}"));
+        }
+        let since = (chrono::Utc::now() - chrono::Duration::days(14)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        match q.view.as_str() {
+            "recent_added" => {
+                let p = bind(&since, &mut args);
+                wh.push(format!("x.created >= {p}"));
+            }
+            "recent_modified" => {
+                let p = bind(&since, &mut args);
+                wh.push(format!("x.modified >= {p}"));
+            }
+            "needs_metadata" => wh.push("x.needs_meta=1".into()),
+            "machine" => wh.push("x.origin IN ('ai','agent')".into()),
+            "to_read" => {
+                let p = bind(&q.project_id, &mut args);
+                wh.push(format!("x.id IN (SELECT ref_id FROM project_sources WHERE project_id={p} AND COALESCE(json_extract(data,'$.reading'),'')!='read')"));
+            }
+            "recent_read" => {
+                let p = bind(&q.project_id, &mut args);
+                wh.push(format!("x.id IN (SELECT ref_id FROM project_sources WHERE project_id={p} AND json_extract(data,'$.reading_position') IS NOT NULL)"));
+            }
+            _ => {}
+        }
+        // Collections and searches narrow the list to an explicit set held in a temporary table.
+        let mut id_set: Option<BTreeSet<String>> = None;
         if !q.collection_id.is_empty() {
             let c = self.store.must::<Collection>(&q.collection_id)?;
-            if !c.query.is_empty() {
-                let res = crate::search::run(&self.store.conn, &c.query, None, None, usize::MAX)?;
-                let set: BTreeSet<String> = res.ref_ids.into_iter().collect();
-                refs.retain(|r| set.contains(&r.id));
+            let ids: BTreeSet<String> = if !c.query.is_empty() {
+                crate::search::run(conn, &c.query, None, None, usize::MAX)?.ref_ids.into_iter().collect()
             } else {
                 let mut ids: BTreeSet<String> = c.ref_ids.iter().cloned().collect();
-                // Include sub-collections.
                 let all: Vec<Collection> = self.store.all()?;
                 let mut stack = vec![c.id.clone()];
                 while let Some(p) = stack.pop() {
@@ -171,134 +204,77 @@ impl Library {
                         stack.push(ch.id.clone());
                     }
                 }
-                refs.retain(|r| ids.contains(&r.id));
-            }
-        }
-        if !q.label.is_empty() {
-            refs.retain(|r| r.labels.contains(&q.label));
-        }
-        if !q.rtype.is_empty() {
-            refs.retain(|r| r.rtype == q.rtype);
-        }
-        let with_pdf: BTreeSet<String> = {
-            let mut st = self.store.conn.prepare("SELECT DISTINCT ref_id FROM attachments WHERE json_extract(data,'$.mime')='application/pdf' AND COALESCE(json_extract(data,'$.superseded'),0)=0")?;
-            let v: BTreeSet<String> = st.query_map([], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).collect();
-            v
-        };
-        match q.view.as_str() {
-            "recent_added" => refs.retain(|r| chrono::DateTime::parse_from_rfc3339(&r.created).map(|t| chrono::Utc::now().signed_duration_since(t).num_days() <= 14).unwrap_or(false)),
-            "recent_modified" => refs.retain(|r| chrono::DateTime::parse_from_rfc3339(&r.modified).map(|t| chrono::Utc::now().signed_duration_since(t).num_days() <= 14).unwrap_or(false)),
-            "needs_metadata" => refs.retain(|r| !r.conflicts.is_empty() || r.title().is_empty() || r.issued.is_none() && !r.absent("issued") || r.creators.is_empty() && !r.absent("author")),
-            "to_read" => refs.retain(|r| memberships.get(&r.id).map(|m| m.reading != "read").unwrap_or(false)),
-            "recent_read" => refs.retain(|r| memberships.get(&r.id).and_then(|m| m.reading_position.as_ref()).is_some()),
-            "machine" => refs.retain(|r| matches!(r.origin.as_str(), "ai" | "agent")),
-            _ => {}
+                ids
+            };
+            id_set = Some(ids);
         }
         let mut hits = Vec::new();
         if !q.search.trim().is_empty() {
-            let res = crate::search::run(&self.store.conn, &q.search, None, None, usize::MAX)?;
-            let order: BTreeMap<String, usize> = res.ref_ids.iter().enumerate().map(|(i, id)| (id.clone(), i)).collect();
-            refs.retain(|r| order.contains_key(&r.id));
-            hits = res.hits;
+            let res = crate::search::run(conn, &q.search, None, id_set.as_ref(), usize::MAX)?;
+            id_set = Some(res.ref_ids.into_iter().collect());
         }
-        let mut rows: Vec<RefRow> = refs
-            .iter()
-            .map(|r| {
-                let m = memberships.get(&r.id);
-                RefRow {
-                    id: r.id.clone(),
-                    rtype: r.rtype.clone(),
-                    type_label: crate::types::label(&r.rtype).to_string(),
-                    authors: author_short(r),
-                    year: r.issued.as_ref().map(|d| d.year.map(|y| y.to_string()).unwrap_or(d.status.clone())).unwrap_or_default(),
-                    title: r.title().to_string(),
-                    container: r.f("container_title").to_string(),
-                    citekey: r.citekey.clone(),
-                    has_pdf: with_pdf.contains(r.id.as_str()),
-                    reading: m.map(|m| m.reading.clone()).unwrap_or_default(),
-                    inclusion: m.map(|m| m.inclusion.clone()).unwrap_or_default(),
-                    rating: m.map(|m| m.rating).filter(|x| *x > 0).unwrap_or(r.rating),
-                    labels: r.labels.clone(),
-                    modified: r.modified.clone(),
-                    created: r.created.clone(),
-                    issues: r.conflicts.len() + usize::from(r.title().is_empty()),
-                    notices: r.notices.len(),
-                    origin: r.origin.clone(),
-                }
-            })
-            .collect();
-        let sort = if q.sort.is_empty() { "authors" } else { q.sort.as_str() };
-        // Sort keys are computed once per row, not once per comparison.
-        let mut keyed: Vec<((String, String, String), RefRow)> = rows
-            .into_iter()
-            .map(|r| {
-                let primary = match sort {
-                    "year" => r.year.clone(),
-                    "title" => String::new(),
-                    "container" => sort_key(&r.container),
-                    "modified" => r.modified.clone(),
-                    "created" => r.created.clone(),
-                    "type" => r.type_label.clone(),
-                    "rating" => format!("{:03}", r.rating),
-                    "citekey" => r.citekey.clone(),
-                    _ => sort_key(&r.authors),
-                };
-                ((primary, sort_key(&r.title), r.id.clone()), r)
-            })
-            .collect();
-        keyed.sort_by(|a, b| if q.desc { b.0.cmp(&a.0) } else { a.0.cmp(&b.0) });
-        let rows: Vec<RefRow> = keyed.into_iter().map(|(_, r)| r).collect();
-        let total = rows.len();
-        let limit = if q.limit == 0 { 500 } else { q.limit };
-        let rows = rows.into_iter().skip(q.offset).take(limit).collect();
-        Ok(RefPage { total, rows, pending_index: crate::search::pending_index_count(&self.store.conn)?, search_hits: hits })
-    }
-
-    /// Load references with only the fields list views need (abstracts, provenance and other
-    /// large members are skipped while parsing).
-    fn list_lite(&self, trash: bool) -> Result<Vec<Reference>> {
-        #[derive(serde::Deserialize, Default)]
-        #[serde(default)]
-        struct LiteFields {
-            title: String,
-            container_title: String,
-        }
-        #[derive(serde::Deserialize, Default)]
-        #[serde(default)]
-        struct Lite {
-            id: String,
-            #[serde(rename = "type")]
-            rtype: String,
-            citekey: String,
-            creators: Vec<Creator>,
-            issued: Option<PartialDate>,
-            fields: LiteFields,
-            confirmed_absent: Vec<String>,
-            conflicts: Vec<FieldConflict>,
-            labels: Vec<String>,
-            rating: u8,
-            notices: Vec<Notice>,
-            origin: String,
-            created: String,
-            modified: String,
-            trashed_at: Option<String>,
-        }
-        let sql = if trash { "SELECT data FROM refs WHERE trashed IS NOT NULL" } else { "SELECT data FROM refs WHERE trashed IS NULL" };
-        let mut st = self.store.conn.prepare(sql)?;
-        let rows = st.query_map([], |r| r.get::<_, String>(0))?;
-        let mut out = Vec::new();
-        for row in rows {
-            let l: Lite = serde_json::from_str(&row?)?;
-            let mut fields = BTreeMap::new();
-            if !l.fields.title.is_empty() {
-                fields.insert("title".to_string(), l.fields.title);
+        if let Some(ids) = &id_set {
+            conn.execute_batch("CREATE TEMP TABLE IF NOT EXISTS list_ids(id TEXT PRIMARY KEY); DELETE FROM list_ids;")?;
+            let mut st = conn.prepare_cached("INSERT OR IGNORE INTO list_ids(id) VALUES(?1)")?;
+            for id in ids {
+                st.execute([id])?;
             }
-            if !l.fields.container_title.is_empty() {
-                fields.insert("container_title".to_string(), l.fields.container_title);
-            }
-            out.push(Reference { id: l.id, rtype: l.rtype, citekey: l.citekey, creators: l.creators, issued: l.issued, fields, confirmed_absent: l.confirmed_absent, conflicts: l.conflicts, labels: l.labels, rating: l.rating, notices: l.notices, origin: l.origin, created: l.created, modified: l.modified, trashed_at: l.trashed_at, ..Default::default() });
+            wh.push("x.id IN (SELECT id FROM list_ids)".into());
         }
-        Ok(out)
+        let col = match q.sort.as_str() {
+            "year" => "x.year_key",
+            "title" => "x.title_key",
+            "container" => "x.container_key",
+            "modified" => "x.modified",
+            "created" => "x.created",
+            "type" => "x.type_label",
+            "rating" => "x.rating",
+            "citekey" => "x.citekey",
+            _ => "x.author_key",
+        };
+        let dir = if q.desc { "DESC" } else { "ASC" };
+        // Stable tiebreakers keep selection stable through sorting and refresh.
+        let order = if col == "x.title_key" { format!("x.title_key {dir}, x.id {dir}") } else { format!("{col} {dir}, x.title_key {dir}, x.id {dir}") };
+        let w = wh.join(" AND ");
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM ref_index x WHERE {w}"), rusqlite::params_from_iter(args.iter()), |r| r.get(0))?;
+        let limit = if q.limit == 0 { 500 } else { q.limit.min(1_000_000) };
+        let page_ids: Vec<String> = {
+            let mut st = conn.prepare(&format!("SELECT x.id FROM ref_index x WHERE {w} ORDER BY {order} LIMIT {limit} OFFSET {}", q.offset))?;
+            let v: Vec<String> = st.query_map(rusqlite::params_from_iter(args.iter()), |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).collect();
+            v
+        };
+        let mut rows = Vec::with_capacity(page_ids.len());
+        for id in &page_ids {
+            let Some(r) = self.store.get::<Reference>(id)? else { continue };
+            let m = if q.project_id.is_empty() { None } else { self.store.get::<ProjectSource>(&ProjectSource::key(&q.project_id, id))? };
+            let has_pdf = conn
+                .prepare_cached("SELECT 1 FROM attachments WHERE ref_id=?1 AND json_extract(data,'$.mime')='application/pdf' AND COALESCE(json_extract(data,'$.superseded'),0)=0 LIMIT 1")?
+                .exists([id])?;
+            rows.push(RefRow {
+                id: r.id.clone(),
+                rtype: r.rtype.clone(),
+                type_label: crate::types::label(&r.rtype).to_string(),
+                authors: author_short(&r),
+                year: r.issued.as_ref().map(|d| d.year.map(|y| y.to_string()).unwrap_or(d.status.clone())).unwrap_or_default(),
+                title: r.title().to_string(),
+                container: r.f("container_title").to_string(),
+                citekey: r.citekey.clone(),
+                has_pdf,
+                reading: m.as_ref().map(|m| m.reading.clone()).unwrap_or_default(),
+                inclusion: m.as_ref().map(|m| m.inclusion.clone()).unwrap_or_default(),
+                rating: m.as_ref().map(|m| m.rating).filter(|x| *x > 0).unwrap_or(r.rating),
+                labels: r.labels.clone(),
+                modified: r.modified.clone(),
+                created: r.created.clone(),
+                issues: r.conflicts.len() + usize::from(r.title().is_empty()),
+                notices: r.notices.len(),
+                origin: r.origin.clone(),
+            });
+        }
+        if !q.search.trim().is_empty() {
+            hits = crate::search::hits_for(conn, &q.search, &page_ids, None)?;
+        }
+        Ok(RefPage { total: total as usize, rows, pending_index: crate::search::pending_index_count(conn)?, search_hits: hits })
     }
 
     fn taken_keys(&self) -> Result<BTreeSet<String>> {

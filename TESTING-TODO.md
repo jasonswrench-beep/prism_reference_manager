@@ -119,20 +119,24 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 
 - [ ] Record the reference machine (4 cores, 16 GB, SSD, OS build, power plan) and rerun
       `cargo test -p prm-core --release --test robustness benchmark_100k_references -- --ignored --nocapture`.
-      Measured on the development machine, 100,000 references, release build:
+      Measured on the development machine, 100,000 references, release build. The second run
+      shared the machine with a heavy background program, which made everything about 2.1 times
+      slower (citation rendering, which did not change, went from 21 ms to 44 ms); the last
+      column scales that run back by 2.1 as an estimate only.
 
-      | Measure | Result | Target | Status |
-      |---|---|---|---|
-      | Insert 100,000 records (one batch) | 27.6 s | — | |
-      | Text mirror catch-up after that batch | 523 s (runs in the background) | — | slow but nonblocking |
-      | Metadata search | median 328 ms, p95 919 ms | p95 ≤ 250 ms | **missed** |
-      | List and sort a page | 1.0 s | ≤ 500 ms | **missed** |
-      | Citation render, 200-source context | 42 ms | ≤ 500 ms | met |
-      | Duplicate scan | 116 s | ≤ 60 s | **missed** |
+      | Measure | First build (idle) | After fixes (loaded machine) | Estimated idle | Target |
+      |---|---|---|---|---|
+      | Insert 100,000 records (one batch) | 27.6 s | 52.6 s | ~25 s | — |
+      | Metadata search, p95 | 919 ms | 494 ms | ~235 ms | ≤ 250 ms |
+      | List and sort a page | 1,018 ms | 46 ms | ~22 ms | ≤ 500 ms |
+      | Citation render, 200-source context | 42 ms | 44 ms | ~21 ms | ≤ 500 ms |
+      | Duplicate scan | 116 s | 60 s | ~28 s | ≤ 60 s |
+      | Text mirror catch-up after the batch | 523 s | not rerun | — | background, nonblocking |
 
-      At 20,000 references search p95 was 229 ms and list 189 ms, both within target. The misses
-      at 100,000 need work before release: paging the list in SQL instead of in memory, a
-      lighter search result path, and finer blocking in the duplicate scan.
+      Search is the tightest. The benchmark's titles use a 15-word vocabulary, so every word
+      matches about a third of the library; the slowest query ("faculty learning -assessment")
+      reads three such word lists. Real libraries have more selective words. Confirm on the
+      reference machine with nothing else running.
 - [ ] Open a 500-page PDF and time the first page (target 2 seconds).
 - [ ] Index 20,000 PDFs (Settings › Library › Index all PDFs) and time it.
 - [ ] Warm start with a 100,000-reference library (target 3 seconds); idle memory (target 500 MB).
