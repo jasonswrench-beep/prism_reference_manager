@@ -90,6 +90,12 @@ tasks (reading PDF text, recognizing text, imports) run as jobs with progress, a
 completed count; reading and recognizing can be paused, resumed, cancelled and retried, and an
 import can be stopped safely.
 
+**Labels, links and administration.** Labels can be created several at a time, recoloured,
+renamed, merged and deleted in one place (Edit › Manage labels). Sources, collections, marks and
+notes have a Copy link button; the prism-rm:// link opens the item in the program from a document
+or another program. Administrators can lock settings with Group Policy (template included) as
+well as with policy.json.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

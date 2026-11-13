@@ -279,6 +279,7 @@ function registerCommands() {
   command("tools.files", "Check attached files…", () => dialogs.checkFiles(), "", "Tools");
   command("tools.storage", "Storage report…", () => dialogs.storageReport(), "", "Tools");
   command("tools.mirror", "Text mirror…", () => dialogs.textMirror(), "", "Tools");
+  command("labels.manage", "Manage labels…", () => import("./views/library.js").then((m) => m.manageLabels()), "", "Edit");
   command("tools.trash", "Open trash", () => go("library", { view: "trash" }), "", "Tools");
   command("tools.history", "Change history…", () => dialogs.history(), "", "Tools");
   command("tools.network", "Network activity…", () => dialogs.network(), "", "Tools");
@@ -443,6 +444,31 @@ function buildMenus(bar) {
 
 // ---- start ---------------------------------------------------------------------------------
 
+/** Follow a prism-rm:// link: show the item it names (links never change anything). */
+export async function openLink(url) {
+  try {
+    const r = await call("link.resolve", { url });
+    if (r.other_library) {
+      const { confirmDialog } = await import("./dom.js");
+      if (!(await confirmDialog("Open another library", `This link points to an item in the library “${r.name}”. Close this library and open that one?`, { ok: "Open it" }))) return;
+      await call("library.open", { path: r.other_library });
+      await loadInfo(); await loadProjects();
+      return openLink(url);
+    }
+    if (!r.ok) { toast(r.message, "warn"); return; }
+    if (r.project && r.project !== S.project?.project.id) await setProject(r.project);
+    go(r.view, r.params);
+  } catch (e) { showError(e); }
+}
+
+/** Copy a link to an item, for pasting into a document or another program. */
+export async function copyLink(kind, id) {
+  const url = await call("link.make", { kind, id });
+  try { await navigator.clipboard.writeText(url); toast("Link copied. Opening it shows this item here.", "success"); }
+  catch (_) { toast("Link: " + url, "info", { sticky: true }); }
+  return url;
+}
+
 export async function start() {
   registerCommands();
   root = document.getElementById("app");
@@ -459,6 +485,7 @@ export async function start() {
   on("changed", (p) => { S.undo = p.undo; S.redo = p.redo; S.saveState = "Saved locally"; renderStatus(); if (/^(files\.|import\.commit|capture\.)/.test(p.method || "")) setTimeout(autoIndex, 1500); });
   on("job", (j) => { S.jobs.push(j); toast(j.message, j.ok ? "success" : "error"); renderStatus(); });
   on("api-pair", (p) => dialogs.pairRequest(p));
+  on("open-link", (url) => openLink(url));
   on("update-available", (u) => toast(`Version ${u.version} is available.`, "info", { sticky: true, action: { label: "Review", run: () => go("settings", { tab: "about" }) } }));
   on("health", (r) => toast(`Library health check: ${r.items} item${r.items === 1 ? "" : "s"} may need attention.`, "info", { sticky: true, action: { label: "Review", run: () => dialogs.health() } }));
   on("watch", (w) => toast(`${w.count} new PDF${w.count === 1 ? "" : "s"} found in a watched folder. They wait for your review.`, "info", { sticky: true, action: { label: "Review", run: async () => dialogs.importReview(await call("import.get", { id: w.batch_id })) } }));
@@ -481,4 +508,7 @@ export async function start() {
   await render();
   window.addEventListener("beforeunload", () => saveWorkspace());
   setTimeout(autoIndex, 4000);
+  // Started from a prism-rm:// link.
+  const link = await call("link.pending").catch(() => null);
+  if (link && S.info?.library) openLink(link);
 }

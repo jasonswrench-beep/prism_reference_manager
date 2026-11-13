@@ -953,6 +953,59 @@ impl Library {
         Ok(l)
     }
 
+    /// Create several labels at once (one undo step). Names already in use (ignoring case) are
+    /// skipped; returns the labels created.
+    pub fn create_labels(&mut self, items: &[(String, String)]) -> Result<Vec<Label>> {
+        let existing: Vec<Label> = self.store.all()?;
+        let mut taken: std::collections::BTreeSet<String> = existing.iter().map(|l| l.name.trim().to_lowercase()).collect();
+        let mut made = vec![];
+        for (name, color) in items {
+            let n = name.trim();
+            if n.is_empty() || !taken.insert(n.to_lowercase()) {
+                continue;
+            }
+            made.push(Label { id: new_id(), name: n.to_string(), color: if color.trim().is_empty() { "#1554d1".into() } else { color.trim().to_string() } });
+        }
+        if !made.is_empty() {
+            let m = made.clone();
+            self.write(if m.len() == 1 { "Create label" } else { "Create labels" }, |tx| {
+                for l in &m {
+                    tx.put(l)?;
+                }
+                Ok(())
+            })?;
+        }
+        Ok(made)
+    }
+
+    /// Merge several labels into one (`into`) or delete them (`into` empty), as one undo step.
+    /// Sources keep everything else.
+    pub fn merge_labels(&mut self, ids: &[String], into: &str) -> Result<usize> {
+        let ids: Vec<&String> = ids.iter().filter(|i| i.as_str() != into).collect();
+        if !into.is_empty() {
+            self.store.must::<Label>(into)?;
+        }
+        let refs: Vec<Reference> = self.store.all()?;
+        let mut touched = 0;
+        self.write(if into.is_empty() { "Delete labels" } else { "Merge labels" }, |tx| {
+            for mut r in refs {
+                if r.labels.iter().any(|l| ids.contains(&l)) {
+                    r.labels.retain(|l| !ids.contains(&l));
+                    if !into.is_empty() && !r.labels.iter().any(|l| l == into) {
+                        r.labels.push(into.to_string());
+                    }
+                    tx.put(&r)?;
+                    touched += 1;
+                }
+            }
+            for id in &ids {
+                tx.delete::<Label>(id)?;
+            }
+            Ok(())
+        })?;
+        Ok(touched)
+    }
+
     /// Delete a label, or merge it into `into` when given.
     pub fn delete_label(&mut self, id: &str, into: Option<&str>) -> Result<()> {
         let refs: Vec<Reference> = self.store.all()?;

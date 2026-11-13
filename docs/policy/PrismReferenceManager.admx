@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Group Policy template for Prism Reference Manager. Copy this file to
+     %SystemRoot%\PolicyDefinitions (or the central store) and en-US\PrismReferenceManager.adml
+     to the en-US subfolder. Settings set here are locked in the program; computer policy wins
+     over user policy, and both win over policy.json. -->
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="prism" namespace="Prism.Policies.ReferenceManager" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="windows10" displayName="$(string.windows10)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="prism" displayName="$(string.prism)" />
+  </categories>
+  <policies>
+    <policy name="network_enabled" class="Both" displayName="$(string.network_enabled)" explainText="$(string.network_enabled_help)" key="Software\Policies\Prism Reference Manager" valueName="network_enabled">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="api_enabled" class="Both" displayName="$(string.api_enabled)" explainText="$(string.api_enabled_help)" key="Software\Policies\Prism Reference Manager" valueName="api_enabled">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="auto_backup" class="Both" displayName="$(string.auto_backup)" explainText="$(string.auto_backup_help)" key="Software\Policies\Prism Reference Manager" valueName="auto_backup">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="backup_include_files" class="Both" displayName="$(string.backup_include_files)" explainText="$(string.backup_include_files_help)" key="Software\Policies\Prism Reference Manager" valueName="backup_include_files">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="update_check" class="Both" displayName="$(string.update_check)" explainText="$(string.update_check_help)" key="Software\Policies\Prism Reference Manager" valueName="update_check">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="auto_index" class="Both" displayName="$(string.auto_index)" explainText="$(string.auto_index_help)" key="Software\Policies\Prism Reference Manager" valueName="auto_index">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="backup_interval_hours" class="Both" displayName="$(string.backup_interval_hours)" explainText="$(string.backup_interval_hours_help)" presentation="$(presentation.backup_interval_hours)" key="Software\Policies\Prism Reference Manager">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <elements><decimal id="backup_interval_hours" valueName="backup_interval_hours" minValue="1" maxValue="8760" /></elements>
+    </policy>
+    <policy name="backup_keep" class="Both" displayName="$(string.backup_keep)" explainText="$(string.backup_keep_help)" presentation="$(presentation.backup_keep)" key="Software\Policies\Prism Reference Manager">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <elements><decimal id="backup_keep" valueName="backup_keep" minValue="1" maxValue="365" /></elements>
+    </policy>
+    <policy name="trash_retention_days" class="Both" displayName="$(string.trash_retention_days)" explainText="$(string.trash_retention_days_help)" presentation="$(presentation.trash_retention_days)" key="Software\Policies\Prism Reference Manager">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <elements><decimal id="trash_retention_days" valueName="trash_retention_days" minValue="1" maxValue="3650" /></elements>
+    </policy>
+    <policy name="backup_dir" class="Both" displayName="$(string.backup_dir)" explainText="$(string.backup_dir_help)" presentation="$(presentation.backup_dir)" key="Software\Policies\Prism Reference Manager">
+      <parentCategory ref="prism" />
+      <supportedOn ref="windows10" />
+      <elements><text id="backup_dir" valueName="backup_dir" /></elements>
+    </policy>
+  </policies>
+</policyDefinitions>

@@ -9,6 +9,7 @@ mod api;
 mod capture;
 mod clipboard;
 mod dispatch;
+mod links;
 mod ocr;
 mod settings;
 
@@ -27,6 +28,13 @@ pub struct AppState {
     pub pending_pairs: Vec<api::PairRequest>,
     pub api_log: Vec<serde_json::Value>,
     pub jobs: Vec<serde_json::Value>,
+    /// A prism-rm:// link the program was started with, handed to the window once it is ready.
+    pub pending_link: Option<String>,
+}
+
+/// The first prism-rm:// link among command-line arguments.
+pub fn link_arg(args: &[String]) -> Option<String> {
+    args.iter().find(|a| a.to_lowercase().starts_with(links::SCHEME)).cloned()
 }
 
 pub type Shared = Arc<Mutex<AppState>>;
@@ -94,6 +102,17 @@ fn device_id(dir: &std::path::Path) -> String {
 
 pub fn run() {
     tauri::Builder::default()
+        // One window: a second start (for example from a prism-rm:// link) hands its link to the
+        // running program and brings it to the front.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+            if let Some(l) = link_arg(&argv) {
+                let _ = app.emit("open-link", l);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![call, read_attachment, read_picked])
@@ -115,6 +134,7 @@ pub fn run() {
                 pending_pairs: vec![],
                 api_log: vec![],
                 jobs: vec![],
+                pending_link: link_arg(&std::env::args().collect::<Vec<_>>()),
             }));
             app.manage(state.clone());
 

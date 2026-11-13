@@ -208,6 +208,7 @@ registerView("notes", {
             N.section ? btn("Remove from this section", { onClick: async () => { await call("outline.unfile_note", { section_id: N.section, note_id: n.id }); go("notes"); } }) : null),
           linkBox,
           h("div.btn-row", { style: { marginTop: "8px" } },
+            btn("Copy link", { small: true, title: "A prism-rm:// link that opens this note here", onClick: async () => { const { copyLink } = await import("../app.js"); copyLink("note", n.id); } }),
             btn("Split at cursor", { small: true, title: "The text after the cursor becomes a new note with the same sources", onClick: async () => {
               try { const at = lastCaret ?? body.selectionStart; const b = await call("notes.split", { id: n.id, at }); N.selected = b.id; toast("Split into two notes", "success", { action: { label: "Undo", run: async () => { await call("undo"); go("notes"); } } }); go("notes"); } catch (e) { showError(e); }
             } }),

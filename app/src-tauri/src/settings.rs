@@ -198,7 +198,11 @@ pub fn save(dir: &Path, s: &Settings) -> std::io::Result<()> {
     prm_core::util::write_atomic(&dir.join("settings.json"), serde_json::to_string_pretty(s).unwrap_or_default().as_bytes())
 }
 
+/// Locked settings, from (highest first) Group Policy for the computer, Group Policy for the user,
+/// and a `policy.json` next to the program or in `%ProgramData%\Prism Reference Manager`.
 pub fn load_policy() -> Policy {
+    let mut p = Policy::default();
+    let mut sources = vec![];
     let mut candidates = vec![exe_dir().join("policy.json")];
     if let Ok(pd) = std::env::var("ProgramData") {
         candidates.push(PathBuf::from(pd).join("Prism Reference Manager").join("policy.json"));
@@ -206,11 +210,120 @@ pub fn load_policy() -> Policy {
     for c in candidates {
         if let Ok(s) = std::fs::read_to_string(&c) {
             if let Ok(Value::Object(m)) = serde_json::from_str::<Value>(&s) {
-                return Policy { source: c.to_string_lossy().to_string(), locked: m };
+                sources.push(c.to_string_lossy().to_string());
+                p.locked = m;
+                break;
             }
         }
     }
-    Policy::default()
+    // Group Policy overrides the file: user policy first, then computer policy on top.
+    for (label, values) in registry_policies() {
+        if values.is_empty() {
+            continue;
+        }
+        sources.push(label);
+        for (k, v) in policy_values(&values) {
+            p.locked.insert(k, v);
+        }
+    }
+    p.source = sources.join("; ");
+    p
+}
+
+/// A value as read from the registry.
+#[derive(Debug, Clone)]
+pub enum RegRaw {
+    Number(u64),
+    Text(String),
+}
+
+pub const POLICY_KEY: &str = r"Software\Policies\Prism Reference Manager";
+
+/// Values under the policy key, user policy then computer policy (later wins).
+fn registry_policies() -> Vec<(String, Vec<(String, RegRaw)>)> {
+    #[cfg(windows)]
+    {
+        use winreg::enums::{RegType, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        let mut out = vec![];
+        for (hive, label) in [(HKEY_CURRENT_USER, "Group Policy (user)"), (HKEY_LOCAL_MACHINE, "Group Policy (computer)")] {
+            let mut vals = vec![];
+            if let Ok(k) = winreg::RegKey::predef(hive).open_subkey(POLICY_KEY) {
+                for (name, v) in k.enum_values().flatten() {
+                    let raw = match v.vtype {
+                        RegType::REG_DWORD => k.get_value::<u32, _>(&name).ok().map(|n| RegRaw::Number(n as u64)),
+                        RegType::REG_QWORD => k.get_value::<u64, _>(&name).ok().map(RegRaw::Number),
+                        RegType::REG_SZ | RegType::REG_EXPAND_SZ => k.get_value::<String, _>(&name).ok().map(RegRaw::Text),
+                        _ => None,
+                    };
+                    if let Some(r) = raw {
+                        vals.push((name, r));
+                    }
+                }
+            }
+            out.push((label.to_string(), vals));
+        }
+        out
+    }
+    #[cfg(not(windows))]
+    {
+        vec![]
+    }
+}
+
+/// Turn registry values into setting values of the right type. Names that are not settings, and
+/// values that do not fit the setting, are ignored.
+pub fn policy_values(values: &[(String, RegRaw)]) -> serde_json::Map<String, Value> {
+    let defaults = serde_json::to_value(Settings::default()).unwrap_or_default();
+    let mut out = serde_json::Map::new();
+    for (name, raw) in values {
+        let Some(target) = defaults.get(name) else { continue };
+        let v = match (target, raw) {
+            (Value::Bool(_), RegRaw::Number(n)) => Some(Value::Bool(*n != 0)),
+            (Value::Bool(_), RegRaw::Text(s)) => match s.trim().to_lowercase().as_str() {
+                "1" | "true" | "yes" | "on" => Some(Value::Bool(true)),
+                "0" | "false" | "no" | "off" => Some(Value::Bool(false)),
+                _ => None,
+            },
+            (Value::Number(_), RegRaw::Number(n)) => Some(Value::from(*n)),
+            (Value::Number(_), RegRaw::Text(s)) => s.trim().parse::<f64>().ok().and_then(serde_json::Number::from_f64).map(Value::Number),
+            (Value::String(_), RegRaw::Text(s)) => Some(Value::String(s.clone())),
+            (Value::String(_), RegRaw::Number(n)) => Some(Value::String(n.to_string())),
+            (_, RegRaw::Text(s)) => serde_json::from_str::<Value>(s).ok().filter(|v| std::mem::discriminant(v) == std::mem::discriminant(target)),
+            _ => None,
+        };
+        if let Some(v) = v {
+            out.insert(name.clone(), v);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+    #[test]
+    fn registry_values_take_the_type_of_their_setting() {
+        let vals = vec![
+            ("network_enabled".to_string(), RegRaw::Number(0)),
+            ("auto_backup".to_string(), RegRaw::Text("true".into())),
+            ("backup_interval_hours".to_string(), RegRaw::Number(12)),
+            ("backup_dir".to_string(), RegRaw::Text(r"\\server\backups".into())),
+            ("network_disabled_kinds".to_string(), RegRaw::Text(r#"["abstract","linkcheck"]"#.into())),
+            ("not_a_setting".to_string(), RegRaw::Number(1)),
+            ("api_enabled".to_string(), RegRaw::Text("maybe".into())),
+        ];
+        let m = policy_values(&vals);
+        assert_eq!(m["network_enabled"], Value::Bool(false));
+        assert_eq!(m["auto_backup"], Value::Bool(true));
+        assert_eq!(m["backup_interval_hours"], Value::from(12u64));
+        assert_eq!(m["backup_dir"], Value::String(r"\\server\backups".into()));
+        assert_eq!(m["network_disabled_kinds"], serde_json::json!(["abstract", "linkcheck"]));
+        assert!(!m.contains_key("not_a_setting") && !m.contains_key("api_enabled"));
+        // Applied over the person's settings, the locked values win.
+        let mut s = Settings { network_enabled: true, ..Default::default() };
+        apply_policy(&mut s, &Policy { source: "test".into(), locked: m });
+        assert!(!s.network_enabled && s.backup_interval_hours == 12);
+    }
 }
 
 /// Apply locked policy values over the person's settings.
@@ -228,5 +341,22 @@ pub fn apply_policy(s: &mut Settings, p: &Policy) {
     }
     if let Ok(ns) = serde_json::from_value(v) {
         *s = ns;
+    }
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+    /// SEC-003: the settings file never holds a secret. Local connection tokens are stored only as
+    /// hashes; the program stores no service keys or passwords.
+    #[test]
+    fn settings_hold_no_plain_secrets() {
+        let mut s = Settings::default();
+        s.api_clients.push(ApiClient { id: "c".into(), name: "Browser".into(), token_hash: "ab12".into(), scopes: vec![], created: String::new(), last_used: String::new() });
+        let text = serde_json::to_string(&s).unwrap().to_lowercase();
+        for word in ["\"password", "\"secret", "\"api_key", "\"apikey", "\"token\"", "\"access_token", "\"credential"] {
+            assert!(!text.contains(word), "settings must not store {word}");
+        }
+        assert!(text.contains("\"token_hash\""));
     }
 }

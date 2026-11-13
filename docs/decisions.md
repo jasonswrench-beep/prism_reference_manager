@@ -136,3 +136,25 @@ from recognized words are labelled as such, and an edit keeps the original extra
 `policy.json` next to the program or in `%ProgramData%\Prism Reference Manager` locks setting
 values (for example `network_enabled`, `api_enabled`, `auto_backup`). A `portable.txt` file next
 to the program keeps settings and the default library beside it.
+
+Group Policy: values under `Software\Policies\Prism Reference Manager` lock the setting of the
+same name, in HKCU and HKLM (computer policy wins over user policy, and both over
+`policy.json`). Each value takes the type of its setting (a DWORD 0 or 1 for a yes/no setting, a
+number, text, or JSON text for a list); names that are not settings and values that do not fit
+are ignored. `docs/policy/PrismReferenceManager.admx` and `en-US/PrismReferenceManager.adml` are
+the administrative template for the common settings.
+
+## D8a. Secrets
+
+The program stores no secrets. Local connection tokens are shown once and kept only as hashes;
+service API keys are not built in (file exchange is the built-in method). A test fails if the
+settings file ever gains a password, secret, key or token field. Any future secret goes in the
+Windows credential store, never in settings or the library.
+
+## D8b. Links
+
+`prism-rm://open/<source|collection|annotation|note|project>/<id>?library=<library id>` opens an
+item. The installer registers the scheme for the current user and the uninstaller removes it.
+A link only shows an item; anything else is refused. A link to another library on this computer
+asks before switching. A second start of the program (from a link) hands the link to the running
+window.

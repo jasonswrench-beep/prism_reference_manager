@@ -267,6 +267,7 @@ registerView("reader", {
     const d = R.docs[R.active];
     const project = S.project?.project.id || "";
     if (params.page) { R.page = params.page; params.page = null; }
+    if (params.ann) { R.selectedAnn = params.ann; R.panelTab = "annotations"; params.ann = null; }
     const docTabs = h("div.doc-tabs", { role: "tablist", "aria-label": "Open documents" }, R.docs.map((x, i) => h("div.doc-tab", { role: "tab", "aria-selected": String(i === R.active), tabindex: "0", on: { click: () => { R.active = i; go("reader"); }, keydown: (e) => e.key === "Enter" && (R.active = i, go("reader")) } },
       icon("pdf", 16), h("span.ellipsis", x.title), iconBtn("x", "Close " + x.title, (e) => { e.stopPropagation(); R.docs.splice(i, 1); R.active = Math.max(0, Math.min(R.active, R.docs.length - 1)); R.pdfKey = ""; go("reader"); }))));
     el.append(docTabs);
@@ -690,6 +691,7 @@ registerView("reader", {
           a.text ? btn("Copy with narrative citation", { small: true, disabled: !a.locator_confirmed, title: "Authors and year before the quotation, page after it", onClick: () => copyQuote(a, "narrative_quote") }) : null,
           a.text ? btn("Copy quote with citation", { kind: "primary", icon: "copy", disabled: !a.locator_confirmed, title: a.locator_confirmed ? "" : "Confirm the citation page first", onClick: () => copyQuote(a) }) : null,
           btn("Add to outline", { icon: "list", onClick: () => addToOutline(a) }),
+          btn("Copy link", { small: true, title: "A prism-rm:// link that opens this mark here", onClick: async () => { const { copyLink } = await import("../app.js"); copyLink("annotation", a.id); } }),
           iconBtn("trash", "Delete mark", async () => { await call("ann.delete", { id: a.id }); R.anns = R.anns.filter((x) => x.id !== a.id); R.selectedAnn = null; paintAnnotations(a.page_index + 1); drawPanel(); toast("Mark deleted", "info", { action: { label: "Undo", run: async () => { await call("undo"); R.anns = await call("ann.list", { attachment_id: d.att.id, project_id: project }); paintAnnotations(a.page_index + 1); drawPanel(); } } }); })),
         !a.locator_confirmed && a.text ? h("p.small.muted", "PDF page, printed page and paragraph are different values. Confirm the page as printed in the source before citing a quotation.") : null,
         a.anchor_state === "uncertain" || a.anchor_state === "unmatched" ? h("div.btn-row", btn("Keep at this position", { small: true, onClick: async () => { await call("ann.resolve_anchor", { id: a.id, keep: true }); await refreshAnns(); } }), btn("Remove from this version", { small: true, kind: "danger", onClick: async () => { await call("ann.resolve_anchor", { id: a.id, keep: false }); await refreshAnns(); } })) : null));

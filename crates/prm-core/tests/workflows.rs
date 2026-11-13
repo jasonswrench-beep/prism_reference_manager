@@ -821,3 +821,30 @@ fn collections_nest_and_sources_move_between_them() {
     lib.undo().unwrap();
     assert_eq!(lib.store.must::<Collection>(&a.id).unwrap().ref_ids.len(), 2, "a move is one undo step");
 }
+
+#[test]
+fn labels_bulk_create_recolour_merge_and_delete() {
+    let (mut lib, _root) = open("labels");
+    let made = lib.create_labels(&[("Theory".into(), "#7a3cc2".into()), ("Methods".into(), "".into()), ("theory".into(), "".into()), ("Gaps".into(), "".into())]).unwrap();
+    assert_eq!(made.iter().map(|l| l.name.as_str()).collect::<Vec<_>>(), vec!["Theory", "Methods", "Gaps"], "a name already used (any case) is skipped");
+    assert_eq!(made[0].color, "#7a3cc2");
+    let (t, m, g) = (made[0].id.clone(), made[1].id.clone(), made[2].id.clone());
+    let mut tm = made[1].clone();
+    tm.color = "#00aa55".into();
+    lib.save_label(tm).unwrap();
+    assert_eq!(lib.store.must::<Label>(&m).unwrap().color, "#00aa55");
+    let r1 = lib.add_reference(article("One", 2020, &[("Ode", "I")]), None).unwrap();
+    let r2 = lib.add_reference(article("Two", 2021, &[("Lee", "K")]), None).unwrap();
+    lib.set_labels(&[r1.id.clone()], &m, true).unwrap();
+    lib.set_labels(&[r2.id.clone()], &g, true).unwrap();
+    lib.set_labels(&[r2.id.clone()], &t, true).unwrap();
+    assert_eq!(lib.merge_labels(&[m.clone(), g.clone()], &t).unwrap(), 2);
+    assert_eq!(lib.reference(&r1.id).unwrap().labels, vec![t.clone()]);
+    assert_eq!(lib.reference(&r2.id).unwrap().labels, vec![t.clone()], "no duplicate label after merging");
+    assert!(lib.store.get::<Label>(&m).unwrap().is_none() && lib.store.get::<Label>(&g).unwrap().is_none());
+    lib.undo().unwrap();
+    assert!(lib.store.get::<Label>(&g).unwrap().is_some(), "merging is one undo step");
+    lib.merge_labels(&[t.clone(), m.clone(), g.clone()], "").unwrap();
+    assert!(lib.store.all::<Label>().unwrap().is_empty());
+    assert!(lib.reference(&r2.id).unwrap().labels.is_empty());
+}

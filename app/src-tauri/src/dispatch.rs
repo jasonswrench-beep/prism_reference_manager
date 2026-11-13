@@ -607,6 +607,16 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(true)
         }
         "library.info" => ok(lib_mut(st)?.info().map_err(err)?),
+        "link.pending" => ok(st.pending_link.take()),
+        "link.resolve" => ok(crate::links::resolve(st, &s(a, "url"))),
+        "link.make" => {
+            let kind = s(a, "kind");
+            if !crate::links::KINDS.contains(&kind.as_str()) {
+                return Err(user("Links can point to a source, collection, annotation, note or project."));
+            }
+            let lid = lib_mut(st)?.store.meta("library_id").unwrap_or_default();
+            ok(crate::links::make(&kind, &s(a, "id"), &lid))
+        }
         "library.schema" => {
             let l = lib_mut(st)?;
             ok(json!({
@@ -782,6 +792,17 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "fields.values" => ok(lib_mut(st)?.field_values(&s(a, "field"), &s(a, "prefix")).map_err(err)?),
         "labels.list" => ok(lib_mut(st)?.store.all::<Label>().map_err(err)?),
         "labels.save" => ok(lib_mut(st)?.save_label(arg(a, "label")?).map_err(err)?),
+        "labels.create_many" => {
+            #[derive(serde::Deserialize)]
+            struct L {
+                name: String,
+                #[serde(default)]
+                color: String,
+            }
+            let items: Vec<L> = arg(a, "labels")?;
+            ok(lib_mut(st)?.create_labels(&items.into_iter().map(|l| (l.name, l.color)).collect::<Vec<_>>()).map_err(err)?)
+        }
+        "labels.merge" => ok(lib_mut(st)?.merge_labels(&arg::<Vec<String>>(a, "ids")?, &s(a, "into")).map_err(err)?),
         "labels.delete" => {
             let into = s(a, "into");
             ok(lib_mut(st)?.delete_label(&s(a, "id"), if into.is_empty() { None } else { Some(&into) }).map_err(err)?)

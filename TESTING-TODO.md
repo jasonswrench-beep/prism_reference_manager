@@ -103,6 +103,12 @@ already pass are listed at the end for reference.
       simulate the drop). Try the keyboard ways with a screen reader.
 - [ ] Pause and resume full-text indexing of a large folder of PDFs from Tools › Background jobs,
       then cancel and retry it.
+- [ ] Links: install the build, copy a source's link (details › History › Copy link), paste it into a
+      Word document and a browser address bar, and click it with the program closed and with it
+      open. Check that uninstalling removes the prism-rm registration.
+- [ ] Group Policy (IT): copy `docs/policy/*.admx` and `en-US/*.adml` into PolicyDefinitions, set
+      "Allow online lookups" to Disabled and a backup folder, and confirm the program shows them
+      as set by the administrator and cannot change them.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder
@@ -328,8 +334,7 @@ work that could not be verified here or an owner decision.
 - Side-by-side reading of two documents (part of RDR-001).
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.
-- Copying references between two libraries (LIB-017); link scheme for opening items from other
-  programs (EXT-013).
+- Copying references between two libraries (LIB-017).
 
 ## Automated checks that pass in this build
 

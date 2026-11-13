@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Prism Reference Manager</displayName>
+  <description>Settings administrators can preset and lock.</description>
+  <resources>
+    <stringTable>
+      <string id="prism">Prism Reference Manager</string>
+      <string id="windows10">Windows 10 or later</string>
+      <string id="network_enabled">Allow online lookups</string>
+      <string id="network_enabled_help">When disabled, the program makes no network request at all: no metadata lookups, no free full-text searches, no link checks and no update checks.</string>
+      <string id="api_enabled">Allow the local connection for other programs</string>
+      <string id="api_enabled_help">When disabled, the loopback connection used by the browser button and other local programs cannot be turned on.</string>
+      <string id="auto_backup">Back up libraries automatically</string>
+      <string id="auto_backup_help">When enabled, libraries are backed up on a schedule and each backup is verified.</string>
+      <string id="backup_include_files">Include attached files in backups</string>
+      <string id="backup_include_files_help">When enabled, automatic backups include the attached files (larger backups).</string>
+      <string id="update_check">Check for new versions automatically</string>
+      <string id="update_check_help">When disabled, the program never checks for new versions by itself.</string>
+      <string id="auto_index">Read PDF text in the background for search</string>
+      <string id="auto_index_help">When disabled, PDF text is read only when a person asks for it.</string>
+      <string id="backup_interval_hours">Hours between automatic backups</string>
+      <string id="backup_interval_hours_help">Hours between automatic backups, from 1 to 8760.</string>
+      <string id="backup_keep">Number of automatic backups to keep</string>
+      <string id="backup_keep_help">Number of automatic backups to keep, from 1 to 365.</string>
+      <string id="trash_retention_days">Days before items in the trash are deleted</string>
+      <string id="trash_retention_days_help">Days before items in the trash are deleted, from 1 to 3650.</string>
+      <string id="backup_dir">Folder for automatic backups</string>
+      <string id="backup_dir_help">A folder, ideally on another drive or a network share. Empty keeps backups inside each library.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="backup_interval_hours"><decimalTextBox refId="backup_interval_hours" defaultValue="24">Hours between automatic backups</decimalTextBox></presentation>
+      <presentation id="backup_keep"><decimalTextBox refId="backup_keep" defaultValue="10">Number of automatic backups to keep</decimalTextBox></presentation>
+      <presentation id="trash_retention_days"><decimalTextBox refId="trash_retention_days" defaultValue="30">Days before items in the trash are deleted</decimalTextBox></presentation>
+      <presentation id="backup_dir"><textBox refId="backup_dir"><label>Folder for automatic backups</label></textBox></presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

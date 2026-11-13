@@ -276,12 +276,13 @@ registerView("library", {
       ul.append(h("li", collHead));
       ul.append(...buildCollections(""));
       if (saved.length) ul.append(h("li", h("div.ti", { style: { fontWeight: 700, marginTop: "8px" } }, icon("search", 18), "Saved searches")), ...saved.map((s) => h("li", { role: "treeitem", tabindex: "-1" }, h("div.ti", { on: { click: () => { st.search = s.query; searchBox.value = s.query; loadList(); } } }, icon("search", 16), s.name))));
-      if (labels.length) ul.append(h("li", h("div.ti", { style: { fontWeight: 700, marginTop: "8px" } }, icon("tag", 18), "Labels")), ...labels.map((l) => treeItem(l.name, "tag", { type: "label", value: l.id })));
+      ul.append(h("li", h("div.ti", { style: { fontWeight: 700, marginTop: "8px" } }, icon("tag", 18), "Labels", h("span.grow"), iconBtn("settings", "Manage labels", () => manageLabels()))), ...labels.map((l) => treeItem(l.name, "tag", { type: "label", value: l.id })));
       tree.append(ul);
     };
     const collectionMenu = async (c) => {
       const act = await modal(c.name, h("div", h("p.muted", c.query ? "Smart collection: " + c.query : `${c.ref_ids.length} sources`)), { size: "narrow", buttons: [
-        { label: "Rename", value: "rename" }, { label: "New sub-collection", value: "sub" }, { label: "Move into…", value: "move" }, ...(c.query ? [] : [{ label: "Add selected sources", value: "add" }]), { label: "Delete", value: "delete", kind: "danger" }] }).done;
+        { label: "Rename", value: "rename" }, { label: "New sub-collection", value: "sub" }, { label: "Move into…", value: "move" }, { label: "Copy link", value: "link" }, ...(c.query ? [] : [{ label: "Add selected sources", value: "add" }]), { label: "Delete", value: "delete", kind: "danger" }] }).done;
+      if (act === "link") { const { copyLink } = await import("../app.js"); copyLink("collection", c.id); return; }
       if (act === "move") {
         // Not itself or anything inside it.
         const inside = new Set([c.id]);
@@ -741,7 +742,8 @@ registerView("library", {
           h("td.small", confidenceBadge(p), needsCheck(p) ? btn("Checked", { small: true, kind: "ghost", title: "I checked this value against the source", onClick: async () => { await call("refs.confirm_values", { id: r.id, fields: [f] }); drawInspector(); } }) : null),
           h("td", btn("History", { small: true, onClick: () => dialogs.fieldHistory(r.id, f) }))); }))),
           h("div.btn-row", { style: { marginTop: "10px" } }, (r.fields.doi || r.fields.pmid || r.fields.arxiv || r.fields.isbn) ? btn("Refresh from online record…", { small: true, icon: "refresh", onClick: () => dialogs.refreshFromSource(r.id) }) : null, btn("Regenerate citation key", { small: true, onClick: async () => { try { await call("refs.regenerate_citekey", { id: r.id }); drawInspector(); } catch (e) { showError(e); } } }),
-            btn("Copy citation key", { small: true, onClick: async () => { await call("refs.citekey_copy", { ids: [r.id], syntax: "pandoc" }); toast("Copied @" + r.citekey, "success"); } })));
+            btn("Copy citation key", { small: true, onClick: async () => { await call("refs.citekey_copy", { ids: [r.id], syntax: "pandoc" }); toast("Copied @" + r.citekey, "success"); } }),
+            btn("Copy link", { small: true, title: "A prism-rm:// link that opens this source here, for notes and other programs", onClick: async () => { const { copyLink } = await import("../app.js"); copyLink("source", r.id); } })));
       }
       // Bottom panel
       const bt = tabs([["abstract", "Abstract"], ["related", "Related"], ["project_notes", "Project notes"]], st.bottomTab, (k) => { st.bottomTab = k; drawInspector(); }, { label: "Source content" });
@@ -783,6 +785,47 @@ export async function copyOut(request, plain = false) {
   } catch (e) { showError(e); return null; }
 }
 
+/** Create many labels at once, rename, recolour, merge and delete. */
+export async function manageLabels() {
+  const body = h("div");
+  const draw = async () => {
+    const labels = (await call("labels.list")).sort((a, b) => a.name.localeCompare(b.name));
+    const boxes = new Map();
+    const into = select([["", "Choose the label to keep…"], ...labels.map((l) => [l.id, l.name])], "", { "aria-label": "Merge into" });
+    const many = h("textarea", { rows: 4, placeholder: "One per line. Add a colour after a comma if you like, for example:\nTheory, #7a3cc2\nMethods" , "aria-label": "New labels" });
+    clear(body,
+      labels.length ? h("table.table", h("tbody", labels.map((l) => {
+        const box = h("input", { type: "checkbox", "aria-label": "Select " + l.name });
+        boxes.set(l.id, box);
+        const col = h("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : "#1554d1", "aria-label": "Colour of " + l.name, on: { change: async (e) => { await call("labels.save", { label: { ...l, color: e.target.value } }); } } });
+        const nm = h("input", { value: l.name, "aria-label": "Name of " + l.name, on: { change: async (e) => { const v = e.target.value.trim(); if (v && v !== l.name) { await call("labels.save", { label: { ...l, name: v } }); draw(); } } } });
+        return h("tr", h("td", box), h("td", col), h("td", nm));
+      }))) : h("p.muted", "No labels yet."),
+      labels.length ? h("div.row", { style: { flexWrap: "wrap", gap: "8px" } }, into,
+        btn("Merge selected into it", { small: true, onClick: async () => {
+          const ids = [...boxes].filter(([, b]) => b.checked).map(([k]) => k);
+          if (!into.value || !ids.filter((x) => x !== into.value).length) { toast("Tick the labels to merge, then choose the one to keep.", "info"); return; }
+          const n = await call("labels.merge", { ids, into: into.value }); toast(`Merged; ${n} sources relabelled. Undo is available.`, "success"); draw();
+        } }),
+        btn("Delete selected", { small: true, kind: "danger", onClick: async () => {
+          const ids = [...boxes].filter(([, b]) => b.checked).map(([k]) => k);
+          if (!ids.length) return;
+          if (!(await confirmDialog("Delete labels", `Delete ${ids.length} label${ids.length === 1 ? "" : "s"}? Sources keep everything else. Undo is available.`, { ok: "Delete", kind: "danger" }))) return;
+          await call("labels.merge", { ids, into: "" }); draw();
+        } })) : null,
+      h("h3", "Create labels"), many,
+      btn("Create", { small: true, kind: "primary", onClick: async () => {
+        const items = many.value.split(/\n/).map((x) => x.trim()).filter(Boolean).map((x) => { const [n, c = ""] = x.split(/,\s*(?=#[0-9a-f]{6}\s*$)/i); return { name: n.trim(), color: c.trim() }; });
+        if (!items.length) return;
+        const made = await call("labels.create_many", { labels: items });
+        toast(`${made.length} label${made.length === 1 ? "" : "s"} created${made.length < items.length ? `; ${items.length - made.length} already existed` : ""}.`, "success"); draw();
+      } }));
+  };
+  await draw();
+  await modal("Labels", body, { size: "wide", buttons: [{ label: "Close" }] }).done;
+  go("library");
+}
+
 async function labelDialog(ids, labels) {
   const name = h("input", { placeholder: "New label name" });
   const color = h("input", { type: "color", value: "#1554d1", "aria-label": "Colour" });
@@ -792,7 +835,7 @@ async function labelDialog(ids, labels) {
       btn("Remove", { small: true, onClick: async () => { await call("refs.set_labels", { ids, label: l.id, on: false }); } }),
       iconBtn("edit", "Rename or recolour", async () => { const n = await promptDialog("Rename label", "Name", l.name); if (n) await call("labels.save", { label: { ...l, name: n } }); }),
       iconBtn("trash", "Delete label", async () => { if (await confirmDialog("Delete label", `Delete the label “${l.name}”? Sources keep everything else.`, { ok: "Delete", kind: "danger" })) await call("labels.delete", { id: l.id }); })))) : null,
-    h("h3", "New label"), h("div.row", name, color)),
+    h("h3", "New label"), h("div.row", name, color), h("p.small", btn("Manage all labels…", { small: true, kind: "ghost", onClick: () => manageLabels() }))),
     { buttons: [{ label: "Close" }, { label: "Create and add", kind: "primary", run: async () => { if (!name.value.trim()) return false; const l = await call("labels.save", { label: { name: name.value.trim(), color: color.value } }); await call("refs.set_labels", { ids, label: l.id, on: true }); return true; } }] }).done;
   if (r) go("library");
 }
