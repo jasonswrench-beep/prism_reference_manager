@@ -65,6 +65,7 @@ fn filters(kind: &str) -> Vec<(&'static str, Vec<&'static str>)> {
         "csljson" => vec![("CSL JSON", vec!["json"])],
         "csv" => vec![("CSV", vec!["csv"])],
         "xml" => vec![("XML", vec!["xml"])],
+        "csl" => vec![("Citation style (CSL)", vec!["csl", "xml"])],
         _ => vec![("All files", vec!["*"])],
     }
 }
@@ -243,6 +244,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             pre_path = needs_save(&f, &format!("notes.{}", if f == "json" { "json" } else { &f }), "Export notes");
         }
         "family.export" => pre_path = needs_save("json", "prism-exchange.json", "Export exchange file"),
+        "styles.import" => pre_path = pick_file(app, "csl", "Choose a CSL style file"),
         "ann.export_pdf" => pre_path = needs_save("pdf", &format!("{}-annotated.pdf", s(&a, "name").trim_end_matches(".pdf")), "Export annotated PDF copy"),
         "ann.export_list" => {
             let f = s(&a, "format");
@@ -273,7 +275,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         "diagnostics.save" => pre_path = needs_save("zip", "prism-diagnostics.zip", "Save diagnostic bundle"),
         _ => {}
     }
-    let dialog_methods = ["cite.export_bibliography", "notes.export", "family.export", "ann.export_pdf", "ann.export_list", "ann.preview_external", "export.refs", "export.package", "export.attachments", "backup.now", "backup.verify", "backup.restore", "package.import", "files.relink_pick", "files.replace_pick", "import.pick", "library.choose", "diagnostics.save"];
+    let dialog_methods = ["styles.import", "cite.export_bibliography", "notes.export", "family.export", "ann.export_pdf", "ann.export_list", "ann.preview_external", "export.refs", "export.package", "export.attachments", "backup.now", "backup.verify", "backup.restore", "package.import", "files.relink_pick", "files.replace_pick", "import.pick", "library.choose", "diagnostics.save"];
     if dialog_methods.contains(&method) && pre_path.is_none() {
         return ok(json!({"cancelled": true}));
     }
@@ -319,7 +321,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
                 "portable": settings::portable(),
                 "default_library": settings::default_library_dir().to_string_lossy(),
                 "library": lib_info,
-                "styles": prm_core::render::builtin_styles(),
+                "styles": st.lib.as_ref().map(|l| l.styles()).unwrap_or_else(prm_core::render::installed_styles),
                 "types": prm_core::types::TYPES,
                 "note_kinds": NOTE_KINDS,
                 "network_inventory": prm_core::lookup::NETWORK_INVENTORY.iter().map(|(k, h, p)| json!({"kind": k, "host": h, "purpose": p})).collect::<Vec<_>>(),
@@ -603,7 +605,13 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(l.style_issues(&refs, &[]).map_err(err)?)
         }
         "style.apply" => ok(lib_mut(st)?.apply_suggestion(&s(a, "ref_id"), &s(a, "code")).map_err(err)?),
-        "styles.list" => ok(prm_core::render::builtin_styles()),
+        "styles.list" => ok(st.lib.as_ref().map(|l| l.styles()).unwrap_or_else(prm_core::render::installed_styles)),
+        "styles.import" => {
+            let p = path.unwrap();
+            let xml = std::fs::read_to_string(&p).map_err(|_| user("The style file could not be read. CSL styles are UTF-8 text files ending in .csl."))?;
+            ok(lib_mut(st)?.import_style(&xml).map_err(err)?)
+        }
+        "styles.remove" => ok(lib_mut(st)?.remove_style(&s(a, "id")).map_err(err)?),
         "snapshot.save" => ok(lib_mut(st)?.save_snapshot(&s(a, "manuscript_id"), &s(a, "label")).map_err(err)?),
         "snapshot.verify" => ok(lib_mut(st)?.verify_snapshot(&s(a, "id")).map_err(err)?),
         "snapshot.get" => ok(lib_mut(st)?.store.must::<Snapshot>(&s(a, "id")).map_err(err)?),

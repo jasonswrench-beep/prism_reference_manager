@@ -3,6 +3,7 @@
 
 import { call, on } from "./api.js";
 import { h, clear, icon, iconBtn, toast, modal, announce, showError, select } from "./dom.js";
+import * as styles from "./styles.js";
 import * as dialogs from "./dialogs.js";
 
 export const S = {
@@ -147,9 +148,10 @@ function renderContext() {
     if (e.target.value === "__new") { e.target.value = S.manuscriptId; await dialogs.newManuscript(); } else setManuscript(e.target.value);
   } } });
   const m = manuscript();
-  const styleSel = select(S.styles.map((s) => [s.id, s.title]), m?.style || "apa-7", { id: "ctx-style", "aria-label": "Citation style", disabled: !m, on: { change: async (e) => {
+  const styleSel = styles.styleSelect(m?.style || "apa-7", { id: "ctx-style", "aria-label": "Citation style", disabled: !m, on: { change: async (e) => {
+    if (e.target.value === "__catalog") { e.target.value = m.style; return styles.styleCatalog(); }
     try { await call("manuscripts.update", { manuscript: { ...m, style: e.target.value } }); await refresh(); } catch (err) { showError(err); }
-  } } });
+  } } }, { extra: ["__catalog", "More styles and citation language…"] });
   ctxBar.append(
     h("div.ctx", icon("folder", 20), h("label", { for: "ctx-project" }, "Project:"), projSel),
     h("div.sep"),

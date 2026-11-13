@@ -26,6 +26,9 @@ pub struct CiteRequest {
     /// Cite exactly these records, even when another version of the work is marked to cite.
     #[serde(default)]
     pub exact_version: bool,
+    /// Render with this style instead of the manuscript's (previews and comparisons).
+    #[serde(default)]
+    pub style: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -49,6 +52,8 @@ pub struct CiteOutput {
     pub provisional: bool,
     pub style: String,
     pub style_title: String,
+    pub style_hash: String,
+    pub processor: String,
     pub assurance: String,
     pub locale: String,
     pub context_label: String,
@@ -90,6 +95,10 @@ pub struct Readiness {
     pub issues: Vec<StyleIssue>,
     pub coverage: serde_json::Value,
     pub snapshots: Vec<serde_json::Value>,
+}
+
+fn processor_of(s: &render::StyleInfo) -> String {
+    if s.engine == "csl" { format!("{} {}", render::csl::PROCESSOR, render::csl::PROCESSOR_VERSION) } else { format!("{} {}", render::PROCESSOR, render::PROCESSOR_VERSION) }
 }
 
 fn short_label(r: &Reference) -> String {
@@ -138,9 +147,11 @@ impl Library {
 
     /// Render output without side effects.
     pub fn render(&self, req: &CiteRequest) -> Result<CiteOutput> {
-        let (style, locale, revision) = self.style_of(&req.manuscript_id)?;
-        let styles = render::builtin_styles();
-        let sinfo = styles.iter().find(|s| s.id == style).cloned().unwrap_or_else(|| styles[0].clone());
+        let (mut style, locale, revision) = self.style_of(&req.manuscript_id)?;
+        if !req.style.is_empty() {
+            style = req.style.clone();
+        }
+        let (sinfo, engine) = self.style_engine(&style)?;
         let ctx_refs = self.context_refs(&req.manuscript_id)?;
         let standalone = req.manuscript_id.is_empty();
 
@@ -184,9 +195,9 @@ impl Library {
         let mut block_quote = false;
         let mut locator_fragment = String::new();
         let mut rendered: Rendered = match req.mode {
-            OutputMode::Parenthetical => render::cite(&style, &items, false, &cited_refs, &ctx),
+            OutputMode::Parenthetical => render::cite(&engine, &sinfo, &items, false, &cited_refs, &ctx),
             OutputMode::Narrative => {
-                let r = render::cite(&style, &items, true, &cited_refs, &ctx);
+                let r = render::cite(&engine, &sinfo, &items, true, &cited_refs, &ctx);
                 // A separate locator fragment for placing after a quotation in narrative writing.
                 if let Some(i) = items.first() {
                     let l = render::apa::locator_text(&i.locator_label, &i.locator);
@@ -201,21 +212,21 @@ impl Library {
                 for i in &mut its {
                     i.locator.clear();
                 }
-                let r = render::cite(&style, &its, true, &cited_refs, &ctx);
+                let r = render::cite(&engine, &sinfo, &its, true, &cited_refs, &ctx);
                 let t = r.text.split(" (").next().unwrap_or("").to_string();
                 Rendered { runs: vec![render::Run { text: t.clone(), ..Default::default() }], text: t, ..r }
             }
             OutputMode::QuoteWithCitation => {
-                let c = render::cite(&style, &items, false, &cited_refs, &ctx);
+                let c = render::cite(&engine, &sinfo, &items, false, &cited_refs, &ctx);
                 let (o, block) = render::apa::quote_with_citation(&req.quote, &c);
                 block_quote = block;
                 Rendered { text: o.text(), runs: o.runs, ..c }
             }
-            OutputMode::Reference | OutputMode::Bibliography => render::bibliography(&style, &cited_refs, &ctx),
+            OutputMode::Reference | OutputMode::Bibliography => render::bibliography(&engine, &sinfo, &cited_refs, &ctx),
             OutputMode::Citekey => {
                 let keys: Vec<String> = cited.iter().map(|r| format!("@{}", r.citekey)).collect();
                 let t = if keys.len() == 1 { keys[0].clone() } else { format!("[{}]", keys.join("; ")) };
-                Rendered { runs: vec![render::Run { text: t.clone(), ..Default::default() }], text: t, fingerprint: render::fingerprint(&style, &cited_refs, &ctx), ..Default::default() }
+                Rendered { runs: vec![render::Run { text: t.clone(), ..Default::default() }], text: t, fingerprint: render::fingerprint_with(&style, &sinfo.hash, &cited_refs, &ctx), ..Default::default() }
             }
         };
         let is_bib = matches!(req.mode, OutputMode::Reference | OutputMode::Bibliography);
@@ -240,6 +251,8 @@ impl Library {
             provisional: standalone && !matches!(req.mode, OutputMode::Citekey),
             style: sinfo.id.clone(),
             style_title: sinfo.title.clone(),
+            style_hash: sinfo.hash.clone(),
+            processor: processor_of(&sinfo),
             assurance: sinfo.assurance.clone(),
             locale,
             context_label: if standalone { "Standalone preview (provisional): no manuscript chosen, so disambiguation uses only these sources.".into() } else { format!("Manuscript reference set: {} sources", ctx_refs.len()) },
@@ -277,7 +290,8 @@ impl Library {
                 format!("{}: {}", style.title, match style.assurance.as_str() {
                     "verified" => "Verified profile for the tested cases.",
                     "limited" => "Limited testing. The cases pass but await review by a qualified person.",
-                    "custom_unreviewed" => "Custom style, not reviewed.",
+                    "custom_unreviewed" => "Imported style, not reviewed. Check every citation against the style's instructions.",
+                    "untested" => "Not tested in this program. Check every citation against the style's manual.",
                     _ => "Unsupported case.",
                 })
             },
@@ -327,9 +341,9 @@ impl Library {
             ref_revisions: refs.iter().map(|r| (r.id.clone(), r.revision)).collect(),
             context_fingerprint: out.fingerprint.clone(),
             style: out.style.clone(),
-            style_hash: render::apa::style_hash(),
+            style_hash: out.style_hash.clone(),
             locale: out.locale.clone(),
-            processor: format!("{} {}", render::PROCESSOR, render::PROCESSOR_VERSION),
+            processor: out.processor.clone(),
             payload_text: out.text.clone(),
             payload_html: out.html.clone(),
             payload_hash: sha256_hex(out.text.as_bytes()),
@@ -407,6 +421,7 @@ impl Library {
                 set: "selected".into(),
                 ref_ids: c.items.iter().map(|i| i.ref_id.clone()).collect(),
                 exact_version: false,
+                style: String::new(),
             };
             if !c.manuscript_id.is_empty() && self.store.get::<Manuscript>(&c.manuscript_id)?.is_none() {
                 continue;
@@ -446,7 +461,7 @@ impl Library {
                 }
             }
         }
-        if c.style_hash != render::apa::style_hash() {
+        if c.style_hash != self.style_engine(&c.style).map(|x| x.0.hash).unwrap_or_default() {
             reasons.push("The style or processor version changed".into());
         }
         if c.style != cur.style || c.locale != cur.locale {
@@ -471,7 +486,7 @@ impl Library {
                     *rev = r.revision;
                 }
             }
-            c.style_hash = render::apa::style_hash();
+            c.style_hash = self.style_engine(&c.style).map(|x| x.0.hash).unwrap_or_default();
             c.changed = false;
             c.current_text.clear();
             c.current_html.clear();
@@ -540,6 +555,7 @@ impl Library {
     pub fn readiness(&mut self, manuscript_id: &str) -> Result<Readiness> {
         self.recompute_copies(Some(manuscript_id))?;
         let m = self.store.must::<Manuscript>(manuscript_id)?;
+        let style_coverage = self.style_engine(&m.style).map(|x| x.0.coverage).unwrap_or_else(|_| render::apa::coverage());
         let ps = self.store.by::<ProjectSource>("project_id", &m.project_id)?.len();
         let ms = self.store.by::<ManuscriptSource>("manuscript_id", manuscript_id)?;
         let mut copies: Vec<CopyEvent> = self.store.by("manuscript_id", manuscript_id)?;
@@ -569,7 +585,7 @@ impl Library {
             changed,
             copies,
             issues,
-            coverage: render::apa::coverage(),
+            coverage: style_coverage,
             snapshots: snaps,
         })
     }
@@ -579,7 +595,8 @@ impl Library {
         let mut out = Vec::new();
         let ctx = Context { set: refs.iter().collect(), locale: "en-US".into(), revision: 0, manuscript_id: String::new(), standalone: false, protected_terms: self.protected_terms.clone() };
         let rr: Vec<&Reference> = refs.iter().collect();
-        let bib = render::bibliography("apa-7", &rr, &ctx);
+        let apa = render::builtin_styles().remove(0);
+        let bib = render::bibliography(&render::Engine::Apa, &apa, &rr, &ctx);
         for w in bib.warnings.iter().filter(|w| w.level != "info" || w.code == "no-date") {
             let r = refs.iter().find(|r| r.id == w.ref_id);
             let src = r.map(short_label).unwrap_or_default();
@@ -702,9 +719,9 @@ impl Library {
             label: if label.trim().is_empty() { format!("Snapshot {}", &now()[..10]) } else { label.trim().into() },
             created: now(),
             style: m.style.clone(),
-            style_hash: render::apa::style_hash(),
+            style_hash: self.style_engine(&m.style).map(|x| x.0.hash).unwrap_or_default(),
             locale: m.locale.clone(),
-            processor: format!("{} {}", render::PROCESSOR, render::PROCESSOR_VERSION),
+            processor: self.style_engine(&m.style).map(|x| processor_of(&x.0)).unwrap_or_default(),
             references: refs,
             bibliography_text: text,
             bibliography_html: html,

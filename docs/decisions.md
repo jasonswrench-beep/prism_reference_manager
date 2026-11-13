@@ -40,9 +40,40 @@ Assurance is computed from the golden fixture corpus at run time. The APA profil
 `reviewed_by` field in `tests/fixtures/apa/fixtures.json`); it reports **Verified profile** only
 when all approved cases pass and are reviewed.
 
-Open: evaluate a CSL processor for the wider style catalog (other styles would show Limited
-testing). A CSL processor must pass the same fixtures before it can replace or join the
-composer for APA. Owner input needed if the candidate's license or size affects distribution.
+### D3a. Other styles: CSL through an embedded processor (2026-11-13)
+
+Every style other than APA 7 is rendered from a Citation Style Language file by an embedded
+CSL processor (hayagriva 0.10.1, MIT or Apache-2.0), through `render/csl.rs`. Records go to the
+processor as CSL JSON; its formatted output (italic, bold, small caps, super- and subscript,
+links) comes back as the same runs every serializer already uses.
+
+Evaluation against the 57 non-quotation APA golden cases, using the processor's own APA style:
+36 matched exactly. The misses include year-suffix order, "&" where APA's narrative form needs
+"and", an ellipsis character instead of ". . .", the publisher repeated when it is the author,
+no first-initial disambiguation, missing suffixes on "n.d.", and an empty title in one
+narrative case. A 200-entry reference list rendered in about 150 ms. The processor therefore
+does **not** replace the composer for APA, and the APA CSL styles are hidden.
+
+Consequences:
+
+- About 75 bundled styles from the CSL style repository (CC BY-SA 3.0) are shown as
+  **Untested**, and every citation from them carries a review warning. Imported .csl files are
+  shown as **Imported, not reviewed**. Neither inherits verification from a parent style.
+- Bundled styles that the processor renders wrongly in a way a person could miss are withheld
+  (`KNOWN_BROKEN` in `render/csl.rs`); currently the two NLM citation-sequence styles, which drop
+  author names. The test `every_bundled_style_renders_a_citation_and_reference` guards this.
+- Imported styles are stored in the library's `styles` folder under their content hash, so a
+  manuscript keeps rendering with the exact file it chose; importing a changed file adds a new
+  version. Dependent styles resolve their parent from imported or bundled styles.
+- Citation language applies to CSL styles through the CSL locale files; APA 7 stays US English.
+- Prefixes and suffixes inside a citation are not placed by the processor; output says so.
+- Literal dates (for example "in press") are passed as the CSL `status` variable, and date ranges
+  are reduced to their start date, because the processor's CSL JSON reader rejects both.
+- Release builds now unwind on panic so a failure inside the processor is caught and reported
+  as a warning instead of closing the program.
+
+A style becomes **Limited testing** or **Verified profile** only when it has its own golden
+cases, as APA 7 does.
 
 ## D4. PDF reading: pdf.js in the window, lopdf in the core
 
@@ -67,9 +98,10 @@ Importers: RIS, BibTeX/biblatex, CSL JSON, the XML record format several desktop
 managers export, mapped CSV/TSV, and pasted reference lists (heuristic, always reviewed).
 Exporters: RIS, BibTeX, biblatex, CSL JSON, CSV, Prism XML, and the complete package.
 
-Research services and other reference managers are described generically in the program and
-repository ("literature-mapping service", "another reference manager's export"). Their file
-formats are supported; no service account is connected.
+Owner decision (2026-11-13): interoperability labels in the interface (import sources, the
+Connections page, the citation-context hand-off) name the service or program a file comes from.
+Code, comments, commits, documentation and release notes stay generic, and nothing compares
+this program with others. Service APIs are not built in; file exchange is the built-in method.
 
 ## D7. Local API
 

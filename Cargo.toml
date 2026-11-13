@@ -27,7 +27,8 @@ lopdf = "0.34"
 ureq = { version = "2", features = ["json"] }
 
 [profile.release]
-panic = "abort"
+# Unwind so a failure inside a third-party renderer is caught and reported, not fatal.
+panic = "unwind"
 codegen-units = 1
 lto = true
 opt-level = "s"

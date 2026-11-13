@@ -3,6 +3,7 @@
 import { call } from "../api.js";
 import { h, clear, icon, iconBtn, btn, toast, modal, confirmDialog, select, field, showError, fmtDate, runsHtml, tabs } from "../dom.js";
 import { S, registerView, go, manuscript, refresh } from "../app.js";
+import { assuranceBadge, localeName, styleCatalog } from "../styles.js";
 import * as dialogs from "../dialogs.js";
 import { pickSource } from "./notes.js";
 
@@ -102,8 +103,8 @@ async function workspace(el, m) {
     const checksCard = h("div.card.pad", h("h2.section-title", "Output checks"));
     if (p) {
       checksCard.append(h("ul.check-list", p.checks.map((c) => h("li", icon(c.state === "ok" ? "checkCircle" : c.state === "review" || c.state === "unsupported" ? "warn" : "info", 18, c.state === "ok" ? "Passed" : c.state), h("div", h("strong", c.label), h("div.small.muted", c.detail))))),
-        h("div.small", h("strong", "Style: "), `${p.style_title} • ${p.locale}`),
-        h("div.small", h("strong", "Assurance: "), h("span.badge." + (p.assurance === "verified" ? "success" : "attention"), p.assurance === "verified" ? "Verified profile" : "Limited testing"), " ", h("a", { href: "#", on: { click: (e) => { e.preventDefault(); go("cite", { tab: "checks" }); C.checkTab = "library"; } } }, "View test coverage")),
+        h("div.small", h("strong", "Style: "), `${p.style_title} • ${localeName(p.locale)}`),
+        h("div.small", h("strong", "Assurance: "), assuranceBadge(p.assurance), " ", h("a", { href: "#", on: { click: (e) => { e.preventDefault(); go("cite", { tab: "checks" }); C.checkTab = "library"; } } }, "View test coverage")),
         p.provisional ? h("div.notice.warn", { style: { marginTop: "8px" } }, icon("info"), h("div.small", p.context_label)) : h("div.small.muted", { style: { marginTop: "6px" } }, p.context_label));
       for (const w of p.warnings.filter((w) => w.level !== "info")) checksCard.append(h("div.small.status-review", icon("warn", 13), " " + w.message));
     } else checksCard.append(h("p.muted", "Checks appear when a source is added."));
@@ -152,7 +153,7 @@ async function readiness(el, m) {
   if (C.subtab === "overview") {
     main.append(h("div.card.pad", h("h2.section-title.bar", "Manuscript context"),
       h("p", `${rd.manuscript_sources} sources are in this manuscript's reference set. That set controls year suffixes (2024a, 2024b) and name disambiguation, and differs from the ${rd.project_sources} sources in the project.`),
-      h("p", `Style: ${S.styles.find((s) => s.id === m.style)?.title || m.style} • citation language ${m.locale} • context revision ${m.context_revision}`),
+      h("p", `Style: ${S.styles.find((s) => s.id === m.style)?.title || m.style} • citation language ${localeName(m.locale)} • context revision ${m.context_revision}`),
       h("h3", "Saved snapshots"), rd.snapshots.length ? h("table.table", h("tbody", rd.snapshots.map((s) => h("tr", h("td", s.label), h("td.small", fmtDate(s.created)), h("td", `${s.sources} sources`), h("td", btn("Verify", { small: true, onClick: async () => toast((await call("snapshot.verify", { id: s.id })) ? "Snapshot is intact." : "The snapshot does not match its checksum.", "info") })))))) : h("p.muted", "No snapshots yet.")),
       await manuscriptSources(m));
   }
@@ -233,9 +234,10 @@ async function checks(el, m) {
   if (C.checkTab === "readiness") {
     const rd = await call("readiness", { manuscript_id: m.id });
     const issues = rd.issues;
-    const left = h("div.card.pad", h("h2.section-title.bar", style.title), h("div.row", icon("globe"), "English (US)"), h("hr"),
-      h("div.row", icon(cov.assurance === "verified" ? "checkCircle" : "info"), h("strong", "Assurance: "), cov.assurance === "verified" ? "Verified profile" : "Limited testing"),
-      h("p.small.muted", cov.assurance === "verified" ? "Coverage applies to the tested source types and cases." : `${cov.passed} of ${cov.cases} golden cases pass; ${cov.reviewed} have been reviewed by a qualified person. Until all are reviewed the profile is shown as Limited testing.`),
+    const left = h("div.card.pad", h("h2.section-title.bar", style.title), h("div.row", icon("globe"), style.id === "apa-7" ? "English (US)" : localeName(m.locale)), h("hr"),
+      h("div.row", icon(cov.assurance === "verified" ? "checkCircle" : "info"), h("strong", "Assurance: "), assuranceBadge(cov.assurance)),
+      h("p.small.muted", cov.assurance === "verified" ? "Coverage applies to the tested source types and cases." : cov.cases ? `${cov.passed} of ${cov.cases} golden cases pass; ${cov.reviewed} have been reviewed by a qualified person. Until all are reviewed the profile is shown as Limited testing.` : cov.note),
+      btn("Change style or language…", { small: true, onClick: () => styleCatalog() }),
       h("a", { href: "#", on: { click: (e) => { e.preventDefault(); C.checkTab = "library"; go("cite"); } } }, "View test coverage"));
     const sel = issues[C.selectedIssue] || issues[0];
     const table = h("div.card", issues.length ? h("table.table", h("thead", h("tr", h("th", ""), h("th", "Source"), h("th", "Check"), h("th", "Suggested action"))),
@@ -250,7 +252,7 @@ async function checks(el, m) {
     const right = h("div.card.pad", h("h2.section-title.bar", "Check details"),
       h("ul.check-list",
         h("li", icon("doc"), h("div", h("strong", "Metadata checks"), h("div.small.muted", "Looks for inconsistencies, missing fields and format issues."))),
-        h("li", icon("beaker"), h("div", h("strong", "Style test coverage"), h("div.small.muted", "Checks core APA 7 formatting rules for references and in-text citations in this project."))),
+        h("li", icon("beaker"), h("div", h("strong", "Style test coverage"), h("div.small.muted", style.id === "apa-7" ? "Checks core APA 7 formatting rules for references and in-text citations in this project." : "This style has no test cases in this program; the metadata checks below still apply."))),
         h("li", icon("layers"), h("div", h("strong", "Manuscript context"), h("div.small.muted", `Uses your project and manuscript settings (${style.title}) to guide relevant checks.`))),
         h("li", icon("info"), h("div.small", "Missing DOI does not automatically mean an incomplete reference."))),
       h("p.small.muted", { style: { fontStyle: "italic" } }, "Custom edits need their own review."));
@@ -262,9 +264,9 @@ async function checks(el, m) {
     }
   }
   if (C.checkTab === "library") {
-    body.append(h("div.card.pad", h("h2.section-title.bar", "Installed styles"),
-      h("table.table", h("thead", h("tr", h("th", "Style"), h("th", "Engine"), h("th", "Version"), h("th", "Assurance"))), h("tbody", S.styles.map((s) => h("tr", h("td", s.title), h("td", s.engine === "builtin" ? "Built-in composer" : "CSL"), h("td.mono", s.version), h("td", h("span.badge." + (s.assurance === "verified" ? "success" : "attention"), s.assurance === "verified" ? "Verified profile" : "Limited testing")))))),
-      h("p.small.muted", "Other styles will appear here with a visible Limited testing status. A custom style becomes its own version and does not inherit verification from its parent.")),
+    body.append(h("div.card.pad", h("div.card-head", h("h2.section-title.bar", { style: { margin: 0 } }, `Installed styles (${S.styles.length})`), btn("Browse, preview or import…", { small: true, kind: "primary", onClick: () => styleCatalog() })),
+      h("table.table", h("thead", h("tr", h("th", "Style"), h("th", "Source"), h("th", "Engine"), h("th", "Licence"), h("th", "Assurance"))), h("tbody", S.styles.map((s) => h("tr", h("td", s.title, s.class === "note" ? h("span.small.muted", " (notes)") : null), h("td.small", s.source === "builtin" ? "Built in" : s.source === "imported" ? "Imported" : "Bundled"), h("td.small", s.engine === "builtin" ? "Tested composer" : "CSL " + s.version), h("td.small", s.license || ""), h("td", assuranceBadge(s.assurance)))))),
+      h("p.small.muted", "Bundled CSL styles are Untested until test cases for them are run and reviewed. An imported style is its own version and never inherits verification from a parent style.")),
       h("div.card.pad", { style: { marginTop: "12px" } }, h("h2.section-title.bar", `Test coverage: ${style.title}`),
         h("p", `${cov.cases} golden cases • ${cov.passed} pass • ${cov.reviewed} reviewed by a qualified person • processor ${cov.processor} ${cov.processor_version} • style ${cov.style_version}`),
         h("div.notice" + (cov.assurance === "verified" ? "" : ".warn"), icon("info"), cov.note),
@@ -282,6 +284,7 @@ async function checks(el, m) {
   if (C.checkTab === "custom") {
     body.append(h("div.card.pad", h("h2.section-title.bar", "Custom styles"),
       h("p", "Editing a style creates a new, separately versioned style with the status “Custom, not reviewed”. It never overwrites the installed profile and never inherits its verification."),
-      h("div.notice.warn", icon("info"), "The visual style editor and raw style editing are planned for a later version. Until then, the built-in APA 7 profile is the supported style.")));
+      h("div.notice.warn", icon("info"), "The visual style editor is planned for a later version. You can import any CSL style file now; it is marked Imported, not reviewed."),
+      btn("Import CSL style file…", { onClick: () => styleCatalog() })));
   }
 }

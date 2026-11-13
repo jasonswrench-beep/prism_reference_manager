@@ -7,6 +7,7 @@
 //! applies punctuation rules of its own.
 
 pub mod apa;
+pub mod csl;
 pub mod serialize;
 pub mod titlecase;
 
@@ -21,6 +22,10 @@ pub struct Run {
     pub text: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub italic: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bold: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub small_caps: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub sup: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -78,7 +83,7 @@ impl Out {
             return;
         }
         if let Some(last) = self.runs.last_mut() {
-            if last.italic == r.italic && last.sup == r.sup && last.sub == r.sub && last.link == r.link {
+            if last.italic == r.italic && last.bold == r.bold && last.small_caps == r.small_caps && last.sup == r.sup && last.sub == r.sub && last.link == r.link {
                 last.text.push_str(&r.text);
                 return;
             }
@@ -142,9 +147,29 @@ pub struct StyleInfo {
     pub engine: String,
     pub version: String,
     pub hash: String,
-    /// verified, limited, custom_unreviewed, unsupported, update_available
+    /// verified, limited, untested, custom_unreviewed, unsupported
     pub assurance: String,
     pub coverage: serde_json::Value,
+    /// builtin (tested composer), bundled (CSL shipped with the program) or imported.
+    #[serde(default)]
+    pub source: String,
+    /// in-text or note.
+    #[serde(default)]
+    pub class: String,
+    #[serde(default)]
+    pub license: String,
+    /// The style's own CSL identifier, when it has one.
+    #[serde(default)]
+    pub csl_id: String,
+    /// For dependent styles: the CSL id of the parent style.
+    #[serde(default)]
+    pub parent: String,
+}
+
+/// How a style is rendered.
+pub enum Engine {
+    Apa,
+    Csl(std::sync::Arc<csl::LoadedStyle>),
 }
 
 pub fn builtin_styles() -> Vec<StyleInfo> {
@@ -157,24 +182,50 @@ pub fn builtin_styles() -> Vec<StyleInfo> {
         hash: apa::style_hash(),
         assurance: cov.get("assurance").and_then(|v| v.as_str()).unwrap_or("limited").to_string(),
         coverage: cov,
+        source: "builtin".into(),
+        class: "in-text".into(),
+        license: "Part of this program (Apache-2.0)".into(),
+        csl_id: String::new(),
+        parent: String::new(),
     }]
 }
 
+/// The tested APA composer plus the bundled CSL styles.
+pub fn installed_styles() -> Vec<StyleInfo> {
+    let mut v = builtin_styles();
+    v.extend(csl::bundled_styles());
+    v
+}
+
 /// Render in-text citations for a cluster.
-pub fn cite(style: &str, items: &[CiteItem], narrative: bool, refs: &[&Reference], ctx: &Context) -> Rendered {
-    match style {
-        _ => apa::cite(items, narrative, refs, ctx),
+pub fn cite(engine: &Engine, info: &StyleInfo, items: &[CiteItem], narrative: bool, refs: &[&Reference], ctx: &Context) -> Rendered {
+    match engine {
+        Engine::Apa => apa::cite(items, narrative, refs, ctx),
+        Engine::Csl(ls) => {
+            let mut r = csl::cite(ls, info, items, narrative, refs, ctx);
+            r.fingerprint = fingerprint_with(&info.id, &info.hash, refs, ctx);
+            r
+        }
     }
 }
 
 /// Render reference-list entries for `refs`, sorted, using `ctx` for disambiguation.
-pub fn bibliography(style: &str, refs: &[&Reference], ctx: &Context) -> Rendered {
-    match style {
-        _ => apa::bibliography(refs, ctx),
+pub fn bibliography(engine: &Engine, info: &StyleInfo, refs: &[&Reference], ctx: &Context) -> Rendered {
+    match engine {
+        Engine::Apa => apa::bibliography(refs, ctx),
+        Engine::Csl(ls) => {
+            let mut r = csl::bibliography(ls, info, refs, ctx);
+            r.fingerprint = fingerprint_with(&info.id, &info.hash, refs, ctx);
+            r
+        }
     }
 }
 
 pub fn fingerprint(style: &str, refs: &[&Reference], ctx: &Context) -> String {
+    fingerprint_with(style, &apa::style_hash(), refs, ctx)
+}
+
+pub fn fingerprint_with(style: &str, style_hash: &str, refs: &[&Reference], ctx: &Context) -> String {
     let mut parts: Vec<String> = ctx.set.iter().map(|r| format!("{}@{}", r.id, r.revision)).collect();
     parts.sort();
     let mut cited: Vec<String> = refs.iter().map(|r| format!("{}@{}", r.id, r.revision)).collect();
@@ -182,7 +233,7 @@ pub fn fingerprint(style: &str, refs: &[&Reference], ctx: &Context) -> String {
     let s = format!(
         "{}|{}|{}|{}|{}|{}|{}|{}|{}",
         style,
-        apa::style_hash(),
+        style_hash,
         PROCESSOR,
         PROCESSOR_VERSION,
         ctx.locale,

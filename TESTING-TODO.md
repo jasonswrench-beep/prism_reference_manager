@@ -9,6 +9,8 @@ already pass are listed at the end for reference.
 - [x] **Shipping license.** Apache-2.0, approved by the owner on 2026-11-13.
 - [ ] **Code signing.** Approved in principle: sign once there is a working version. Until then
       builds stay unsigned (Windows SmartScreen will warn).
+- [ ] **Bundled citation styles licence.** The bundled styles and locale files are CC BY-SA 3.0
+      and ship unmodified, credited in THIRD-PARTY.md. Confirm this is acceptable for distribution.
 - [x] **Update channel.** Decided 2026-11-13: full updater built in, switched off. It stays
       "Not set up" until an update-signing key and a feed address are added at publishing time
       (see `docs/updates.md`). Automatic checks are off by default even then.
@@ -39,6 +41,16 @@ already pass are listed at the end for reference.
       thesis with and without an archive.
 - [ ] Have an academic editor or librarian review output for every source type in Cite ›
       Style checks › Preview using real records.
+- [ ] **Other styles (CSL).** About 75 bundled styles are marked *Untested*. Spot-check the
+      ones your users need most (for example Chicago author-date and notes, MLA, IEEE, Harvard,
+      a Vancouver style) against their manuals with real records, using Cite › Style checks ›
+      Browse, preview or import. Note anything wrong; a style with real problems can be withheld
+      like the two NLM citation-sequence styles, which drop author names in this processor
+      version. Writing golden cases for a style is what moves it to *Limited testing*.
+- [ ] Import one real journal style file (.csl) from the CSL style repository, including a
+      dependent style, and confirm it previews and renders.
+- [ ] Check the citation language with a CSL style in a language you can read (for example
+      German "und", French "et", month names).
 
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
@@ -181,7 +193,8 @@ work that could not be verified here or an owner decision.
   (RDR-003); annotation filters by colour and author (RDR-007).
 - Resizable and saved pane layouts, list and card views, customizable shortcuts (UIX-001,
   LIB-009, UIX-012). Navigation can be collapsed (Ctrl+B).
-- A searchable catalog of other citation styles (STY-002) and a style editor (P2).
+- A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
+  bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other
   programs (EXT-013); scheduled export presets (EXP-006); a spreadsheet (.xlsx) export (CSV works).
 - Watched folders (CAP-009); tasks interface (KNW-012; the data model exists).

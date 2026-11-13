@@ -22,6 +22,12 @@ pub fn html_runs(runs: &[Run]) -> String {
         if r.italic {
             t = format!("<i>{t}</i>");
         }
+        if r.bold {
+            t = format!("<b>{t}</b>");
+        }
+        if r.small_caps {
+            t = format!("<span style=\"font-variant:small-caps\">{t}</span>");
+        }
         if let Some(l) = &r.link {
             t = format!("<a href=\"{}\">{}</a>", html_escape(l), t);
         }
@@ -110,6 +116,12 @@ fn rtf_runs(runs: &[Run]) -> String {
         if r.italic {
             t = format!("{{\\i {t}}}");
         }
+        if r.bold {
+            t = format!("{{\\b {t}}}");
+        }
+        if r.small_caps {
+            t = format!("{{\\scaps {t}}}");
+        }
         if let Some(l) = &r.link {
             t = format!("{{\\field{{\\*\\fldinst{{HYPERLINK \"{}\"}}}}{{\\fldrslt {}}}}}", rtf_escape(l), t);
         }
@@ -151,6 +163,11 @@ pub fn markdown_runs(runs: &[Run]) -> String {
         } else {
             esc
         };
+        if r.bold && !t.trim().is_empty() {
+            let lead = t[..t.len() - t.trim_start().len()].to_string();
+            let trail = t[t.trim_end().len()..].to_string();
+            t = format!("{lead}**{}**{trail}", t.trim());
+        }
         if r.sup {
             t = format!("<sup>{t}</sup>");
         }
@@ -185,8 +202,14 @@ fn docx_runs(runs: &[Run], rels: &mut Vec<String>) -> String {
     let mut o = String::new();
     for r in runs {
         let mut rpr = String::new();
+        if r.bold {
+            rpr.push_str("<w:b/>");
+        }
         if r.italic {
             rpr.push_str("<w:i/>");
+        }
+        if r.small_caps {
+            rpr.push_str("<w:smallCaps/>");
         }
         if r.sup {
             rpr.push_str("<w:vertAlign w:val=\"superscript\"/>");

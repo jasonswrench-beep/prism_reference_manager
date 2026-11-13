@@ -15,8 +15,8 @@ Generated 2026-11-13 from the shipped dependency graph.
 | alloc-stdlib | 0.3.0 | BSD-3-Clause | https://github.com/dropbox/rust-alloc-no-stdlib |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 | https://github.com/dtolnay/anyhow |
 | ascii | 1.1.0 | Apache-2.0 OR MIT | https://github.com/tomprogrammer/rust-ascii |
-| base64 | 0.22.1 | MIT OR Apache-2.0 | https://github.com/marshallpierce/rust-base64 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 | https://github.com/marshallpierce/rust-base64 |
+| base64 | 0.22.1 | MIT OR Apache-2.0 | https://github.com/marshallpierce/rust-base64 |
 | bit-set | 0.8.0 | Apache-2.0 OR MIT | https://github.com/contain-rs/bit-set |
 | bit-vec | 0.8.0 | Apache-2.0 OR MIT | https://github.com/contain-rs/bit-vec |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 | https://github.com/bitflags/bitflags |
@@ -34,6 +34,10 @@ Generated 2026-11-13 from the shipped dependency graph.
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 | https://github.com/rust-lang/cfg-if |
 | chrono | 0.4.45 | MIT OR Apache-2.0 | https://github.com/chronotope/chrono |
 | chunked_transfer | 1.5.0 | MIT OR Apache-2.0 | https://github.com/frewsxcv/rust-chunked-transfer |
+| ciborium | 0.2.2 | Apache-2.0 | https://github.com/enarx/ciborium |
+| ciborium-io | 0.2.2 | Apache-2.0 | https://github.com/enarx/ciborium |
+| ciborium-ll | 0.2.2 | Apache-2.0 | https://github.com/enarx/ciborium |
+| citationberg | 0.7.0 | MIT OR Apache-2.0 | https://github.com/typst/citationberg |
 | clipboard-win | 5.4.3 | BSL-1.0 | https://github.com/DoumanAsh/clipboard-win |
 | constant_time_eq | 0.6.1 | CC0-1.0 OR MIT-0 OR Apache-2.0 | https://codeberg.org/cesarb/constant_time_eq |
 | cookie | 0.18.2 | MIT OR Apache-2.0 | https://github.com/SergioBenitez/cookie-rs |
@@ -84,22 +88,30 @@ Generated 2026-11-13 from the shipped dependency graph.
 | futures-task | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-util | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | generic-array | 0.14.7 | MIT | https://github.com/fizyk20/generic-array.git |
-| getrandom | 0.2.17 | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
+| getrandom | 0.2.17 | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
 | getrandom | 0.4.3 | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
 | glob | 0.3.4 | MIT OR Apache-2.0 | https://github.com/rust-lang/glob |
-| hashbrown | 0.12.3 | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown |
+| half | 2.7.1 | MIT OR Apache-2.0 | https://github.com/VoidStarKat/half-rs |
 | hashbrown | 0.14.5 | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown |
+| hashbrown | 0.12.3 | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown |
 | hashlink | 0.9.1 | MIT OR Apache-2.0 | https://github.com/kyren/hashlink |
+| hayagriva | 0.10.1 | MIT OR Apache-2.0 | https://github.com/typst/hayagriva |
 | heck | 0.5.0 | MIT OR Apache-2.0 | https://github.com/withoutboats/heck |
 | hex | 0.4.3 | MIT OR Apache-2.0 | https://github.com/KokaKiwi/rust-hex |
 | html5ever | 0.39.0 | MIT OR Apache-2.0 | https://github.com/servo/html5ever |
 | http | 1.5.0 | MIT OR Apache-2.0 | https://github.com/hyperium/http |
 | httpdate | 1.0.3 | MIT OR Apache-2.0 | https://github.com/pyfisch/httpdate |
 | ico | 0.6.0 | MIT | https://github.com/mdsteele/rust-ico |
+| icu_collator | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
+| icu_collator_data | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | icu_collections | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
+| icu_locale | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | icu_locale_core | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
+| icu_locale_data | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
+| icu_locale_fallback | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
+| icu_locale_fallback_data | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | icu_normalizer | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | icu_normalizer_data | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | icu_properties | 2.4.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
@@ -144,6 +156,7 @@ Generated 2026-11-13 from the shipped dependency graph.
 | option-ext | 0.2.0 | MPL-2.0 | https://github.com/soc/option-ext.git |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot |
 | parking_lot_core | 0.9.12 | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot |
+| paste | 1.0.15 | MIT OR Apache-2.0 | https://github.com/dtolnay/paste |
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ |
 | phf | 0.13.1 | MIT | https://github.com/rust-phf/rust-phf |
 | phf_generator | 0.13.1 | MIT | https://github.com/rust-phf/rust-phf |
@@ -156,6 +169,7 @@ Generated 2026-11-13 from the shipped dependency graph.
 | powerfmt | 0.2.1 | MIT OR Apache-2.0 | https://github.com/jhpratt/powerfmt |
 | precomputed-hash | 0.1.1 | MIT | https://github.com/emilio/precomputed-hash |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 | https://github.com/dtolnay/proc-macro2 |
+| quick-xml | 0.38.4 | MIT | https://github.com/tafia/quick-xml |
 | quick-xml | 0.42.0 | MIT | https://github.com/tafia/quick-xml |
 | quick-xml | 0.36.2 | MIT | https://github.com/tafia/quick-xml |
 | quote | 1.0.47 | MIT OR Apache-2.0 | https://github.com/dtolnay/quote |
@@ -171,6 +185,7 @@ Generated 2026-11-13 from the shipped dependency graph.
 | reqwest | 0.13.5 | MIT OR Apache-2.0 | https://github.com/seanmonstar/reqwest |
 | rfd | 0.17.2 | MIT | https://github.com/PolyMeilex/rfd |
 | ring | 0.17.14 | Apache-2.0 AND ISC | https://github.com/briansmith/ring |
+| roman-numerals-rs | 3.1.0 | 0BSD OR CC0-1.0 | https://github.com/AA-Turner/roman-numerals/ |
 | rusqlite | 0.32.1 | MIT | https://github.com/rusqlite/rusqlite |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT | https://github.com/rust-lang/rustc-hash |
 | rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT | https://github.com/rustls/rustls |
@@ -179,8 +194,8 @@ Generated 2026-11-13 from the shipped dependency graph.
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | https://github.com/dtolnay/ryu |
 | same-file | 1.0.6 | Unlicense/MIT | https://github.com/BurntSushi/same-file |
 | schemars | 0.9.0 | MIT | https://github.com/GREsau/schemars |
-| schemars | 1.2.3 | MIT | https://github.com/GREsau/schemars |
 | schemars | 0.8.22 | MIT | https://github.com/GREsau/schemars |
+| schemars | 1.2.3 | MIT | https://github.com/GREsau/schemars |
 | schemars_derive | 0.8.22 | MIT | https://github.com/GREsau/schemars |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 | https://github.com/bluss/scopeguard |
 | selectors | 0.38.0 | MPL-2.0 | https://github.com/servo/stylo |
@@ -191,10 +206,12 @@ Generated 2026-11-13 from the shipped dependency graph.
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_derive_internals | 0.29.1 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_json | 1.0.154 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
+| serde_path_to_error | 0.1.20 | MIT OR Apache-2.0 | https://github.com/dtolnay/path-to-error |
 | serde_repr | 0.1.21 | MIT OR Apache-2.0 | https://github.com/dtolnay/serde-repr |
 | serde_spanned | 1.1.3 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | serde_with | 3.24.0 | MIT OR Apache-2.0 | https://github.com/jonasbb/serde_with/ |
 | serde_with_macros | 3.24.0 | MIT OR Apache-2.0 | https://github.com/jonasbb/serde_with/ |
+| serde_yaml | 0.9.34+deprecated | MIT OR Apache-2.0 | https://github.com/dtolnay/serde-yaml |
 | serialize-to-javascript | 0.1.2 | MIT OR Apache-2.0 | https://github.com/chippers/serialize-to-javascript |
 | serialize-to-javascript-impl | 0.1.2 | MIT OR Apache-2.0 | https://github.com/chippers/serialize-to-javascript |
 | servo_arc | 0.4.3 | MIT OR Apache-2.0 | https://github.com/servo/stylo |
@@ -226,8 +243,8 @@ Generated 2026-11-13 from the shipped dependency graph.
 | tendril | 0.5.1 | MIT OR Apache-2.0 | https://github.com/servo/html5ever |
 | thiserror | 2.0.21 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
 | thiserror | 1.0.69 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
-| thiserror-impl | 1.0.69 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
 | thiserror-impl | 2.0.21 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
+| thiserror-impl | 1.0.69 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
 | time | 0.3.55 | MIT OR Apache-2.0 | https://github.com/time-rs/time |
 | time-core | 0.1.9 | MIT OR Apache-2.0 | https://github.com/time-rs/time |
 | time-macros | 0.2.32 | MIT OR Apache-2.0 | https://github.com/time-rs/time |
@@ -245,21 +262,26 @@ Generated 2026-11-13 from the shipped dependency graph.
 | typed-path | 0.13.0 | MIT OR Apache-2.0 | https://github.com/chipsenkbeil/typed-path |
 | typeid | 1.0.3 | MIT OR Apache-2.0 | https://github.com/dtolnay/typeid |
 | typenum | 1.20.1 | MIT OR Apache-2.0 | https://github.com/paholg/typenum |
+| unic-langid | 0.9.6 | MIT OR Apache-2.0 | https://github.com/zbraniecki/unic-locale |
+| unic-langid-impl | 0.9.6 | MIT OR Apache-2.0 | https://github.com/zbraniecki/unic-locale |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/dtolnay/unicode-ident |
 | unicode-normalization | 0.1.26 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/unicode-rs/unicode-normalization |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-segmentation |
+| unsafe-libyaml | 0.2.11 | MIT | https://github.com/dtolnay/unsafe-libyaml |
+| unscanny | 0.1.0 | MIT OR Apache-2.0 | https://github.com/typst/unscanny |
 | untrusted | 0.9.0 | ISC | https://github.com/briansmith/untrusted |
 | ureq | 2.12.1 | MIT OR Apache-2.0 | https://github.com/algesten/ureq |
 | url | 2.5.8 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
 | urlpattern | 0.6.0 | MIT | https://github.com/denoland/rust-urlpattern |
+| utf16_iter | 1.1.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf16_iter |
 | utf8_iter | 1.1.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter |
 | utf_types | 1.0.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf_types |
 | uuid | 1.29.2 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid |
 | walkdir | 2.5.0 | Unlicense/MIT | https://github.com/BurntSushi/walkdir |
 | web-time | 1.1.0 | MIT OR Apache-2.0 | https://github.com/daxpedda/web-time |
 | web_atoms | 0.2.6 | MIT OR Apache-2.0 | https://github.com/servo/html5ever |
-| webpki-roots | 0.26.11 | CDLA-Permissive-2.0 | https://github.com/rustls/webpki-roots |
 | webpki-roots | 1.0.12 | CDLA-Permissive-2.0 | https://github.com/rustls/webpki-roots |
+| webpki-roots | 0.26.11 | CDLA-Permissive-2.0 | https://github.com/rustls/webpki-roots |
 | webview2-com | 0.39.1 | MIT | https://github.com/wravery/webview2-rs |
 | webview2-com-macros | 0.8.1 | MIT | https://github.com/wravery/webview2-rs |
 | webview2-com-sys | 0.39.1 | MIT | https://github.com/wravery/webview2-rs |
@@ -276,8 +298,8 @@ Generated 2026-11-13 from the shipped dependency graph.
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
-| windows-sys | 0.52.0 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
+| windows-sys | 0.52.0 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows-targets | 0.52.6 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows-threading | 0.2.1 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows-version | 0.1.7 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
@@ -290,11 +312,13 @@ Generated 2026-11-13 from the shipped dependency graph.
 | windows_x86_64_gnullvm | 0.52.6 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | winnow | 1.0.5 | MIT | https://github.com/winnow-rs/winnow |
+| write16 | 1.0.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/write16 |
 | writeable | 0.6.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | wry | 0.57.2 | Apache-2.0 OR MIT | https://github.com/tauri-apps/wry |
 | yoke | 0.8.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | yoke-derive | 0.8.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zerocopy | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
+| zerocopy-derive | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
 | zerofrom | 0.1.8 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zerofrom-derive | 0.1.8 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zeroize | 1.9.1 | Apache-2.0 OR MIT | https://github.com/RustCrypto/utils |
@@ -302,8 +326,8 @@ Generated 2026-11-13 from the shipped dependency graph.
 | zerotrie | 0.2.5 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zerovec | 0.11.9 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zerovec-derive | 0.11.7 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| zip | 9.5.1 | MIT | https://github.com/zip-rs/zip2 |
 | zip | 2.6.1 | MIT | https://github.com/zip-rs/zip2.git |
+| zip | 9.5.1 | MIT | https://github.com/zip-rs/zip2 |
 | zlib-rs | 0.6.8 | Zlib | https://github.com/trifectatechfoundation/zlib-rs |
 | zmij | 1.0.23 | MIT | https://github.com/dtolnay/zmij |
 | zopfli | 0.8.4 | Apache-2.0 | https://github.com/zopfli-rs/zopfli |
@@ -315,5 +339,10 @@ Generated 2026-11-13 from the shipped dependency graph.
 | pdfjs-dist | 4.10.38 | Apache-2.0 | https://github.com/mozilla/pdf.js | PDF rendering in the reader |
 | pdf.js character maps (cmaps) | bundled with pdfjs-dist | BSD-3-Clause | https://github.com/adobe-type-tools/cmap-resources | CJK text rendering |
 | pdf.js standard fonts (Foxit and Liberation) | bundled with pdfjs-dist | BSD-3-Clause AND OFL-1.1 | https://github.com/mozilla/pdf.js | Fallback fonts for PDFs without embedded fonts |
+
+## Citation styles and locales
+
+The bundled citation styles and locale files come from the Citation Style Language project (https://citationstyles.org), distributed through the citation processor's style archive. They are licensed under Creative Commons Attribution-ShareAlike 3.0 (https://creativecommons.org/licenses/by-sa/3.0/). Each style's authors are credited in the style file itself. Styles a person imports keep the licence stated in their own file, which the program shows in the style catalog.
+
 
 The Windows WebView2 runtime that displays the interface is part of Windows and is not distributed with this program.

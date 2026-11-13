@@ -8,6 +8,7 @@ mod notes;
 mod projects;
 mod refs;
 mod terms;
+mod styles;
 
 pub use cite::*;
 pub use files::*;

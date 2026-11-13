@@ -177,7 +177,7 @@ fn benchmark_100k_references() {
     let a: Vec<&Reference> = refs.iter().take(1).collect();
     let ctx = prm_core::render::Context { set: refs.iter().take(200).collect(), locale: "en-US".into(), ..Default::default() };
     let (m3, p3) = time(&mut || {
-        let _ = prm_core::render::cite("apa-7", &[CiteItem { ref_id: a[0].id.clone(), ..Default::default() }], false, &a, &ctx);
+        let _ = prm_core::render::cite(&prm_core::render::Engine::Apa, &prm_core::render::builtin_styles()[0], &[CiteItem { ref_id: a[0].id.clone(), ..Default::default() }], false, &a, &ctx);
     });
     let t = std::time::Instant::now();
     let d = l.duplicates(0.9).unwrap().len();

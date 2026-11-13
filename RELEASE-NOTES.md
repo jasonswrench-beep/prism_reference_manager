@@ -14,6 +14,12 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Citation styles.** Besides the tested APA 7 profile, about 75 Citation Style Language styles
+are bundled and any CSL file can be imported, including dependent styles. A searchable catalog
+previews a style with the manuscript's own sources and sets the citation language. Bundled
+styles are labelled Untested and imported ones Imported, not reviewed; every citation from them
+says so. A manuscript keeps the exact style version it chose.
+
 **Updates.** An updater with signature-verified downloads is built in but not set up in this
 build, so it never contacts the network. Once set up, automatic checks stay off until turned on,
 follow the network settings, are logged, and never install without a click.

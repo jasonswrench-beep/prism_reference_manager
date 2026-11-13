@@ -1,6 +1,7 @@
 // Shared dialogs: libraries, projects, imports and review, lookups, exports, backups,
 // duplicates, bulk edits, health, history, network, diagnostics and local connections.
 
+import { styleSelect, LOCALES } from "./styles.js";
 import { call } from "./api.js";
 import { h, clear, icon, iconBtn, btn, modal, toast, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml } from "./dom.js";
 import { S, refresh, go, manuscript, loadProjects, render, setProject } from "./app.js";
@@ -43,7 +44,7 @@ export async function newProject() {
   if (!S.info?.library) return toast("Open or create a library first.", "error");
   const title = h("input", { placeholder: "For example: AI literacy in communication education" });
   const ms = h("input", { value: "Untitled manuscript" });
-  const style = select(S.styles.map((s) => [s.id, s.title]), "apa-7");
+  const style = styleSelect("apa-7");
   const r = await modal("New project", h("div",
     field("Project title", title),
     field("First manuscript", ms, "A manuscript is the article, chapter or other output whose citations this project produces. You can add more later."),
@@ -55,8 +56,8 @@ export async function newProject() {
 export async function newManuscript() {
   if (!S.project) return toast("Choose a project first.", "error");
   const title = h("input", { placeholder: "Article, chapter or dissertation title" });
-  const style = select(S.styles.map((s) => [s.id, s.title]), S.project.project.default_style || "apa-7");
-  const locale = select([["en-US", "English (US)"], ["en-GB", "English (UK)"]], "en-US");
+  const style = styleSelect(S.project.project.default_style || "apa-7");
+  const locale = select(LOCALES, "en-US");
   const r = await modal("New manuscript", h("div", field("Title", title), field("Citation style", style), field("Citation language", locale, "Independent of the interface language.")),
     { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Create", kind: "primary", run: () => call("manuscripts.create", { project_id: pid(), title: title.value, style: style.value, locale: locale.value }) }] }).done;
   if (r) { await call("manuscripts.set_active", { project_id: pid(), id: r.id }); S.manuscriptId = r.id; await refresh(); }

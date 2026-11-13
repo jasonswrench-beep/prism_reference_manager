@@ -51,6 +51,10 @@ for p in shipped:
 lines += ["", "## Interface components", "", "| Component | Version | License | Source | Use |", "|---|---|---|---|---|"]
 for w in web:
     lines.append(f"| {w['name']} | {w['version']} | {w['license']} | {w['repository']} | {w['note']} |")
+lines += ["", "## Citation styles and locales", "",
+          "The bundled citation styles and locale files come from the Citation Style Language project (https://citationstyles.org), distributed through the citation processor's style archive. "
+          "They are licensed under Creative Commons Attribution-ShareAlike 3.0 (https://creativecommons.org/licenses/by-sa/3.0/). Each style's authors are credited in the style file itself. "
+          "Styles a person imports keep the licence stated in their own file, which the program shows in the style catalog.", ""]
 lines += ["", "The Windows WebView2 runtime that displays the interface is part of Windows and is not distributed with this program.", ""]
 open("THIRD-PARTY.md", "w", encoding="utf-8", newline="\n").write("\n".join(lines))
 
