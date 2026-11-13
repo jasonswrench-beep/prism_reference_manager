@@ -6,11 +6,9 @@ already pass are listed at the end for reference.
 
 ## 1. Decisions for the owner
 
-- [ ] **Shipping license.** The repository uses Apache-2.0 like the other suite tools. Approve it,
-      or name another, before anything is published (spec LIC-001, LIC-009).
-- [ ] **Code signing.** Installer and portable builds are unsigned. Approve a certificate and the
-      signing step before a release (spec PLT-001, SEC-009). Windows SmartScreen will warn on
-      unsigned builds.
+- [x] **Shipping license.** Apache-2.0, approved by the owner on 2026-11-13.
+- [ ] **Code signing.** Approved in principle: sign once there is a working version. Until then
+      builds stay unsigned (Windows SmartScreen will warn).
 - [ ] **Update channel.** No automatic update check exists yet. It needs a signed update feed and
       a place to host it, which means publishing. Decide whether and where (spec PLT-009).
 - [ ] **Service names in the interface.** Research services and other reference managers appear
