@@ -226,6 +226,14 @@ fn find_open_access(shared: &Shared, id: &str, project_id: &str) -> Result<Value
     Ok(with(base, json!({"status": "attached", "message": format!("Attached a free copy from {}.", oa.host), "landing_url": oa.landing_url, "pdf_url": oa.pdf_url, "license": oa.license, "version": oa.version, "host": oa.host})))
 }
 
+/// Progress reports for the window during long imports.
+fn progress_emitter(app: &tauri::AppHandle) -> std::sync::Arc<dyn Fn(&str, usize, usize) + Send + Sync> {
+    let app = app.clone();
+    std::sync::Arc::new(move |phase: &str, done: usize, total: usize| {
+        let _ = app.emit("import-progress", json!({"phase": phase, "done": done, "total": total}));
+    })
+}
+
 fn lib_mut<'a>(st: &'a mut crate::AppState) -> Result<&'a mut Library, CallError> {
     st.lib.as_mut().ok_or(user("Open or create a library first."))
 }
@@ -322,6 +330,10 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             return ok(json!({"path": path}));
         }
         "watch.scan" if client.is_none() => return ok(crate::pdfimport::scan_watched(app, shared)?),
+        "import.stop" if client.is_none() => {
+            prm_core::library::IMPORT_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
+            return ok(true);
+        }
         // Debug builds only: the same pipelines without the folder picker, for end-to-end tests.
         #[cfg(debug_assertions)]
         "debug.import_folder" => {
@@ -888,7 +900,22 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         }
         "import.stage" => {
             let mapping: Option<BTreeMap<String, String>> = a.get("mapping").and_then(|m| serde_json::from_value(m.clone()).ok());
-            ok(lib_mut(st)?.stage_import(&s(a, "name"), &s(a, "text"), &s(a, "format"), &s(a, "service"), &s(a, "project_id"), &s(a, "collection_id"), mapping.as_ref()).map_err(err)?)
+            let l = lib_mut(st)?;
+            l.progress = Some(progress_emitter(app));
+            let r = l.stage_import(&s(a, "name"), &s(a, "text"), &s(a, "format"), &s(a, "service"), &s(a, "project_id"), &s(a, "collection_id"), mapping.as_ref());
+            l.progress = None;
+            ok(r.map_err(err)?)
+        }
+        "import.options" => {
+            let l = lib_mut(st)?;
+            let mut b = l.store.must::<ImportBatch>(&s(a, "id")).map_err(err)?;
+            if b.state != "staged" {
+                return Err(user("This import was already committed or cancelled."));
+            }
+            b.make_collections = opt(a, "make_collections");
+            b.label_as_groups = opt(a, "label_as_groups");
+            l.save_staged(&b).map_err(err)?;
+            ok(b)
         }
         "import.batches" => ok(lib_mut(st)?.import_batches().map_err(err)?),
         "import.get" => ok(lib_mut(st)?.store.must::<ImportBatch>(&s(a, "id")).map_err(err)?),
@@ -912,7 +939,10 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "import.commit" => {
             let l = lib_mut(st)?;
             let id = s(a, "id");
-            let report = l.commit_import(&id).map_err(err)?;
+            l.progress = Some(progress_emitter(app));
+            let report = l.commit_import(&id);
+            l.progress = None;
+            let report = report.map_err(err)?;
             // Attach PDFs (chosen in a dialog, or captured into the inbox), labels and notes.
             let b = l.store.must::<ImportBatch>(&id).map_err(err)?;
             let lib_root = l.root.to_string_lossy().to_string();

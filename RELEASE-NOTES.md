@@ -14,6 +14,11 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Moving from another program.** Groups in an export, including nested groups, can become
+collections, and ratings are carried. Each record's identity in the exporting program is kept,
+so importing a later export updates only the records that changed there, never overwriting edits
+made here. Large imports show progress and can be stopped without adding anything.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

@@ -957,6 +957,15 @@ pub struct StagedRecord {
 #[serde(default)]
 pub struct ImportBatch {
     pub id: String,
+    /// Groups or folders found in the export, as paths ("Parent/Child").
+    #[serde(default)]
+    pub groups_found: Vec<String>,
+    /// Create collections for the groups when committing.
+    #[serde(default)]
+    pub make_collections: bool,
+    /// Treat the XML Label field as a group name too.
+    #[serde(default)]
+    pub label_as_groups: bool,
     pub adapter: String,
     pub adapter_version: String,
     pub file_name: String,

@@ -136,7 +136,13 @@ pub fn parse(text: &str) -> ParseOutput {
                     r.overflow.insert("xml:research-notes".into(), val.clone());
                 }
                 (_, "access-date") => r.accessed = PartialDate::parse(val),
-                (_, "database") | (_, "source-app") | (_, "rec-number") | (_, "foreign-keys") | (_, "key") => {}
+                (_, "rec-number") => {
+                    r.overflow.insert("xml:rec-number".into(), val.clone());
+                }
+                (_, "database") => {
+                    r.overflow.insert("xml:database".into(), val.clone());
+                }
+                (_, "source-app") | (_, "foreign-keys") | (_, "key") => {}
                 _ => {
                     let k = format!("xml:{leaf}");
                     let e = r.overflow.entry(k).or_default();

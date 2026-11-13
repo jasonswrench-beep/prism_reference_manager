@@ -36,6 +36,8 @@ pub struct Library {
     pub protected_terms: Vec<String>,
     /// Network permission: when false no outbound request is made.
     pub network_allowed: bool,
+    /// Progress for long operations (phase, done, total), set by the window.
+    pub progress: Option<std::sync::Arc<dyn Fn(&str, usize, usize) + Send + Sync>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -52,6 +54,12 @@ pub struct LibraryInfo {
 }
 
 impl Library {
+    pub fn report_progress(&self, phase: &str, done: usize, total: usize) {
+        if let Some(p) = &self.progress {
+            p(phase, done, total);
+        }
+    }
+
     /// Open (or create) a library at `root`. Takes the library lock first.
     pub fn open(root: &Path, device: &str, host: &str) -> Result<Library> {
         std::fs::create_dir_all(root)?;
@@ -70,6 +78,7 @@ impl Library {
             host: host.into(),
             citekey_pattern: crate::citekey::DEFAULT_PATTERN.into(),
             protected_terms: vec![],
+            progress: None,
             network_allowed: true,
         };
         if lib.store.meta("name").is_none() && !lib.store.read_only {

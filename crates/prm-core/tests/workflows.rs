@@ -488,3 +488,58 @@ fn search_relevance_typos_spellings_cjk_and_dates() {
     let today = prm_core::util::now()[..10].to_string();
     assert!(found(&lib, &format!("added:{today}")).contains(&d.id));
 }
+
+#[test]
+fn migration_groups_ratings_reimport_updates_and_stop() {
+    let (mut lib, _root) = open("migrate");
+    // Groups (with a nested tree) and ratings from a BibTeX export become collections and ratings.
+    let bib = "@article{chen2024, title={Teaching with AI}, author={Chen, Li}, journal={J}, year={2024}, groups={Learning}, ranking={rank4}}\n\
+@article{lee2020, title={Reflection}, author={Lee, Kim}, journal={J}, year={2020}, groups={Methods}}\n\
+@Comment{jabref-meta: grouping:\n0 AllEntriesGroup:;\n1 StaticGroup:Theory\\;0\\;1\\;\\;\\;\\;;\n2 StaticGroup:Learning\\;0\\;1\\;\\;\\;\\;;\n1 StaticGroup:Methods\\;0\\;1\\;\\;\\;\\;;\n}\n";
+    let b = lib.stage_import("lib.bib", bib, "bibtex", "zotero", "", "", None).unwrap();
+    assert!(b.groups_found.contains(&"Theory/Learning".to_string()) && b.groups_found.contains(&"Methods".to_string()), "{:?}", b.groups_found);
+    assert!(b.make_collections);
+    let rep = lib.commit_import(&b.id).unwrap();
+    assert_eq!(rep.added, 2);
+    let cols: Vec<Collection> = lib.store.all().unwrap();
+    let find = |n: &str| cols.iter().find(|c| c.name == n).cloned().unwrap();
+    assert_eq!(find("Learning").parent_id, find("Theory").id, "nested group keeps its parent");
+    assert_eq!(find("Learning").ref_ids.len(), 1);
+    assert_eq!(find("Methods").ref_ids.len(), 1);
+    let chen: Vec<Reference> = lib.store.all::<Reference>().unwrap().into_iter().filter(|r| r.title() == "Teaching with AI").collect();
+    assert_eq!(chen[0].rating, 4);
+
+    // Re-importing a later export of the same program updates changed records only, and never
+    // overwrites the person's own edits.
+    let ris1 = "TY  - JOUR\nID  - 101\nTI  - First paper\nAU  - Ode, Ade\nPY  - 2019\nSP  - 1\nEP  - 9\nER  - \nTY  - JOUR\nID  - 102\nTI  - Second paper\nAU  - Ito, Aki\nPY  - 2018\nER  - \n";
+    let b1 = lib.stage_import("export1.ris", ris1, "ris", "endnote", "", "", None).unwrap();
+    lib.commit_import(&b1.id).unwrap();
+    let first = lib.store.all::<Reference>().unwrap().into_iter().find(|r| r.title() == "First paper").unwrap();
+    let mut edited = first.clone();
+    edited.fields.insert("volume".into(), "7".into());
+    lib.update_reference(edited, "user").unwrap();
+    let ris2 = "TY  - JOUR\nID  - 101\nTI  - First paper\nAU  - Ode, Ade\nPY  - 2019\nSP  - 1\nEP  - 12\nVL  - 8\nER  - \nTY  - JOUR\nID  - 102\nTI  - Second paper\nAU  - Ito, Aki\nPY  - 2018\nER  - \n";
+    let b2 = lib.stage_import("export2.ris", ris2, "ris", "endnote", "", "", None).unwrap();
+    let st: Vec<String> = b2.records.iter().map(|r| r.status.clone()).collect();
+    assert_eq!(st, vec!["update".to_string(), "unchanged".to_string()], "{:?}", b2.records.iter().map(|r| &r.issues).collect::<Vec<_>>());
+    assert!(b2.records[0].issues.iter().any(|i| i.contains("Your edits are kept")), "{:?}", b2.records[0].issues);
+    let rep = lib.commit_import(&b2.id).unwrap();
+    assert_eq!((rep.updated, rep.added), (1, 0));
+    let after = lib.store.must::<Reference>(&first.id).unwrap();
+    assert_eq!(after.f("page"), "1-12", "changed field updated");
+    assert_eq!(after.f("volume"), "7", "the person's edit is kept");
+    let undo = lib.undo_import_preview(&b2.id).unwrap();
+    assert!(undo.removable.is_empty() && undo.dependent.is_empty(), "undoing a re-import never removes the updated record");
+
+    // Stopping a large import leaves nothing staged.
+    let mut big = String::new();
+    for i in 0..120 {
+        big.push_str(&format!("TY  - JOUR\nID  - s{i}\nTI  - Stop test {i}\nAU  - Roe, R\nPY  - 2001\nER  - \n"));
+    }
+    lib.progress = Some(std::sync::Arc::new(|_p: &str, _d: usize, _t: usize| prm_core::library::IMPORT_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed)));
+    let before = lib.import_batches().unwrap().len();
+    let err = lib.stage_import("big.ris", &big, "ris", "", "", "", None).unwrap_err();
+    assert!(err.to_string().contains("stopped"), "{err}");
+    assert_eq!(lib.import_batches().unwrap().len(), before);
+    lib.progress = None;
+}

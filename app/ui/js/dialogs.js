@@ -166,7 +166,7 @@ export async function importFile(serviceDefault = "file") {
   const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX / biblatex"], ["csljson", "CSL JSON"], ["xml", "XML records (EndNote XML)"], ["csv", "CSV / spreadsheet"], ["paste", "Plain text references"]], f.format);
   const mapBox = h("div");
   const mapping = {};
-  const targets = ["", "ignore", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "abstract", "keywords", "isbn", "issn", "edition", "language", "note", "pmid"];
+  const targets = ["", "ignore", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "abstract", "keywords", "isbn", "issn", "edition", "language", "note", "pmid", "collections", "rating", "source_id"];
   const drawMap = () => {
     clear(mapBox);
     if (fmt.value !== "csv" || !f.csv_headers.length) return;
@@ -193,14 +193,15 @@ export async function importFile(serviceDefault = "file") {
     h("p.muted", `${(f.size / 1024).toFixed(1)} KB. Detected format: ${f.format.toUpperCase()}. Records are staged for review; nothing changes until you commit.`),
     h("div.grid2", field("Where it came from", service, "File exchange only: no account is connected."), field("Destination project", dest)),
     field("Format", fmt), mapBox, h("div.btn-row", scanBtn)),
-    { size: "wide", buttons: [{ label: "Cancel" }, { label: "Review records", kind: "primary", run: () => call("import.stage", { name: f.name, text: f.text, format: fmt.value, service: service.value, project_id: dest.value, mapping: fmt.value === "csv" ? mapping : null }) }] }).done;
+    { size: "wide", buttons: [{ label: "Cancel" }, { label: "Review records", kind: "primary", run: () => withImportProgress(() => call("import.stage", { name: f.name, text: f.text, format: fmt.value, service: service.value, project_id: dest.value, mapping: fmt.value === "csv" ? mapping : null })) }] }).done;
   if (r) importReview(r);
 }
 
 // Progress for reading files and looking up identifiers, shown while an import runs.
 async function withImportProgress(run) {
   const bar = h("div.small", "Starting…");
-  const back = h("div.toasts", { role: "status", style: { pointerEvents: "none" } }, h("div.toast", bar));
+  const stop = h("button.btn.small", { type: "button", on: { click: () => { stop.disabled = true; bar.textContent = "Stopping…"; call("import.stop"); } } }, "Stop");
+  const back = h("div.toasts", { role: "status" }, h("div.toast", h("div.row", bar, h("span.grow"), stop)));
   document.body.append(back);
   const off = await on("import-progress", (p) => { bar.textContent = p.total ? `${p.phase}: ${Math.min(p.done + 1, p.total)} of ${p.total}` : p.phase; });
   try { return await run(); } finally { if (typeof off === "function") off(); back.remove(); }
@@ -260,8 +261,8 @@ export async function findFreeCopies(ids) {
   await refresh();
 }
 
-const STATUS_LABEL = { new: ["New source", "success"], duplicate: ["Possible duplicate", "attention"], conflict: ["Identifier conflict", "danger"], unresolved: ["Needs metadata review", "attention"], version: ["Another version of a library work", "info"], invalid: ["Invalid", "danger"] };
-const DECISIONS = [["accept", "Add"], ["skip", "Skip"], ["merge", "Merge into match"], ["keep_both", "Keep both"], ["link_version", "Add and link as version"]];
+const STATUS_LABEL = { update: ["Changed since last import", "info"], unchanged: ["Unchanged since last import", "neutral"], new: ["New source", "success"], duplicate: ["Possible duplicate", "attention"], conflict: ["Identifier conflict", "danger"], unresolved: ["Needs metadata review", "attention"], version: ["Another version of a library work", "info"], invalid: ["Invalid", "danger"] };
+const DECISIONS = [["update", "Update the library record"], ["accept", "Add"], ["skip", "Skip"], ["merge", "Merge into match"], ["keep_both", "Keep both"], ["link_version", "Add and link as version"]];
 
 export async function importReview(batch) {
   let b = batch;
@@ -275,10 +276,12 @@ export async function importReview(batch) {
         h("div.row", { style: { padding: "10px 14px" } }, icon("doc", 20), h("strong", b.file_name), h("span.badge.info", `${b.records.length} records found`), h("span.muted.small", `${b.adapter.toUpperCase()} adapter ${b.adapter_version} • from ${b.service}`)),
         h("table.table", h("tbody",
           h("tr", h("td", icon("plus")), h("td", h("strong", counts.new || 0), " new sources")),
+          counts.update || counts.unchanged ? h("tr", h("td", icon("refresh")), h("td", h("strong", counts.update || 0), " changed since they were last imported from the same program, ", h("strong", counts.unchanged || 0), " unchanged (skipped)")) : null,
           h("tr", h("td", icon("copy")), h("td", h("strong", (counts.duplicate || 0) + (counts.version || 0)), " possible duplicates or versions")),
           h("tr", h("td", icon("warn")), h("td", h("strong", (counts.unresolved || 0) + (counts.conflict || 0)), " need metadata review")),
           h("tr", h("td", icon("doc")), h("td", h("strong", b.files_included), b.files_included === 1 ? " file link included" : " file links included", b.files_included === 0 ? h("span.muted", " (no files in this export; that is different from missing files)") : null)),
         ))),
+      groupsBox(),
       Object.keys(b.unmapped_fields || {}).length ? h("details", h("summary", `${Object.keys(b.unmapped_fields).length} fields without a direct mapping are kept in each record's overflow area`), h("ul", Object.entries(b.unmapped_fields).map(([k, v]) => h("li.mono", `${k} (${v})`)))) : null,
       h("div.btn-row", { style: { margin: "8px 0" } }, h("span.muted", "Set all:"),
         btn("Add all new", { small: true, onClick: async () => { b = await call("import.set_all", { id: b.id, decision: "accept", status: "new" }) || b; draw(); } }),
@@ -287,7 +290,7 @@ export async function importReview(batch) {
       h("div", { style: { maxHeight: "48vh", overflow: "auto" } }, h("table.table", h("thead", h("tr", h("th", "Record"), h("th", "Status"), h("th", "Decision"), h("th", ""))),
         h("tbody", b.records.map((r) => {
           const [label, kind] = STATUS_LABEL[r.status] || [r.status, "neutral"];
-          const dec = select(DECISIONS.filter(([d]) => r.match_ref_id || !["merge", "keep_both", "link_version"].includes(d)), r.decision, { "aria-label": "Decision for " + (r.record.fields.title || "record"), on: { change: async (e) => { b = await call("import.set", { id: b.id, index: r.index, decision: e.target.value }); draw(); } } });
+          const dec = select(DECISIONS.filter(([d]) => (d !== "update" || r.status === "update") && (r.match_ref_id || !["merge", "keep_both", "link_version"].includes(d))), r.decision, { "aria-label": "Decision for " + (r.record.fields.title || "record"), on: { change: async (e) => { b = await call("import.set", { id: b.id, index: r.index, decision: e.target.value }); draw(); } } });
           return h("tr",
             h("td", h("div", h("strong", r.record.fields.title || "(no title)")),
               h("div.small.muted", [(r.record.creators || []).slice(0, 3).map((c) => c.name.family || c.name.literal).join(", "), r.record.issued?.year, r.record.fields.container_title].filter(Boolean).join(" • ")),
@@ -300,14 +303,26 @@ export async function importReview(batch) {
         })))),
       h("p.small.muted", `${willAdd} will be added; merges fill missing fields and record conflicting values for review without overwriting your edits. The whole import can be undone from Connections › Import history.`));
   };
+  function groupsBox() {
+    const hasLabels = b.adapter === "xml" && b.records.some((r) => r.record.overflow?.["xml:label"]);
+    if (!b.groups_found?.length && !hasLabels) return null;
+    const save = async (patch) => { b = await call("import.options", { id: b.id, make_collections: b.make_collections, label_as_groups: b.label_as_groups, ...patch }); draw(); };
+    const mk = h("input", { type: "checkbox", id: "imp-groups", checked: !!b.make_collections, on: { change: (e) => save({ make_collections: e.target.checked }) } });
+    const lab = h("input", { type: "checkbox", id: "imp-labels", checked: !!b.label_as_groups, on: { change: (e) => save({ label_as_groups: e.target.checked, make_collections: e.target.checked || b.make_collections }) } });
+    return h("div.card.pad", { style: { marginBottom: "12px" } },
+      b.groups_found?.length ? h("div", h("label.row", { for: "imp-groups" }, mk, `Create collections for ${b.groups_found.length} group${b.groups_found.length === 1 ? "" : "s"} from the other program`),
+        h("div.small.muted", { style: { marginLeft: "26px" } }, b.groups_found.slice(0, 12).join(" • "), b.groups_found.length > 12 ? ` and ${b.groups_found.length - 12} more` : "")) : null,
+      hasLabels ? h("label.row.small", { for: "imp-labels" }, lab, "Also use the Label field as group names (some programs' users file records this way)") : null,
+      h("div.small.muted", "Nested groups become nested collections. Smart groups and saved searches cannot be carried; recreate them as smart collections."));
+  }
   draw();
   const res = await modal("Import review", body, { size: "wide", buttons: [
     { label: "Cancel import", run: async () => { await call("import.cancel", { id: b.id }); toast("Import cancelled. No changes were committed.", "info"); return true; } },
-    { label: "Import selected", kind: "primary", icon: "download", run: () => call("import.commit", { id: b.id }) },
+    { label: "Import selected", kind: "primary", icon: "download", run: () => withImportProgress(() => call("import.commit", { id: b.id })).catch((e) => { showError(e); return false; }) },
   ] }).done;
   if (res && res.report) {
     const rp = res.report;
-    toast(`Imported: ${rp.added + rp.linked} added, ${rp.merged} merged, ${rp.skipped} skipped${res.attached ? `, ${res.attached} PDFs attached` : ""}.`, "success", { action: { label: "Undo import", run: () => undoImport(rp.batch_id) } });
+    toast(`Imported: ${rp.added + rp.linked} added, ${rp.merged} merged${rp.updated ? `, ${rp.updated} updated` : ""}, ${rp.skipped} skipped${rp.collections ? `, ${rp.collections} collections created` : ""}${res.attached ? `, ${res.attached} PDFs attached` : ""}.`, "success", { action: { label: "Undo import", run: () => undoImport(rp.batch_id) } });
     await refresh();
   }
 }

@@ -83,6 +83,17 @@ already pass are listed at the end for reference.
       source benchmark gives p95 about 480 ms against the 250 ms target; queries with an
       exclusion (-word) are the slowest.
 
+## 2d. Moving from another program
+
+- [ ] Import a real export that has groups or folders (a BibTeX export with groups, or a CSV
+      with a folder column) and check that the collections come out nested as in the other
+      program, with ratings carried where the export has them.
+- [ ] Import the same library twice from the other program, editing one record there in between
+      and one here. The second import should list only the changed record as "Changed since last
+      import", update it, and keep your edit.
+- [ ] Start a large import (several thousand records), watch the progress, and use Stop once:
+      nothing should be added, and the import can be started again.
+
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
 For each host, record the exact build, OS and paste mode, and whether italics, punctuation,

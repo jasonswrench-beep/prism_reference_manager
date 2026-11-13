@@ -18,6 +18,122 @@ pub struct CommitReport {
     pub linked: usize,
     pub skipped: usize,
     pub failed: Vec<String>,
+    #[serde(default)]
+    pub updated: usize,
+    #[serde(default)]
+    pub collections: usize,
+}
+
+/// Set from outside (without the library lock) to stop a running stage or commit.
+pub static IMPORT_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn cancelled() -> bool {
+    IMPORT_CANCEL.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The record's identity inside the program that exported it, used to recognize the same record
+/// when a later export of that library is imported again.
+pub fn source_key(adapter: &str, r: &Reference) -> Option<String> {
+    let o = |k: &str| r.overflow.get(k).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    match adapter {
+        "ris" => o("ris:ID").or_else(|| o("ris:AN")).map(|v| format!("ris:{v}")),
+        "bibtex" | "biblatex" => (!r.citekey.trim().is_empty()).then(|| format!("bib:{}", r.citekey.trim())),
+        "csljson" => (!r.citekey.trim().is_empty()).then(|| format!("csl:{}", r.citekey.trim())),
+        "xml" => o("xml:rec-number").map(|n| format!("xml:{}:{n}", o("xml:database").unwrap_or_default())),
+        "csv" => o("import:source-id").map(|v| format!("csv:{v}")),
+        _ => None,
+    }
+}
+
+/// Group paths a record belongs to in the exporting program.
+fn record_groups(r: &Reference, hierarchy: &BTreeMap<String, String>, label_as_groups: bool) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    let mut add = |name: &str| {
+        let n = name.trim();
+        if n.is_empty() {
+            return;
+        }
+        let path = hierarchy.get(n).cloned().unwrap_or_else(|| n.to_string());
+        if !out.contains(&path) {
+            out.push(path);
+        }
+    };
+    if let Some(g) = r.overflow.get("bibtex:groups") {
+        for n in g.split(',') {
+            add(n);
+        }
+    }
+    if let Some(g) = r.overflow.get("import:groups") {
+        for n in g.split(';') {
+            add(n);
+        }
+    }
+    if label_as_groups {
+        if let Some(g) = r.overflow.get("xml:label") {
+            for n in g.split(';') {
+                add(n);
+            }
+        }
+    }
+    out
+}
+
+/// Group tree from a BibTeX file's grouping comment: each group's full path ("Parent/Child").
+fn bibtex_group_tree(text: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let Some(start) = text.find("jabref-meta: grouping:") else { return out };
+    let body = &text[start + "jabref-meta: grouping:".len()..];
+    let body = &body[..body.find('}').unwrap_or(body.len())];
+    let mut stack: Vec<String> = vec![];
+    for line in body.lines() {
+        let line = line.trim().trim_end_matches(';');
+        let Some((depth, rest)) = line.split_once(' ') else { continue };
+        let Ok(depth) = depth.parse::<usize>() else { continue };
+        let name = rest.split_once(':').map(|x| x.1).unwrap_or(rest);
+        let name = name.split(['\\', ';']).next().unwrap_or("").trim().to_string();
+        if depth == 0 || name.is_empty() {
+            stack.clear();
+            continue;
+        }
+        stack.truncate(depth - 1);
+        stack.push(name.clone());
+        out.insert(name, stack.join("/"));
+    }
+    out
+}
+
+/// A rating carried in the export (a 1 to 5 value, or "rank3").
+fn import_rating(r: &mut Reference) {
+    for k in ["bibtex:ranking", "bibtex:rating", "import:rating", "xml:rating"] {
+        if let Some(v) = r.overflow.get(k) {
+            let n: u8 = v.trim().trim_start_matches("rank").parse().unwrap_or(0);
+            if (1..=5).contains(&n) && r.rating == 0 {
+                r.rating = n;
+            }
+        }
+    }
+}
+
+/// Fields that differ between an imported record and the library's copy. Values the person
+/// edited in the library are listed separately and never overwritten.
+fn changed_fields(existing: &Reference, incoming: &Reference) -> (Vec<String>, Vec<String>) {
+    let mut changed = vec![];
+    let mut kept = vec![];
+    let edited = |k: &str| existing.provenance.get(k).map(|p| p.user_edited).unwrap_or(false);
+    for (k, v) in &incoming.fields {
+        let cur = existing.fields.get(k).map(|s| crate::util::sort_key(s)).unwrap_or_default();
+        if cur != crate::util::sort_key(v) {
+            if edited(k) { kept.push(k.clone()) } else { changed.push(k.clone()) }
+        }
+    }
+    let names = |r: &Reference| r.creators.iter().map(|c| format!("{}|{}|{}", c.role, c.name.surname(), c.name.given)).collect::<Vec<_>>();
+    if !incoming.creators.is_empty() && names(existing) != names(incoming) {
+        if edited("creators") { kept.push("creators".into()) } else { changed.push("creators".into()) }
+    }
+    if incoming.issued.is_some() && existing.issued != incoming.issued {
+        if edited("issued") { kept.push("issued".into()) } else { changed.push("issued".into()) }
+    }
+    (changed, kept)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,11 +149,25 @@ impl Library {
     #[allow(clippy::too_many_arguments)]
     pub fn stage_import(&mut self, file_name: &str, text: &str, format: &str, service: &str, project_id: &str, collection_id: &str, csv_mapping: Option<&BTreeMap<String, String>>) -> Result<ImportBatch> {
         let fmt = if format.is_empty() { formats::detect(file_name, text) } else { format };
+        IMPORT_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.report_progress("Reading the file", 0, 0);
         let parsed = formats::parse(fmt, text, csv_mapping);
         if parsed.records.is_empty() {
             let msg = parsed.errors.first().cloned().unwrap_or_else(|| "No records were found in this file.".into());
             return Err(Error::user(msg));
         }
+        let hierarchy = if fmt == "bibtex" || fmt == "biblatex" { bibtex_group_tree(text) } else { BTreeMap::new() };
+        // Records imported earlier from the same program, by their identity in that program.
+        let mut by_key: BTreeMap<String, String> = BTreeMap::new();
+        {
+            let mut st = self.store.conn.prepare("SELECT id, json_extract(data,'$.overflow.\"import:key\"') FROM refs WHERE trashed IS NULL AND json_extract(data,'$.overflow.\"import:key\"') IS NOT NULL")?;
+            for row in st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))? {
+                let (id, k) = row?;
+                by_key.insert(k, id);
+            }
+        }
+        let mut groups_found: Vec<String> = vec![];
+        let total = parsed.records.len();
         let file_hash = sha256_hex(text.as_bytes());
         let already = self.store.all::<ImportBatch>()?.into_iter().find(|b| b.file_hash == file_hash && b.state == "committed");
         let existing: Vec<Reference> = crate::store::list_in(&self.store.conn, "WHERE trashed IS NULL", &[])?;
@@ -46,8 +176,24 @@ impl Library {
         let mut records = Vec::new();
         let mut summary: BTreeMap<String, usize> = BTreeMap::new();
         for (i, p) in parsed.records.into_iter().enumerate() {
+            if i % 50 == 0 {
+                if cancelled() {
+                    return Err(Error::user("Import stopped. Nothing was staged; you can start it again."));
+                }
+                self.report_progress("Checking for duplicates", i, total);
+            }
             let mut rec = p.record;
             rec.origin = "import".into();
+            import_rating(&mut rec);
+            if let Some(k) = source_key(fmt, &rec) {
+                rec.overflow.insert("import:key".into(), k);
+            }
+            let gs = record_groups(&rec, &hierarchy, true);
+            for g in &gs {
+                if !groups_found.contains(g) {
+                    groups_found.push(g.clone());
+                }
+            }
             let mut issues = p.issues.clone();
             let mut status = "new".to_string();
             let mut match_id = String::new();
@@ -55,6 +201,28 @@ impl Library {
             if rec.title().trim().is_empty() {
                 status = "unresolved".into();
                 issues.push("No title".into());
+            }
+            // The same record imported before from the same program: offer its changes.
+            let keyed = rec.overflow.get("import:key").and_then(|k| by_key.get(k)).cloned();
+            if let Some(eid) = keyed {
+                if let Some(e) = self.store.get::<Reference>(&eid)? {
+                    let (changed, kept) = changed_fields(&e, &rec);
+                    match_id = eid;
+                    reason = "Same record in the exporting program".into();
+                    if changed.is_empty() {
+                        status = "unchanged".into();
+                    } else {
+                        status = "update".into();
+                        issues.push(format!("Changed since it was last imported: {}.", changed.iter().map(|f| crate::types::field_label(f)).collect::<Vec<_>>().join(", ")));
+                    }
+                    if !kept.is_empty() {
+                        issues.push(format!("Your edits are kept: {}.", kept.iter().map(|f| crate::types::field_label(f)).collect::<Vec<_>>().join(", ")));
+                    }
+                    *summary.entry(status.clone()).or_default() += 1;
+                    let decision = if status == "update" { "update" } else { "skip" };
+                    records.push(StagedRecord { index: i, raw: p.raw, record: rec, status, match_ref_id: match_id, match_reason: reason, issues, decision: decision.into(), committed_id: String::new() });
+                    continue;
+                }
             }
             if let Some((m, score, reasons, version)) = matcher.best(&rec, 0.82) {
                 if !decided.contains(&DuplicateDecision::key(&rec.id, &m.id)) {
@@ -92,7 +260,11 @@ impl Library {
             errors_note.push(format!("This exact file was imported on {}. Matching records are marked as duplicates.", &b.committed.get(..10).unwrap_or("")));
         }
         let files_included = records.iter().filter(|r| r.record.overflow.keys().any(|k| k.ends_with(":L1") || k.ends_with("pdf-url") || k.ends_with(":file"))).count();
+        self.report_progress("Preparing review", total, total);
         let batch = ImportBatch {
+            make_collections: !groups_found.is_empty(),
+            label_as_groups: false,
+            groups_found,
             id: new_id(),
             adapter: fmt.into(),
             adapter_version: formats::ADAPTER_VERSION.into(),
@@ -171,10 +343,14 @@ impl Library {
         if b.state != "staged" {
             return Err(Error::user("This import was already committed or cancelled; nothing was changed."));
         }
+        IMPORT_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
         self.safety_snapshot("import")?;
         let t = now();
+        let hierarchy: BTreeMap<String, String> = BTreeMap::new();
+        let mut updates: Vec<(String, Reference)> = Vec::new();
+        let mut group_of: Vec<(String, Vec<String>)> = Vec::new();
         let source = format!("import:{}", b.adapter);
-        let mut report = CommitReport { batch_id: b.id.clone(), added: 0, merged: 0, linked: 0, skipped: 0, failed: vec![] };
+        let mut report = CommitReport { batch_id: b.id.clone(), added: 0, merged: 0, linked: 0, skipped: 0, failed: vec![], updated: 0, collections: 0 };
         let mut new_refs = Vec::new();
         let mut merges = Vec::new();
         let mut decisions = Vec::new();
@@ -216,17 +392,78 @@ impl Library {
                     sr.committed_id = sr.match_ref_id.clone();
                     report.merged += 1;
                 }
+                "update" if !sr.match_ref_id.is_empty() => {
+                    updates.push((sr.match_ref_id.clone(), sr.record.clone()));
+                    sr.committed_id = sr.match_ref_id.clone();
+                    report.updated += 1;
+                }
                 _ => report.skipped += 1,
             }
+            if b.make_collections && !sr.committed_id.is_empty() {
+                let gs = record_groups(&sr.record, &hierarchy, b.label_as_groups);
+                if !gs.is_empty() {
+                    group_of.push((sr.committed_id.clone(), gs));
+                }
+            }
         }
+        // Group names were resolved to full paths while staging; keep that tree for commit.
+        let group_paths: std::collections::BTreeSet<String> = b.groups_found.iter().cloned().collect();
+        let group_of: Vec<(String, Vec<String>)> = group_of
+            .into_iter()
+            .map(|(id, gs)| (id, gs.into_iter().map(|g| group_paths.iter().find(|p| p.rsplit('/').next() == Some(g.as_str()) || **p == g).cloned().unwrap_or(g)).collect()))
+            .collect();
+        let total_puts = new_refs.len() + merges.len() + updates.len();
         b.state = "committed".into();
         b.committed = t.clone();
         let project = b.destination_project.clone();
         let collection = b.destination_collection.clone();
         let label = format!("Import {} ({} added)", b.file_name, report.added + report.linked);
         let bb = b.clone();
-        self.store.write(&label, |tx| {
+        let progress = self.progress.clone();
+        let mut done = 0usize;
+        let tick = |done: &mut usize| -> Result<()> {
+            *done += 1;
+            if *done % 100 == 0 {
+                if cancelled() {
+                    return Err(Error::user("Import stopped. Nothing was added; the review is kept so you can commit it later."));
+                }
+                if let Some(p) = &progress {
+                    p("Adding records", *done, total_puts);
+                }
+            }
+            Ok(())
+        };
+        let r_written = self.store.write(&label, |tx| {
+            for (target, incoming) in &updates {
+                tick(&mut done)?;
+                let mut e = tx.must::<Reference>(target)?;
+                let (changed, _) = changed_fields(&e, incoming);
+                for f in &changed {
+                    match f.as_str() {
+                        "creators" => e.creators = incoming.creators.clone(),
+                        "issued" => e.issued = incoming.issued.clone(),
+                        k => {
+                            if let Some(v) = incoming.fields.get(k) {
+                                e.fields.insert(k.to_string(), v.clone());
+                            }
+                        }
+                    }
+                    e.provenance.insert(f.clone(), Provenance { source: source.clone(), time: t.clone(), user_edited: false, confidence: None, review: "unreviewed".into() });
+                }
+                for tag in &incoming.tags {
+                    if !e.tags.contains(tag) {
+                        e.tags.push(tag.clone());
+                    }
+                }
+                e.revision += 1;
+                e.modified = t.clone();
+                tx.put(&e)?;
+                if !project.is_empty() {
+                    add_membership(tx, &project, &e.id)?;
+                }
+            }
             for (r, link_to) in &new_refs {
+                tick(&mut done)?;
                 let mut r = r.clone();
                 if !link_to.is_empty() {
                     if let Some(mut other) = tx.get::<Reference>(link_to)? {
@@ -286,6 +523,32 @@ impl Library {
             for d in &decisions {
                 tx.put(d)?;
             }
+            // Groups from the exporting program become collections (nested by their paths).
+            let mut made = 0usize;
+            for (id, paths) in &group_of {
+                for path in paths {
+                    let mut parent = String::new();
+                    for seg in path.split('/').filter(|s| !s.trim().is_empty()) {
+                        let all: Vec<Collection> = tx.all()?;
+                        parent = match all.into_iter().find(|c| c.parent_id == parent && c.name == seg.trim() && c.query.is_empty() && c.project_id == project) {
+                            Some(c) => c.id,
+                            None => {
+                                made += 1;
+                                let c = Collection { id: new_id(), name: seg.trim().to_string(), parent_id: parent.clone(), project_id: project.clone(), ..Default::default() };
+                                tx.put(&c)?;
+                                c.id
+                            }
+                        };
+                    }
+                    if !parent.is_empty() {
+                        let mut c = tx.must::<Collection>(&parent)?;
+                        if !c.ref_ids.contains(id) {
+                            c.ref_ids.push(id.clone());
+                            tx.put(&c)?;
+                        }
+                    }
+                }
+            }
             if !collection.is_empty() {
                 if let Some(mut c) = tx.get::<Collection>(&collection)? {
                     for (r, _) in &new_refs {
@@ -310,10 +573,12 @@ impl Library {
                 data_sent: "nothing (local file)".into(),
                 result_ids: new_refs.iter().map(|(r, _)| r.id.clone()).collect(),
                 ok: true,
-                message: format!("{} added, {} merged, {} skipped", report.added + report.linked, report.merged, report.skipped),
+                message: format!("{} added, {} merged, {} updated, {} skipped", report.added + report.linked, report.merged, report.updated, report.skipped),
                 time: t.clone(),
-            })
-        })?;
+            })?;
+            Ok(made)
+        });
+        report.collections = r_written?;
         self.after_change()?;
         Ok(report)
     }
@@ -325,7 +590,9 @@ impl Library {
         let mut removable = Vec::new();
         let mut dependent = Vec::new();
         for sr in &b.records {
-            if sr.committed_id.is_empty() || sr.decision == "merge" {
+            // Merged and updated records existed before this import; undoing it never removes them
+            // (their changes can be reversed with Undo or field history).
+            if sr.committed_id.is_empty() || sr.decision == "merge" || sr.decision == "update" {
                 continue;
             }
             let Some(r) = self.store.get::<Reference>(&sr.committed_id)? else { continue };

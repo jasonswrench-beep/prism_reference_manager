@@ -32,6 +32,9 @@ pub fn suggest(header: &str) -> &'static str {
         "language" => "language",
         "notes" | "note" | "extra" => "note",
         "pmid" | "pubmed id" => "pmid",
+        "collections" | "collection" | "folders" | "folder" | "groups" | "group" => "collections",
+        "rating" | "stars" => "rating",
+        "id" | "record id" | "item key" | "key" => "source_id",
         _ => "",
     }
 }
@@ -83,6 +86,17 @@ pub fn parse(text: &str, mapping: Option<&BTreeMap<String, String>>) -> ParseOut
                     }
                 }
                 "keywords" => r.tags.extend(val.split([';', ',']).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())),
+                // Group or folder names, separated by semicolons; nested groups as Parent/Child.
+                "collections" => {
+                    r.overflow.insert("import:groups".into(), val.to_string());
+                }
+                "rating" => {
+                    r.overflow.insert("import:rating".into(), val.to_string());
+                }
+                // The record's identity in the exporting program, for recognizing it on re-import.
+                "source_id" => {
+                    r.overflow.insert("import:source-id".into(), val.to_string());
+                }
                 "" => {
                     r.overflow.insert(format!("csv:{header}"), val.to_string());
                 }

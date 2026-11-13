@@ -16,6 +16,7 @@ const FIELD_LABELS = {
   archive_location: "Location in archive", section: "Section", jurisdiction: "Jurisdiction", authority: "Court or authority",
   number_of_volumes: "Number of volumes", reviewed_title: "Reviewed work", original_publisher: "Original publisher", status: "Status",
   dimensions: "Dimensions", scale: "Scale",
+  collections: "Collections (groups or folders)", rating: "Rating", source_id: "Record ID in the other program",
 };
 const HELP = {
   page: "A page range such as 115–132. An article number belongs in Article number, not here.",
