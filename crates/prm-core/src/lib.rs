@@ -21,3 +21,8 @@ pub mod citekey;
 pub mod types;
 
 pub use error::{Error, Result};
+
+/// Similarity of two strings after folding, 0..1.
+pub fn strsim_ratio(a: &str, b: &str) -> f64 {
+    strsim::jaro_winkler(&util::sort_key(a), &util::sort_key(b))
+}
