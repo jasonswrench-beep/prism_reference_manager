@@ -6,6 +6,7 @@ import { h, clear, icon, iconBtn, toast, modal, announce, showError, select } fr
 import * as styles from "./styles.js";
 import * as dialogs from "./dialogs.js";
 import * as quick from "./quick.js";
+import { startJob, onJobs, activeJobs } from "./jobs.js";
 
 export const S = {
   info: null,
@@ -56,10 +57,15 @@ export function autoIndex() {
   if (indexRun || !S.info?.library || S.settings?.auto_index === false || S.info.library.read_only) return;
   indexRun = (async () => {
     try {
-      const { indexAll } = await import("./views/reader.js");
-      await indexAll((d, n) => { S.indexing = d < n ? { done: d, total: n } : null; renderStatus(); }, { pace: 600, stop: () => S.settings?.auto_index === false || !S.info?.library });
+      const list = await call("files.unindexed");
+      if (list.length) {
+        const { indexAll } = await import("./views/reader.js");
+        const job = startJob({ label: `Reading the text of ${list.length} PDF${list.length === 1 ? "" : "s"} for search`, source: "Full-text search", retry: () => setTimeout(autoIndex, 0),
+          run: (job) => indexAll((d, n) => job.progress(d, n), { pace: 600, list, wait: () => job.step(), stop: () => S.settings?.auto_index === false || !S.info?.library }) });
+        await job.promise;
+      }
     } catch (_) {}
-    S.indexing = null; indexRun = null; renderStatus();
+    indexRun = null; renderStatus();
   })();
 }
 
@@ -194,12 +200,22 @@ function renderStatus() {
     lib ? h("span", { style: { display: "inline-flex", gap: "6px", alignItems: "center" } }, icon("layers", 16), `${lib.counts.references} sources${S.project ? " • " + S.project.project.title : ""}`) : null,
     lib?.sync_folder_warning ? h("span.status-review", { title: "Two computers must never open this library at the same time." }, icon("warn", 16), " Library is in a synced folder") : null,
     h("span.grow"),
-    S.indexing ? h("span.small", { title: "PDF text is read in the background so full-text search finds it. Turn this off in Settings › Library and backup." }, icon("search", 15), ` Indexing PDF text ${S.indexing.done} of ${S.indexing.total}`) : null,
-    S.jobs.length ? h("button", { type: "button", on: { click: () => dialogs.jobs() }, title: "Background jobs" }, icon("clock", 15), ` ${S.jobs.length} job${S.jobs.length === 1 ? "" : "s"}`) : null,
+    ...(() => {
+      const act = activeJobs();
+      if (act.length) {
+        const j = act[0];
+        return [h("button", { type: "button", on: { click: () => dialogs.jobs() }, title: "Background jobs: pause, resume or cancel" }, icon("clock", 15),
+          ` ${j.label}${j.total ? ` ${j.done} of ${j.total}` : ""}${j.state === "paused" ? " (paused)" : ""}${act.length > 1 ? ` and ${act.length - 1} more` : ""}`)];
+      }
+      return S.jobs.length ? [h("button", { type: "button", on: { click: () => dialogs.jobs() }, title: "Background jobs" }, icon("clock", 15), ` ${S.jobs.length} job${S.jobs.length === 1 ? "" : "s"}`)] : [];
+    })(),
     S.undo ? h("button", { type: "button", on: { click: doUndo }, title: "Undo (Ctrl+Z)" }, icon("undo", 15), " Undo: " + S.undo) : null,
     h("span.muted", "Interface concept build • local data"),
   );
 }
+
+let statusTimer = null;
+onJobs(() => { clearTimeout(statusTimer); statusTimer = setTimeout(renderStatus, 150); });
 
 export async function render() {
   if (!root) return;

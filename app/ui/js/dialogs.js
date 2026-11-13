@@ -202,12 +202,17 @@ export async function importFile(serviceDefault = "file") {
 
 // Progress for reading files and looking up identifiers, shown while an import runs.
 async function withImportProgress(run) {
+  const { startJob } = await import("./jobs.js");
   const bar = h("div.small", "Starting…");
-  const stop = h("button.btn.small", { type: "button", on: { click: () => { stop.disabled = true; bar.textContent = "Stopping…"; call("import.stop"); } } }, "Stop");
+  let job;
+  const stop = h("button.btn.small", { type: "button", on: { click: () => { stop.disabled = true; bar.textContent = "Stopping…"; job.cancel(); } } }, "Stop");
   const back = h("div.toasts", { role: "status" }, h("div.toast", h("div.row", bar, h("span.grow"), stop)));
   document.body.append(back);
-  const off = await on("import-progress", (p) => { bar.textContent = p.total ? `${p.phase}: ${Math.min(p.done + 1, p.total)} of ${p.total}` : p.phase; });
-  try { return await run(); } finally { if (typeof off === "function") off(); back.remove(); }
+  // The import runs as one step in the library, so it can be stopped safely (nothing is added)
+  // but not paused.
+  job = startJob({ label: "Reading an import", source: "Import", pausable: false, onCancel: () => call("import.stop"), run: () => run() });
+  const off = await on("import-progress", (p) => { bar.textContent = p.total ? `${p.phase}: ${Math.min(p.done + 1, p.total)} of ${p.total}` : p.phase; job.progress(p.done, p.total, p.phase); });
+  try { return await job.promise; } finally { if (typeof off === "function") off(); back.remove(); }
 }
 
 export async function importPdfs() {
@@ -759,9 +764,31 @@ export async function network() {
 }
 
 export async function jobs() {
-  const list = await call("jobs.list");
-  modal("Background jobs", h("div", list.length ? h("ul.check-list", list.slice().reverse().map((j) => h("li", icon(j.ok ? "check" : "warn"), h("div", j.message)))) : h("div.empty", "No background jobs have run in this session.")),
-    { buttons: [{ label: "Clear", run: async () => { await call("jobs.clear"); S.jobs = []; render(); } }, { label: "Close" }] });
+  const { JOBS, onJobs } = await import("./jobs.js");
+  const body = h("div");
+  const STATE = { running: "Running", paused: "Paused", cancelling: "Stopping…", cancelled: "Cancelled", done: "Finished", failed: "Stopped by an error" };
+  const draw = async () => {
+    const log = await call("jobs.list").catch(() => []);
+    const jobsList = JOBS.slice().reverse();
+    clear(body,
+      jobsList.length ? h("div", jobsList.map((j) => h("div.card.pad", { style: { marginBottom: "8px" } },
+        h("div.row", h("strong.grow", j.label), h("span.badge." + (j.state === "failed" ? "attention" : "neutral"), STATE[j.state] || j.state)),
+        h("div.small.muted", `${j.source}${j.source ? " • " : ""}started ${fmtDate(j.started.toISOString())}`),
+        j.total ? h("div.job-bar", { role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(j.total), "aria-valuenow": String(j.done), "aria-label": j.label }, h("span", { style: { width: `${Math.round((100 * j.done) / Math.max(1, j.total))}%` } })) : null,
+        h("div.small", `${j.done}${j.total ? " of " + j.total : ""} completed${j.failed ? `, ${j.failed} failed` : ""}`),
+        h("div.btn-row", { style: { marginTop: "6px" } },
+          j.state === "running" && j.pausable ? btn("Pause", { small: true, onClick: () => j.pause() }) : null,
+          j.state === "running" && !j.pausable ? h("span.small.muted", "This job cannot be paused; it can be stopped safely.") : null,
+          j.state === "paused" ? btn("Resume", { small: true, kind: "primary", onClick: () => j.resume() }) : null,
+          j.state === "running" || j.state === "paused" ? btn("Cancel", { small: true, kind: "danger", onClick: () => j.cancel() }) : null,
+          !j.active && j.retry && (j.failed || j.state === "cancelled" || j.state === "failed") ? btn("Retry", { small: true, onClick: () => j.retry() }) : null),
+        j.log.length ? h("details.small", h("summary", "Log"), h("ul", j.log.slice(-30).map((l) => h("li", l)))) : null))) : h("p.muted", "No jobs have run in this window yet."),
+      log.length ? h("details", h("summary", `Background checks (${log.length})`), h("ul.check-list", log.slice().reverse().map((x) => h("li", icon(x.ok ? "check" : "warn"), h("div", x.message))))) : null);
+  };
+  const off = onJobs(() => draw());
+  await draw();
+  await modal("Background jobs", body, { size: "wide", buttons: [{ label: "Clear finished", run: async () => { for (let i = JOBS.length - 1; i >= 0; i--) if (!JOBS[i].active) JOBS.splice(i, 1); await call("jobs.clear"); S.jobs = []; render(); draw(); return false; } }, { label: "Close" }] }).done;
+  off();
 }
 
 export function shortcuts() {

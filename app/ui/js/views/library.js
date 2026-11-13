@@ -171,6 +171,16 @@ registerView("library", {
     inspSplit.dataset.invert = "1";
     layoutGrid();
     grid.append(tree, treeSplit, listPane, inspSplit, inspector);
+    // Rows can be dragged onto a collection: the selection when the row is selected, else the row.
+    listPane.addEventListener("mousedown", (e) => { const row = e.target.closest("[data-id]"); if (row && !e.target.closest("input, button, select, a")) row.draggable = true; }, true);
+    listPane.addEventListener("dragstart", (e) => {
+      const row = e.target.closest?.("[data-id]");
+      if (!row) return;
+      const ids = st.selected.has(row.dataset.id) ? [...st.selected] : [row.dataset.id];
+      e.dataTransfer.setData("text/refs", JSON.stringify(ids));
+      e.dataTransfer.setData("text/plain", ids.length + " sources");
+      e.dataTransfer.effectAllowed = "copyMove";
+    });
     el.append(grid);
     const [collections, labels, saved] = await Promise.all([call("collections.list"), call("labels.list"), call("searches.list")]);
 
@@ -187,8 +197,51 @@ registerView("library", {
         if (e.key === "ArrowUp") { items[i - 1]?.focus(); e.preventDefault(); }
         if (e.key === "Enter" || e.key === " ") { pick(key); e.preventDefault(); }
       });
+      if (key.type === "collection") {
+        const ti = li.firstChild;
+        if (!key.c.query) dropTarget(ti, key.c);
+        ti.draggable = true;
+        ti.addEventListener("dragstart", (e) => { e.stopPropagation(); e.dataTransfer.setData("text/collection", key.c.id); e.dataTransfer.effectAllowed = "move"; });
+        // Keyboard equivalent of dragging a collection: Alt+Left moves it out one level.
+        li.addEventListener("keydown", async (e) => {
+          if (e.altKey && e.key === "ArrowLeft" && key.c.parent_id) { e.preventDefault(); e.stopPropagation(); const parent = collections.find((x) => x.id === key.c.parent_id); await moveCollection(key.c, parent?.parent_id || ""); }
+        });
+      }
       if (children?.length) li.append(h("ul", { role: "group" }, children));
       return li;
+    };
+    // Dropping sources on a collection adds them (Shift while dropping moves them out of the
+    // collection being shown); dropping a collection nests it.
+    const dropTarget = (el, c) => {
+      el.addEventListener("dragover", (e) => {
+        const t = e.dataTransfer.types;
+        if (t.includes("text/refs") || (t.includes("text/collection") && c)) { e.preventDefault(); el.classList.add("drop-over"); e.dataTransfer.dropEffect = t.includes("text/refs") && !(e.shiftKey && st.collection) ? "copy" : "move"; }
+      });
+      el.addEventListener("dragleave", () => el.classList.remove("drop-over"));
+      el.addEventListener("drop", async (e) => {
+        e.preventDefault(); el.classList.remove("drop-over");
+        try {
+          const refs = e.dataTransfer.getData("text/refs");
+          const coll = e.dataTransfer.getData("text/collection");
+          if (refs && c) {
+            const ids = JSON.parse(refs);
+            if (e.shiftKey && st.collection && st.collection !== c.id) { await call("collections.move_sources", { from: st.collection, to: c.id, ids }); toast(`Moved ${ids.length} to “${c.name}”. Undo is available.`, "success"); }
+            else { await call("collections.collect", { id: c.id, ids, add: true }); toast(`Added ${ids.length} to “${c.name}”`, "success"); }
+            go("library");
+          } else if (coll && coll !== c?.id) {
+            const moving = collections.find((x) => x.id === coll);
+            if (moving) await moveCollection(moving, c ? c.id : "");
+          }
+        } catch (err) { showError(err); }
+      });
+    };
+    const moveCollection = async (c, parentId) => {
+      try {
+        await call("collections.move", { id: c.id, parent_id: parentId });
+        const p = collections.find((x) => x.id === parentId);
+        toast(p ? `“${c.name}” is now inside “${p.name}”` : `“${c.name}” is now a top-level collection`, "success");
+        go("library");
+      } catch (err) { showError(err); }
     };
     const pick = (key) => {
       st.offset = 0;
@@ -217,8 +270,10 @@ registerView("library", {
         treeItem("Needs metadata", "warn", { type: "view", value: "needs_metadata", scope: "library" }),
         treeItem("Machine-created", "beaker", { type: "view", value: "machine", scope: "library" }),
         treeItem("Trash", "trash", { type: "view", value: "trash", scope: "library" }, counts.trash));
-      ul.append(h("li", h("div.ti", { style: { fontWeight: 700, marginTop: "8px" } }, icon("folder", 18), "Collections", h("span.grow"),
-        iconBtn("plus", "New collection", async () => { const n = await promptDialog("New collection", "Name"); if (n) { await call("collections.save", { collection: { name: n, project_id: "" } }); go("library"); } }))));
+      const collHead = h("div.ti", { style: { fontWeight: 700, marginTop: "8px" }, title: "Drop a collection here to make it top-level" }, icon("folder", 18), "Collections", h("span.grow"),
+        iconBtn("plus", "New collection", async () => { const n = await promptDialog("New collection", "Name"); if (n) { await call("collections.save", { collection: { name: n, project_id: "" } }); go("library"); } }));
+      dropTarget(collHead, null);
+      ul.append(h("li", collHead));
       ul.append(...buildCollections(""));
       if (saved.length) ul.append(h("li", h("div.ti", { style: { fontWeight: 700, marginTop: "8px" } }, icon("search", 18), "Saved searches")), ...saved.map((s) => h("li", { role: "treeitem", tabindex: "-1" }, h("div.ti", { on: { click: () => { st.search = s.query; searchBox.value = s.query; loadList(); } } }, icon("search", 16), s.name))));
       if (labels.length) ul.append(h("li", h("div.ti", { style: { fontWeight: 700, marginTop: "8px" } }, icon("tag", 18), "Labels")), ...labels.map((l) => treeItem(l.name, "tag", { type: "label", value: l.id })));
@@ -226,7 +281,18 @@ registerView("library", {
     };
     const collectionMenu = async (c) => {
       const act = await modal(c.name, h("div", h("p.muted", c.query ? "Smart collection: " + c.query : `${c.ref_ids.length} sources`)), { size: "narrow", buttons: [
-        { label: "Rename", value: "rename" }, { label: "New sub-collection", value: "sub" }, ...(c.query ? [] : [{ label: "Add selected sources", value: "add" }]), { label: "Delete", value: "delete", kind: "danger" }] }).done;
+        { label: "Rename", value: "rename" }, { label: "New sub-collection", value: "sub" }, { label: "Move into…", value: "move" }, ...(c.query ? [] : [{ label: "Add selected sources", value: "add" }]), { label: "Delete", value: "delete", kind: "danger" }] }).done;
+      if (act === "move") {
+        // Not itself or anything inside it.
+        const inside = new Set([c.id]);
+        let grew = true;
+        while (grew) { grew = false; for (const x of collections) if (x.parent_id && inside.has(x.parent_id) && !inside.has(x.id)) { inside.add(x.id); grew = true; } }
+        const opts = [["", "Top level (no parent)"], ...collections.filter((x) => !inside.has(x.id) && !x.query).sort((a, b) => a.name.localeCompare(b.name)).map((x) => [x.id, x.name])];
+        const selEl = select(opts, c.parent_id || "", { "aria-label": "New place" });
+        const ok = await modal(`Move “${c.name}”`, h("div", field("Put it inside", selEl), h("p.small.muted", "You can also drag a collection onto another, or press Alt+Left on it to move it out one level.")), { buttons: [{ label: "Cancel" }, { label: "Move", kind: "primary", value: true }] }).done;
+        if (ok) await moveCollection(c, selEl.value);
+        return;
+      }
       if (act === "rename") { const n = await promptDialog("Rename collection", "Name", c.name); if (n) await call("collections.save", { collection: { ...c, name: n } }); }
       if (act === "sub") { const n = await promptDialog("New sub-collection", "Name"); if (n) await call("collections.save", { collection: { name: n, parent_id: c.id } }); }
       if (act === "add") await call("collections.collect", { id: c.id, ids: [...st.selected], add: true });
@@ -404,6 +470,13 @@ registerView("library", {
             close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Collections", style: { maxHeight: "300px", overflow: "auto", minWidth: "220px" } },
               list.length ? list.map((c) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: async () => { close(); await call("collections.collect", { id: c.id, ids, add: true }); toast(`Added to “${c.name}”`, "success"); go("library"); } } }, c.name)) : h("p.small.muted", { style: { padding: "6px 10px" } }, "No collections yet. Create one with + beside Collections.")));
           } }),
+          st.collection && !collections.find((c) => c.id === st.collection)?.query ? btn("Move to collection", { small: true, title: "Take the selected sources out of this collection and put them in another (the same as Shift while dragging)", onClick: (e) => {
+            const ids = [...st.selected];
+            const list = collections.filter((c) => !c.query && c.id !== st.collection && (!c.project_id || c.project_id === S.project?.project.id)).sort((a, b) => a.name.localeCompare(b.name));
+            let close;
+            close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Move to collection", style: { maxHeight: "300px", overflow: "auto", minWidth: "220px" } },
+              list.length ? list.map((c) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: async () => { close(); await call("collections.move_sources", { from: st.collection, to: c.id, ids }); toast(`Moved to “${c.name}”. Undo is available.`, "success"); go("library"); } } }, c.name)) : h("p.small.muted", { style: { padding: "6px 10px" } }, "No other collections.")));
+          } }) : null,
           btn("Files", { small: true, icon: "chevronDown", onClick: (e) => {
             const ids = [...st.selected];
             let close;

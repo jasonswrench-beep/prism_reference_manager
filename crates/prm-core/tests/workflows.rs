@@ -798,3 +798,26 @@ fn automatic_values_carry_confidence_until_checked_or_edited() {
     let typed = lib.add_reference(article("Typed", 2020, &[("Lee", "K")]), None).unwrap();
     assert!(typed.provenance.values().all(|p| p.confidence.is_none()));
 }
+
+#[test]
+fn collections_nest_and_sources_move_between_them() {
+    let (mut lib, _root) = open("coll");
+    let a = lib.save_collection(Collection { name: "Methods".into(), ..Default::default() }).unwrap();
+    let b = lib.save_collection(Collection { name: "Interviews".into(), ..Default::default() }).unwrap();
+    let c = lib.save_collection(Collection { name: "Coding".into(), parent_id: b.id.clone(), ..Default::default() }).unwrap();
+    let b = lib.move_collection(&b.id, &a.id).unwrap();
+    assert_eq!(b.parent_id, a.id);
+    assert!(lib.move_collection(&a.id, &c.id).is_err(), "no collection inside its own sub-collection");
+    assert_eq!(lib.move_collection(&b.id, "").unwrap().parent_id, "");
+    let r1 = lib.add_reference(article("One", 2020, &[("Ode", "I")]), None).unwrap();
+    let r2 = lib.add_reference(article("Two", 2021, &[("Lee", "K")]), None).unwrap();
+    let ids = vec![r1.id.clone(), r2.id.clone()];
+    lib.collect(&a.id, &ids, true).unwrap();
+    lib.collect(&c.id, &[r1.id.clone()], true).unwrap();
+    lib.move_between_collections(&a.id, &b.id, &ids).unwrap();
+    assert!(lib.store.must::<Collection>(&a.id).unwrap().ref_ids.is_empty());
+    assert_eq!(lib.store.must::<Collection>(&b.id).unwrap().ref_ids.len(), 2);
+    assert_eq!(lib.store.must::<Collection>(&c.id).unwrap().ref_ids, vec![r1.id.clone()], "other memberships stay");
+    lib.undo().unwrap();
+    assert_eq!(lib.store.must::<Collection>(&a.id).unwrap().ref_ids.len(), 2, "a move is one undo step");
+}

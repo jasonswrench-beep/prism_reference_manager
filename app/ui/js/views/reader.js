@@ -141,7 +141,7 @@ async function pageImage(page) {
 
 /** Recognize the text of a scanned PDF on this computer and store it for search and quotation.
  *  The file is not changed. Returns the updated attachment, or null when stopped. */
-export async function recognizePdf(att, { lang = "", onProgress, stop } = {}) {
+export async function recognizePdf(att, { lang = "", onProgress, stop, wait } = {}) {
   const data = await readAttachment(att.id);
   const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, cMapUrl: "vendor/pdfjs/cmaps/", cMapPacked: true, standardFontDataUrl: "vendor/pdfjs/standard_fonts/" }).promise;
   const pages = [];
@@ -149,6 +149,7 @@ export async function recognizePdf(att, { lang = "", onProgress, stop } = {}) {
   try {
     for (let i = 1; i <= pdf.numPages; i++) {
       if (stop && stop()) return null;
+      if (wait) await wait();
       onProgress && onProgress(i - 1, pdf.numPages);
       const page = await pdf.getPage(i);
       const r = await call("ocr.page", { image: await pageImage(page), lang });
@@ -173,20 +174,40 @@ export async function recognizeDialog(atts, onDone) {
     { buttons: [{ label: "Recognize", kind: "primary", value: true }, { label: "Cancel", value: false }] }).done;
   if (!ok) return;
   call("settings.set", { settings: { ocr_lang: sel.value } }).then(() => (S.settings.ocr_lang = sel.value)).catch(() => {});
-  let stopped = false, done = 0, low = 0;
-  const t = toast("Recognizing text…", "info", { sticky: true, action: { label: "Stop", run: () => (stopped = true) } });
+  await runRecognition(atts, sel.value, onDone);
+}
+
+/** Recognize files as a background job (pause, resume, cancel in the job panel). */
+async function runRecognition(atts, lang, onDone) {
+  const { startJob } = await import("../jobs.js");
+  let done = 0, low = 0;
+  const left = [];
+  const t = toast("Recognizing text…", "info", { sticky: true, action: { label: "Stop", run: () => job.cancel() } });
   const line = t.querySelector(".grow div") || t;
-  try {
-    for (const a of atts) {
-      if (stopped) break;
-      const r = await recognizePdf(a, { lang: sel.value, stop: () => stopped, onProgress: (i, n) => (line.textContent = `Recognizing text: ${atts.length > 1 ? `file ${done + 1} of ${atts.length}, ` : ""}page ${Math.min(i + 1, n)} of ${n}`) });
-      if (!r) break;
-      done++;
-      if ((r.ocr_quality ?? 1) < 0.75) low++;
-    }
-    t.remove();
-    toast(stopped ? `Stopped. ${done} files recognized; the rest were left as they were.` : `Text recognized in ${done} file${done === 1 ? "" : "s"}.${low ? ` ${low} may be of poor quality; check them.` : ""}`, low ? "warn" : "success");
-  } catch (e) { t.remove(); showError(e); }
+  const job = startJob({
+    label: atts.length === 1 ? `Recognizing text: ${atts[0].original_name}` : `Recognizing text in ${atts.length} PDFs`, source: "Text recognition",
+    retry: () => runRecognition(left.length ? left : atts, lang, onDone),
+    run: async (job) => {
+      job.progress(0, atts.length);
+      for (const a of atts) {
+        await job.step();
+        try {
+          const r = await recognizePdf(a, { lang, wait: () => job.step(), onProgress: (i, n) => (line.textContent = `Recognizing text: ${atts.length > 1 ? `file ${done + 1} of ${atts.length}, ` : ""}page ${Math.min(i + 1, n)} of ${n}${job.state === "paused" ? " (paused)" : ""}`) });
+          if (!r) break;
+          done++;
+          if ((r.ocr_quality ?? 1) < 0.75) low++;
+          job.progress(done, atts.length);
+        } catch (e) {
+          if (e?.cancelled) throw e;
+          left.push(a); job.fail(`${a.original_name}: ${e.message || e}`);
+        }
+      }
+    },
+  });
+  try { await job.promise; } catch (e) { showError(e); }
+  for (const a of atts.slice(done + left.length)) left.push(a);
+  t.remove();
+  toast(job.state === "cancelled" ? `Stopped. ${done} files recognized; the rest were left as they were.` : `Text recognized in ${done} file${done === 1 ? "" : "s"}.${low ? ` ${low} may be of poor quality; check them.` : ""}${job.failed ? ` ${job.failed} could not be read (see Background jobs).` : ""}`, low || job.failed ? "warn" : "success");
   onDone && onDone(done);
 }
 
@@ -197,11 +218,12 @@ export function qualityText(att) {
 }
 
 /** Index every attached PDF that is not yet in the full-text index (runs in the reader context). */
-export async function indexAll(onProgress, { pace = 0, stop } = {}) {
-  const list = await call("files.unindexed");
+export async function indexAll(onProgress, { pace = 0, stop, wait, list: given } = {}) {
+  const list = given || (await call("files.unindexed"));
   let done = 0;
   for (const a of list) {
     if (stop && stop()) break;
+    if (wait) await wait();
     if (pace) await new Promise((r) => setTimeout(r, pace));
     try {
       const data = await readAttachment(a.id);

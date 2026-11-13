@@ -99,6 +99,10 @@ already pass are listed at the end for reference.
 - [ ] Special characters (Ctrl+Shift+U) and Alt+X in the source editor, for names with accents
       and titles with Greek letters.
 - [ ] Create a first library and follow the getting-started tour; check every "Go there" button.
+- [ ] Drag sources and collections with a mouse and with a touchpad (the automated test can only
+      simulate the drop). Try the keyboard ways with a screen reader.
+- [ ] Pause and resume full-text indexing of a large folder of PDFs from Tools › Background jobs,
+      then cancel and retry it.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder

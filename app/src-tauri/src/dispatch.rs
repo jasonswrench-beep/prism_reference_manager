@@ -789,6 +789,8 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "collections.list" => ok(lib_mut(st)?.store.all::<Collection>().map_err(err)?),
         "collections.save" => ok(lib_mut(st)?.save_collection(arg(a, "collection")?).map_err(err)?),
         "collections.delete" => ok(lib_mut(st)?.delete_collection(&s(a, "id")).map_err(err)?),
+        "collections.move" => ok(lib_mut(st)?.move_collection(&s(a, "id"), &s(a, "parent_id")).map_err(err)?),
+        "collections.move_sources" => ok(lib_mut(st)?.move_between_collections(&s(a, "from"), &s(a, "to"), &arg::<Vec<String>>(a, "ids")?).map_err(err)?),
         "collections.collect" => ok(lib_mut(st)?.collect(&s(a, "id"), &arg::<Vec<String>>(a, "ids")?, opt(a, "add")).map_err(err)?),
         "searches.list" => ok(lib_mut(st)?.store.all::<SavedSearch>().map_err(err)?),
         "searches.save" => ok(lib_mut(st)?.save_search(arg(a, "search")?).map_err(err)?),

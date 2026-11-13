@@ -83,6 +83,13 @@ step, anything uncertain goes to review. A special-character palette (Ctrl+Shift
 accents, punctuation, symbols, Greek and Cyrillic at the cursor, and Alt+X turns a character code
 into its character. A short getting-started tour follows the first library.
 
+**Collections and background jobs.** Sources can be dragged onto a collection (Shift moves them out
+of the collection being shown), and collections onto each other to nest them; every drag has a
+keyboard way (Add to collection, Move to collection, a collection's Move into…, Alt+Left). Long
+tasks (reading PDF text, recognizing text, imports) run as jobs with progress, a log and a
+completed count; reading and recognizing can be paused, resumed, cancelled and retried, and an
+import can be stopped safely.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

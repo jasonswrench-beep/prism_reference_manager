@@ -407,3 +407,7 @@ details.support pre { white-space: pre-wrap; font-size: 12px; background: var(--
   .print-sheet td { border-bottom: 1px solid #ccc; padding: 4px 8px; }
   .print-sheet td:first-child { font-family: monospace; white-space: nowrap; }
 }
+/* Drop target while dragging sources or collections */
+.ti.drop-over { outline: 2px dashed var(--primary); outline-offset: -2px; background: var(--primary-soft); }
+.job-bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin: 6px 0 4px; }
+.job-bar span { display: block; height: 100%; background: var(--primary); transition: width 0.3s; }

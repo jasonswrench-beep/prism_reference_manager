@@ -201,12 +201,8 @@ function charName(ch) {
 }
 
 let lastField = null;
-document.addEventListener("focusin", (e) => {
-  const t = e.target;
-  if ((t instanceof HTMLInputElement && ["text", "search", "url", ""].includes(t.type)) || t instanceof HTMLTextAreaElement) {
-    if (!t.closest(".chars-dialog")) lastField = t;
-  }
-});
+const isTextField = (t) => ((t instanceof HTMLInputElement && ["text", "search", "url", ""].includes(t.type)) || t instanceof HTMLTextAreaElement) && !t.closest(".chars-dialog");
+document.addEventListener("focusin", (e) => { if (isTextField(e.target)) lastField = e.target; });
 
 function insertAt(el, text) {
   if (!el || !el.isConnected) { navigator.clipboard?.writeText(text).catch(() => {}); toast(`${text} copied; paste it where you need it.`, "info"); return; }
@@ -219,7 +215,8 @@ function insertAt(el, text) {
 
 /** A palette of accents, punctuation, symbols and other scripts, inserted where the cursor was. */
 export function specialChars() {
-  const target = lastField;
+  // The field being typed in; else the last one used (the palette may be opened from a menu).
+  const target = isTextField(document.activeElement) ? document.activeElement : lastField?.isConnected ? lastField : null;
   const q = h("input", { type: "search", placeholder: "Type a character code such as 00E9, or a character to find", "aria-label": "Find a character" });
   const grid = h("div.chars-grid");
   const draw = () => {

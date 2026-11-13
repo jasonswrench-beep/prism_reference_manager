@@ -1055,6 +1055,43 @@ impl Library {
         })
     }
 
+    /// Place a collection inside another (empty `parent_id` for the top level). Refuses to put a
+    /// collection inside itself or one of its own sub-collections.
+    pub fn move_collection(&mut self, id: &str, parent_id: &str) -> Result<Collection> {
+        let mut c = self.store.must::<Collection>(id)?;
+        if c.parent_id == parent_id {
+            return Ok(c);
+        }
+        if !parent_id.is_empty() {
+            self.store.must::<Collection>(parent_id)?;
+        }
+        c.parent_id = parent_id.to_string();
+        self.save_collection(c)
+    }
+
+    /// Move sources from one collection to another as one step (they stay in any other
+    /// collections they belong to).
+    pub fn move_between_collections(&mut self, from: &str, to: &str, ids: &[String]) -> Result<()> {
+        if from == to {
+            return Ok(());
+        }
+        self.write("Move to collection", |tx| {
+            let mut a = tx.must::<Collection>(from)?;
+            let mut b = tx.must::<Collection>(to)?;
+            if !a.query.is_empty() || !b.query.is_empty() {
+                return Err(Error::user("A smart collection fills itself from its search."));
+            }
+            a.ref_ids.retain(|x| !ids.contains(x));
+            for id in ids {
+                if !b.ref_ids.contains(id) {
+                    b.ref_ids.push(id.clone());
+                }
+            }
+            tx.put(&a)?;
+            tx.put(&b)
+        })
+    }
+
     pub fn save_search(&mut self, mut s: SavedSearch) -> Result<SavedSearch> {
         crate::search::parse(&s.query)?;
         if s.id.is_empty() {
