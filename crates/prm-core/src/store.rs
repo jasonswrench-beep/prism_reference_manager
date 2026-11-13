@@ -183,6 +183,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     for t in TABLES {
         conn.execute_batch(&format!("CREATE TABLE IF NOT EXISTS {t}(id TEXT PRIMARY KEY, data TEXT NOT NULL);"))?;
     }
+    crate::journals::ensure_table(conn)?;
     for (t, col, path) in INDEXES {
         let exists: bool = conn
             .prepare(&format!("SELECT 1 FROM pragma_table_xinfo('{t}') WHERE name='{col}'"))?

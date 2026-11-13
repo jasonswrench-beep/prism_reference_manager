@@ -202,6 +202,7 @@ pub fn export(refs: &[&Reference]) -> String {
         };
         w(&mut o, "TI", r.title());
         w(&mut o, "T2", r.f("container_title"));
+        w(&mut o, "J2", r.f("container_title_short"));
         w(&mut o, "T3", r.f("collection_title"));
         w(&mut o, "ST", r.f("short_title"));
         if let Some(d) = &r.issued {

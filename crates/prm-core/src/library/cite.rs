@@ -127,6 +127,15 @@ impl Library {
     }
 
     /// The manuscript's reference set (everything not excluded).
+    /// Journal-name form for a manuscript: its own choice, else the library's default.
+    pub fn journal_form(&self, manuscript_id: &str) -> String {
+        let own = if manuscript_id.is_empty() { String::new() } else { self.store.get::<Manuscript>(manuscript_id).ok().flatten().map(|m| m.journal_names).unwrap_or_default() };
+        if !own.is_empty() {
+            return own;
+        }
+        self.store.meta("journal_names").unwrap_or_default()
+    }
+
     pub fn context_refs(&self, manuscript_id: &str) -> Result<Vec<Reference>> {
         if manuscript_id.is_empty() {
             return Ok(vec![]);
@@ -152,8 +161,12 @@ impl Library {
             style = req.style.clone();
         }
         let (sinfo, engine) = self.style_engine(&style)?;
-        let ctx_refs = self.context_refs(&req.manuscript_id)?;
+        let mut ctx_refs = self.context_refs(&req.manuscript_id)?;
         let standalone = req.manuscript_id.is_empty();
+        let form = self.journal_form(&req.manuscript_id);
+        for r in &mut ctx_refs {
+            crate::journals::apply_form(&self.store.conn, r, &form);
+        }
 
         let bib_ids: Vec<String> = match req.mode {
             OutputMode::Bibliography => self.bibliography_ids(&req.manuscript_id, &req.set, &req.ref_ids)?,
@@ -180,9 +193,12 @@ impl Library {
             }
             out
         };
-        let cited = self.references(&bib_ids)?;
+        let mut cited = self.references(&bib_ids)?;
         if cited.is_empty() {
             return Err(Error::user("Choose at least one source."));
+        }
+        for r in &mut cited {
+            crate::journals::apply_form(&self.store.conn, r, &form);
         }
         let cited_refs: Vec<&Reference> = cited.iter().collect();
         let mut set: Vec<&Reference> = ctx_refs.iter().collect();

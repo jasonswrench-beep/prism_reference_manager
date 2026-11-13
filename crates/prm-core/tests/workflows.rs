@@ -848,3 +848,90 @@ fn labels_bulk_create_recolour_merge_and_delete() {
     assert!(lib.store.all::<Label>().unwrap().is_empty());
     assert!(lib.reference(&r2.id).unwrap().labels.is_empty());
 }
+
+#[test]
+fn journal_names_full_or_abbreviated_per_manuscript() {
+    let (mut lib, _root) = open("journals");
+    let p = lib.create_project("Article", "apa-7", Some("Draft")).unwrap();
+    let m = p.active_manuscript.clone();
+    let mut a = article("Reflective teaching", 2020, &[("Ode", "Ife")]);
+    a.fields.insert("container_title_short".into(), "J. Teach. Pract.".into());
+    let a = lib.add_reference(a, Some(&p.id)).unwrap();
+    let mut b = article("Second study", 2021, &[("Lee", "K.")]);
+    b.fields.insert("container_title".into(), "Medical Education".into());
+    let b = lib.add_reference(b, Some(&p.id)).unwrap();
+    // The list learns from sources that carry both forms, and takes imported lists.
+    let all: Vec<Reference> = lib.store.all().unwrap();
+    assert_eq!(prm_core::journals::learn(&lib.store.conn, &all).unwrap(), 1);
+    prm_core::journals::import_list(&lib.store.conn, "Medical Education = Med. Educ.").unwrap();
+    let props = lib.propose_journal_names(&[a.id.clone(), b.id.clone()]).unwrap();
+    assert_eq!(props.len(), 1);
+    assert_eq!((props[0].ref_id.as_str(), props[0].after.as_str()), (b.id.as_str(), "Med. Educ."));
+
+    let reference = |lib: &Library, id: &str| lib.render(&CiteRequest { manuscript_id: m.clone(), ref_ids: vec![id.into()], mode: OutputMode::Reference, ..Default::default() }).unwrap().text;
+    assert!(reference(&lib, &a.id).contains("Journal of Teaching Practice"), "APA uses the full name by default");
+    let mut ms = lib.store.must::<Manuscript>(&m).unwrap();
+    ms.journal_names = "abbreviated".into();
+    let rev = ms.context_revision;
+    let ms = lib.update_manuscript(ms).unwrap();
+    assert_eq!(ms.context_revision, rev + 1, "changing the form changes the output");
+    assert!(reference(&lib, &a.id).contains("J. Teach. Pract."));
+    assert!(reference(&lib, &b.id).contains("Med. Educ."), "the list fills in an abbreviation the source lacks");
+    // The library default applies where a manuscript has no choice of its own.
+    let mut ms = ms;
+    ms.journal_names = String::new();
+    lib.update_manuscript(ms).unwrap();
+    lib.store.set_meta("journal_names", "abbreviated").unwrap();
+    assert!(reference(&lib, &a.id).contains("J. Teach. Pract."));
+    // Exchange formats keep the abbreviation.
+    let csl = prm_core::formats::csljson::to_csl(&lib.reference(&a.id).unwrap());
+    assert_eq!(csl["container-title-short"], "J. Teach. Pract.");
+    assert!(csl.get("journalAbbreviation").is_none());
+}
+
+#[test]
+fn sources_copy_and_move_between_libraries() {
+    let (mut a, root) = open("xfer-a");
+    let mut b = Library::open(&root.join("lib-b"), "test-device", "test-host").unwrap();
+    let p = a.create_project("Article", "apa-7", Some("Draft")).unwrap();
+    let mut s1 = article("Reflective teaching", 2020, &[("Ode", "Ife")]);
+    s1.fields.insert("doi".into(), "10.5555/xfer.1".into());
+    let s1 = a.add_reference(s1, Some(&p.id)).unwrap();
+    let s2 = a.add_reference(article("Faculty practice", 2019, &[("Lee", "K.")]), None).unwrap();
+    let f = root.join("paper.pdf");
+    std::fs::write(&f, minimal_pdf(2)).unwrap();
+    let att = a.attach_file(&s1.id, &f, "managed", "full-text").unwrap();
+    a.set_page_text(&att.id, &["first page about reflection".into(), "second".into()]).unwrap();
+    a.save_annotation(Annotation { attachment_id: att.id.clone(), project_id: p.id.clone(), kind: "highlight".into(), text: "about reflection".into(), ..Default::default() }).unwrap();
+    a.save_note(Note { kind: "note".into(), title: "On reflection".into(), body: "Library-wide".into(), ref_ids: vec![s1.id.clone()], ..Default::default() }).unwrap();
+    let lab = a.create_labels(&[("Theory".into(), "#7a3cc2".into())]).unwrap().remove(0);
+    a.set_labels(&[s1.id.clone()], &lab.id, true).unwrap();
+    // The other library already has the second source under another id.
+    b.add_reference(article("Faculty practice", 2019, &[("Lee", "K.")]), None).unwrap();
+
+    let rep = a.transfer_to(&mut b, &[s1.id.clone(), s2.id.clone()], true, false).unwrap();
+    assert_eq!((rep.copied, rep.files, rep.marks, rep.notes, rep.labels_created), (1, 1, 1, 1, 1));
+    assert_eq!(rep.skipped.len(), 1, "the duplicate is skipped: {:?}", rep.skipped);
+    assert_eq!(rep.marks_made_library_wide, 1);
+    let c = b.reference(&s1.id).unwrap();
+    assert_eq!(c.title(), "Reflective teaching");
+    let bl: Vec<Label> = b.store.all().unwrap();
+    assert_eq!(c.labels, vec![bl[0].id.clone()]);
+    assert_eq!(bl[0].name, "Theory");
+    let batt = b.attachments(&s1.id).unwrap().remove(0);
+    assert!(b.attachment_path(&batt).exists(), "the managed file was copied into the other library");
+    assert_eq!(prm_core::search::run(&b.store.conn, "reflection", None, None, 10).unwrap().ref_ids, vec![s1.id.clone()]);
+    assert_eq!(a.reference(&s1.id).unwrap().trashed_at, None, "copying leaves the original");
+
+    // A second copy is recognised; a move puts the originals in the trash, undoably.
+    let again = a.transfer_to(&mut b, &[s1.id.clone()], true, false).unwrap();
+    assert_eq!(again.copied, 0);
+    let s3 = a.add_reference(article("Third", 2022, &[("Kim", "J.")]), None).unwrap();
+    let mv = a.transfer_to(&mut b, &[s3.id.clone()], true, true).unwrap();
+    assert_eq!((mv.copied, mv.moved_to_trash), (1, 1));
+    assert!(a.reference(&s3.id).unwrap().trashed_at.is_some());
+    a.undo().unwrap();
+    assert!(a.reference(&s3.id).unwrap().trashed_at.is_none());
+    b.undo().unwrap();
+    assert!(b.store.get::<Reference>(&s3.id).unwrap().is_none(), "the copy is one undo step there");
+}

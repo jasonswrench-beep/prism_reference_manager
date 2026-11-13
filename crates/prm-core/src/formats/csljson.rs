@@ -54,6 +54,9 @@ const FIELD_MAP: &[(&str, &str)] = &[
     ("title", "title"),
     ("title-short", "short_title"),
     ("container-title", "container_title"),
+    ("container-title-short", "container_title_short"),
+    ("journalAbbreviation", "container_title_short"),
+    ("short-container-title", "container_title_short"),
     ("collection-title", "collection_title"),
     ("volume", "volume"),
     ("issue", "issue"),
@@ -257,7 +260,8 @@ pub fn to_csl(r: &Reference) -> Value {
     }
     o.insert("type".into(), json!(crate::types::get(&r.rtype).map(|t| t.csl).unwrap_or("document")));
     for (k, f) in FIELD_MAP {
-        if *k == "event" {
+        // Read-only aliases: written once, under the standard name.
+        if *k == "event" || *k == "journalAbbreviation" || *k == "short-container-title" {
             continue;
         }
         if let Some(v) = r.fields.get(*f) {

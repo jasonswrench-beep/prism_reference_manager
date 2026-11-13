@@ -443,6 +443,9 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             let r = if method == "update.check" { crate::updates::check(app, shared) } else { crate::updates::install(app, shared) };
             return r.map_err(|m| user(&m));
         }
+        "update.rollback_check" | "update.rollback" if client.is_none() => {
+            return crate::updates::rollback(app, shared, method == "update.rollback").map_err(|m| user(&m));
+        }
         _ => {}
     }
     if client.is_some() && method.starts_with("dialog.") {
@@ -490,12 +493,13 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         "files.attach_pick" => pre_paths = pick_files(app, "any", "Attach files"),
         "files.relink_pick" => pre_path = pick_file(app, "any", "Find the moved file"),
         "files.replace_pick" => pre_path = pick_file(app, "any", "Choose the new version"),
+        "journals.import_pick" => pre_path = pick_file(app, "any", "Choose a journal abbreviation list (text or CSV)"),
         "import.pick" => pre_path = pick_file(app, "bib", "Choose a bibliographic file"),
         "library.choose" => pre_path = pick_folder(app, "Choose a library folder"),
         "diagnostics.save" => pre_path = needs_save("zip", "prism-diagnostics.zip", "Save diagnostic bundle"),
         _ => {}
     }
-    let dialog_methods = ["custom.export", "custom.import", "styles.import", "cite.export_bibliography", "notes.export", "family.export", "ann.export_pdf", "ann.export_list", "ann.preview_external", "export.refs", "export.package", "export.attachments", "backup.now", "backup.verify", "backup.restore", "package.import", "files.relink_pick", "files.replace_pick", "import.pick", "library.choose", "diagnostics.save"];
+    let dialog_methods = ["custom.export", "custom.import", "styles.import", "cite.export_bibliography", "notes.export", "family.export", "ann.export_pdf", "ann.export_list", "ann.preview_external", "export.refs", "export.package", "export.attachments", "backup.now", "backup.verify", "backup.restore", "package.import", "files.relink_pick", "files.replace_pick", "journals.import_pick", "import.pick", "library.choose", "diagnostics.save"];
     if dialog_methods.contains(&method) && pre_path.is_none() {
         return ok(json!({"cancelled": true}));
     }
@@ -571,6 +575,41 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             }
             settings::save(&st.config_dir, &st.settings).map_err(|e| CallError { message: "Settings could not be saved.".into(), detail: e.to_string() })?;
             ok(&st.settings)
+        }
+        // Recent libraries with their names, for the switcher and for copying between libraries.
+        "library.recent" => {
+            let current = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).unwrap_or_default();
+            let v: Vec<Value> = st
+                .settings
+                .recent_libraries
+                .iter()
+                .filter(|p| PathBuf::from(p).join(prm_core::store::DB_FILE).exists())
+                .map(|p| {
+                    let name = rusqlite::Connection::open_with_flags(PathBuf::from(p).join(prm_core::store::DB_FILE), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                        .ok()
+                        .and_then(|c| c.query_row("SELECT value FROM meta WHERE key='name'", [], |r| r.get::<_, String>(0)).ok())
+                        .unwrap_or_default();
+                    json!({"path": p, "name": name, "current": *p == current})
+                })
+                .collect();
+            ok(v)
+        }
+        "library.transfer" => {
+            let target = PathBuf::from(s(a, "target"));
+            if !target.join(prm_core::store::DB_FILE).exists() {
+                return Err(user("No library was found in that folder."));
+            }
+            let ids: Vec<String> = arg(a, "ids")?;
+            let (device, host) = (st.device.clone(), st.host.clone());
+            let mut other = Library::open(&target, &device, &host).map_err(err)?;
+            let l = lib_mut(st)?;
+            if other.root == l.root {
+                other.close();
+                return Err(user("Choose a different library to copy into."));
+            }
+            let res = l.transfer_to(&mut other, &ids, opt(a, "files"), opt(a, "move"));
+            other.close();
+            ok(res.map_err(err)?)
         }
         "library.open" => {
             let p = PathBuf::from(s(a, "path"));
@@ -1223,10 +1262,42 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let l = lib_mut(st)?;
             let attached = crate::capture::after_commit(l, &b, &|p: &Path| picked_paths().lock().unwrap().contains(p) || watched.iter().any(|w| p.starts_with(w)))?;
             let placed = crate::pdfimport::mirror_folders(l, &b)?;
+            // New sources may teach journal abbreviations.
+            if let Ok(refs) = l.store.all::<Reference>() {
+                let _ = prm_core::journals::learn(&l.store.conn, &refs);
+            }
             ok(json!({"report": report, "attached": attached, "collected": placed}))
         }
         "import.cancel" => ok(lib_mut(st)?.cancel_import(&s(a, "id")).map_err(err)?),
+        "cleanup.propose" if s(a, "kind") == "journals" => ok(lib_mut(st)?.propose_journal_names(&opt::<Vec<String>>(a, "ids")).map_err(err)?),
         "cleanup.propose" => ok(lib_mut(st)?.propose_title_case(&opt::<Vec<String>>(a, "ids")).map_err(err)?),
+        "journals.summary" => {
+            let l = lib_mut(st)?;
+            let (records, imported) = prm_core::journals::count(&l.store.conn);
+            ok(json!({"records": records, "imported": imported, "default": l.store.meta("journal_names").unwrap_or_default()}))
+        }
+        "journals.list" => ok(prm_core::journals::list(&lib_mut(st)?.store.conn, &s(a, "query"), 200).map_err(err)?),
+        "journals.learn" => {
+            let l = lib_mut(st)?;
+            let refs: Vec<Reference> = l.store.all().map_err(err)?;
+            ok(prm_core::journals::learn(&l.store.conn, &refs).map_err(err)?)
+        }
+        "journals.import_pick" => {
+            let text = std::fs::read_to_string(path.unwrap()).map_err(|_| user("That file could not be read as text."))?;
+            ok(prm_core::journals::import_list(&lib_mut(st)?.store.conn, &text).map_err(err)?)
+        }
+        "journals.import_text" => ok(prm_core::journals::import_list(&lib_mut(st)?.store.conn, &s(a, "text")).map_err(err)?),
+        "journals.clear_imported" => ok(prm_core::journals::clear_imported(&lib_mut(st)?.store.conn).map_err(err)?),
+        "journals.set_default" => {
+            let f = s(a, "form");
+            if !prm_core::journals::FORMS.contains(&f.as_str()) {
+                return Err(user("Journal names can follow the style, be full or be abbreviated."));
+            }
+            let l = lib_mut(st)?;
+            l.store.set_meta("journal_names", &f).map_err(err)?;
+            let _ = l.recompute_copies(None);
+            ok(true)
+        }
         "cleanup.apply" => {
             let ps: Vec<prm_core::cleanup::Proposal> = arg(a, "proposals")?;
             let label = s(a, "label");

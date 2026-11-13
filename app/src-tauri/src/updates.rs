@@ -16,6 +16,9 @@ use tauri_plugin_updater::UpdaterExt;
 pub const ENDPOINT: &str = "";
 /// Public half of the update-signing key (from `npx tauri signer generate`). Empty until set.
 pub const PUBKEY: &str = "";
+/// Feed for returning to the previous release (the release process publishes the earlier
+/// release's manifest there). Signed with the same key. Empty until releases are published.
+pub const ROLLBACK_ENDPOINT: &str = "";
 
 pub const KIND: &str = "update";
 const PURPOSE: &str = "Check for a newer version. Sends the program's version and Windows architecture.";
@@ -41,6 +44,26 @@ pub fn configured() -> bool {
     !endpoint().trim().is_empty() && !pubkey().trim().is_empty()
 }
 
+fn rollback_endpoint() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(v) = std::env::var("PRM_ROLLBACK_ENDPOINT") {
+        return v;
+    }
+    ROLLBACK_ENDPOINT.to_string()
+}
+
+pub fn rollback_configured() -> bool {
+    !rollback_endpoint().trim().is_empty() && !pubkey().trim().is_empty()
+}
+
+/// A rollback accepts only a release older than the running one.
+pub fn is_rollback(current: &str, offered: &str) -> bool {
+    match (semver::Version::parse(current.trim_start_matches('v')), semver::Version::parse(offered.trim_start_matches('v'))) {
+        (Ok(c), Ok(o)) => o < c,
+        _ => false,
+    }
+}
+
 fn host() -> String {
     tauri::Url::parse(&endpoint()).ok().and_then(|u| u.host_str().map(|h| h.to_string())).unwrap_or_else(|| "(not set up)".into())
 }
@@ -53,6 +76,7 @@ pub fn state(st: &AppState) -> Value {
         "last_check": st.settings.update_last_check,
         "host": host(),
         "version": env!("CARGO_PKG_VERSION"),
+        "rollback": rollback_configured(),
     })
 }
 
@@ -81,10 +105,17 @@ fn log(shared: &Shared, ok: bool, detail: &str) {
 }
 
 fn updater(app: &tauri::AppHandle, shared: &Shared) -> Result<tauri_plugin_updater::Updater, String> {
-    let url = tauri::Url::parse(&endpoint()).map_err(|e| format!("The update address is not valid: {e}"))?;
+    updater_for(app, shared, &endpoint(), false)
+}
+
+fn updater_for(app: &tauri::AppHandle, shared: &Shared, feed: &str, rollback: bool) -> Result<tauri_plugin_updater::Updater, String> {
+    let url = tauri::Url::parse(feed).map_err(|e| format!("The update address is not valid: {e}"))?;
     let sh = shared.clone();
-    app.updater_builder()
-        .pubkey(pubkey())
+    let mut b = app.updater_builder();
+    if rollback {
+        b = b.version_comparator(|current, remote| is_rollback(&current.to_string(), &remote.version.to_string()));
+    }
+    b.pubkey(pubkey())
         .endpoints(vec![url])
         .map_err(|e| e.to_string())?
         .on_before_exit(move || {
@@ -149,6 +180,46 @@ pub fn install(app: &tauri::AppHandle, shared: &Shared) -> Result<Value, String>
             log(shared, false, &e.to_string());
             Err(format!("The update was not installed: {e}"))
         }
+    }
+}
+
+/// Return to the previous release: offered only when the rollback feed names an older version,
+/// verified with the same signature, and installed only with the person's go-ahead.
+pub fn rollback(app: &tauri::AppHandle, shared: &Shared, install: bool) -> Result<Value, String> {
+    if !rollback_configured() {
+        return Err("Returning to the previous version is not set up in this version.".into());
+    }
+    if let Some(why) = shared.lock().ok().and_then(|st| blocked(&st)) {
+        return Err(why);
+    }
+    let up = updater_for(app, shared, &rollback_endpoint(), true)?;
+    let found = tauri::async_runtime::block_on(up.check()).map_err(|e| format!("Could not reach the release feed: {e}"))?;
+    let Some(u) = found else { return Ok(json!({"available": false, "message": "No earlier version is offered."})) };
+    if !install {
+        log(shared, true, &format!("Previous version {} offered", u.version));
+        return Ok(json!({"available": true, "version": u.version, "notes": u.body.clone().unwrap_or_default()}));
+    }
+    let res = tauri::async_runtime::block_on(u.download_and_install(|_, _| {}, || {}));
+    match res {
+        Ok(()) => {
+            log(shared, true, &format!("Returned to version {}", u.version));
+            Ok(json!({"installed": true, "version": u.version}))
+        }
+        Err(e) => {
+            log(shared, false, &e.to_string());
+            Err(format!("The earlier version was not installed: {e}"))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn rollback_only_accepts_an_older_release() {
+        assert!(super::is_rollback("0.2.0", "0.1.3"));
+        assert!(!super::is_rollback("0.2.0", "0.2.0"));
+        assert!(!super::is_rollback("0.2.0", "0.3.0"));
+        assert!(!super::is_rollback("0.2.0", "not a version"));
     }
 }
 

@@ -6,6 +6,10 @@ already pass are listed at the end for reference.
 
 ## 1. Decisions for the owner
 
+- [ ] Bundle an open journal abbreviation list? None is bundled now: abbreviations come from your
+      sources and from lists you import (Settings › Citation › Journal names). A bundled list needs
+      its licence reviewed first.
+
 - [x] **Shipping license.** Apache-2.0, approved by the owner on 2026-11-13.
 - [ ] **Code signing.** Approved in principle: sign once there is a working version. Until then
       builds stay unsigned (Windows SmartScreen will warn).
@@ -109,6 +113,13 @@ already pass are listed at the end for reference.
 - [ ] Group Policy (IT): copy `docs/policy/*.admx` and `en-US/*.adml` into PolicyDefinitions, set
       "Allow online lookups" to Disabled and a backup folder, and confirm the program shows them
       as set by the administrator and cannot change them.
+- [ ] Journal names: import a real abbreviation list, run Clean up › Fill journal abbreviations
+      on a set of articles, and switch a manuscript between full and abbreviated names in a style
+      that abbreviates (and in APA, which uses full names).
+- [ ] Copy and move sources between two real libraries with PDFs and marks (File › Switch
+      library, Ctrl+Shift+L; Files › Copy to another library).
+- [ ] Once releases are published: return to the previous version from Settings › About on a test
+      computer, with a library this version had upgraded.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder
@@ -329,12 +340,10 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 These are specified for the first release but not implemented in this build. Each needs either
 work that could not be verified here or an owner decision.
 
-- Journal abbreviation lists (QLT-009).
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).
 - Side-by-side reading of two documents (part of RDR-001).
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.
-- Copying references between two libraries (LIB-017).
 
 ## Automated checks that pass in this build
 

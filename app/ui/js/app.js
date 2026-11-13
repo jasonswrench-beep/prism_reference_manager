@@ -255,6 +255,7 @@ function registerCommands() {
   command("redo", "Redo", doRedo, "Ctrl+Y", "Edit");
   command("lib.new", "New library…", () => dialogs.newLibrary(), "", "File");
   command("lib.open", "Open library…", () => dialogs.openLibrary(), "", "File");
+  command("lib.switch", "Switch library…", () => dialogs.switchLibrary(), "Ctrl+Shift+L", "File");
   command("project.new", "New project…", () => dialogs.newProject(), "Ctrl+Shift+N", "File");
   command("source.add", "Add source manually…", () => dialogs.addSource(), "Ctrl+N", "File");
   command("source.lookup", "Add source by identifier (DOI, PMID, arXiv, ISBN, URL)…", () => dialogs.lookup(), "Ctrl+I", "File");

@@ -144,6 +144,14 @@ number, text, or JSON text for a list); names that are not settings and values t
 are ignored. `docs/policy/PrismReferenceManager.admx` and `en-US/PrismReferenceManager.adml` are
 the administrative template for the common settings.
 
+## D8c. Journal names
+
+Journal abbreviations are a field of their own (`container_title_short`), read from and written to
+every exchange format. A journal list beside the records is learned from sources that carry both
+forms and from lists the person imports; no third-party list is bundled (a bundled list would
+need its licence reviewed). Each manuscript shows journal names as the style says, in full or
+abbreviated, with a library default; changing it flags earlier copies as changed.
+
 ## D8a. Secrets
 
 The program stores no secrets. Local connection tokens are shown once and kept only as hashes;

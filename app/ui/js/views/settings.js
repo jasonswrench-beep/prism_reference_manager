@@ -33,12 +33,27 @@ async function updatesCard(card) {
         : h("p", `You have the latest version (${u.version}).`));
     } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); }
   };
+  const rollback = () => rollbackFlow(u, out);
   const auto = h("input", { type: "checkbox", checked: u.automatic, disabled: u.locked, on: { change: (e) => saveSettings({ update_check: e.target.checked }) } });
   return card("Updates",
     h("p", `Update address: ${u.host}. A check sends this program's version and Windows architecture, and appears in the network log.`),
     h("label.row", auto, h("span", "Check for updates once a day")), u.locked ? h("p.small.muted", "Set by your administrator.") : null,
     h("p.small.muted", "Automatic checks only tell you a new version exists. Nothing is downloaded or installed without your go-ahead."),
-    h("div.btn-row", btn("Check now", { onClick: check })), last, out);
+    h("div.btn-row", btn("Check now", { onClick: check }), u.rollback ? btn("Return to the previous version…", { onClick: rollback }) : null), last, out);
+}
+
+// Going back to the release before this one, from the signed release feed.
+async function rollbackFlow(u, out) {
+  clear(out); out.append(h("p", "Looking for the previous version…"));
+  try {
+    const r = await call("update.rollback_check");
+    clear(out);
+    if (!r.available) { out.append(h("p", r.message || "No earlier version is offered.")); return; }
+    const ok = await confirmDialog(`Return to version ${r.version}?`, `Version ${r.version} replaces ${u.version}; its signature is checked first, and settings and libraries are kept. If this version upgraded a library's format, the earlier version opens that library read-only: use Settings › Library and backup › Format history › Return to the format before the last upgrade first (changes since the upgrade stay in the kept file).`, { ok: "Return to " + r.version });
+    if (!ok) return;
+    out.append(h("p", "Downloading…"));
+    await call("update.rollback");
+  } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); }
 }
 
 registerView("settings", {
@@ -256,6 +271,25 @@ registerView("settings", {
       const excl = () => bibExcl.value.split(",").map((x) => x.trim()).filter(Boolean);
       const keepFmt = select([["bibtex", "BibTeX (.bib)"], ["biblatex", "biblatex (.bib)"], ["ris", "RIS"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xlsx", "Excel workbook"]], "bibtex", { "aria-label": "Format of the kept file" });
       const keepScope = select([["project", "Active project"], ["library", "Whole library"]], S.project ? "project" : "library", { "aria-label": "Sources in the kept file" });
+      const js = await call("journals.summary").catch(() => null);
+      if (js) {
+        const reload = () => go("settings", { tab: "citation" });
+        const form = select([["", "As each style says"], ["full", "Always full"], ["abbreviated", "Always abbreviated"]], js.default, { "aria-label": "Journal names by default", on: { change: async (e) => { await call("journals.set_default", { form: e.target.value }); toast("Saved. Manuscripts that chose their own form keep it; copies made before are listed under Changed since copying.", "success"); } } });
+        const q = h("input", { type: "search", placeholder: "Find a journal", "aria-label": "Find a journal" });
+        const found = h("div");
+        const look = async () => { const v = q.value.trim(); if (v.length < 2) { clear(found); return; } const l = await call("journals.list", { query: v }); clear(found, l.length ? h("table.table.small", h("tbody", l.slice(0, 30).map((j) => h("tr", h("td", j.full), h("td.mono", j.abbrev), h("td.muted", j.source === "imported" ? "imported list" : "from your sources"))))) : h("p.small.muted", "Not in the list.")); };
+        q.addEventListener("input", look);
+        body.append(card("Journal names",
+          h("p.small.muted", "Journal abbreviations come from your sources (a source that has both forms teaches the pair) and from abbreviation lists you import. No list is built in."),
+          field("Journal names by default", form, "A manuscript can choose its own in its style settings. APA uses full names."),
+          h("p.small", `${js.records} pairs from your sources • ${js.imported} from imported lists`),
+          q, found,
+          h("div.btn-row",
+            btn("Learn from my sources", { small: true, onClick: async () => { const n = await call("journals.learn"); toast(`${n} pairs found in your sources`, "success"); reload(); } }),
+            btn("Import an abbreviation list…", { small: true, onClick: async () => { try { const r = await call("journals.import_pick"); if (r?.cancelled) return; toast(`${r[0]} journals imported${r[1] ? `; ${r[1]} lines skipped` : ""}.`, "success"); reload(); } catch (e) { showError(e); } } }),
+            js.imported ? btn("Remove imported lists", { small: true, kind: "danger", onClick: async () => { if (await confirmDialog("Remove imported lists", "Remove the journal pairs from imported lists? Pairs from your sources stay, and nothing in your sources changes.", { ok: "Remove", kind: "danger" })) { await call("journals.clear_imported"); reload(); } } }) : null),
+          h("p.small.muted", "A list is a text or CSV file with one journal per line: the full name and the abbreviation separated by “ = ”, a tab, a semicolon or a comma. To add missing abbreviations to sources, select them in the Library and use Clean up › Fill journal abbreviations.")));
+      }
       body.append(card("Citation keys", field("Pattern", pat, "Tokens: [auth] [Auth] [authors2] [year] [shorttitle] [title3] [type]. Keys stay unique; locked keys never change."),
         btn("Save", { kind: "primary", onClick: () => saveSettings({ citekey_pattern: pat.value }) })),
         card("Files kept up to date", h("p.small.muted", "Keep an export file current automatically, for LaTeX or Markdown writing, a shared spreadsheet or another program. It is rewritten within seconds of any change, and only when its content changes."),

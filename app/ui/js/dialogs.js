@@ -29,6 +29,42 @@ export async function newLibrary() {
   }
 }
 
+/** Switch to another recent library. */
+export async function switchLibrary() {
+  const list = await call("library.recent");
+  const others = list.filter((l) => !l.current);
+  if (!others.length) { toast("No other library has been opened on this computer yet. Use File › Open library.", "info"); return; }
+  let m;
+  m = modal("Switch library", h("div", h("ul.check-list", others.map((l) => h("li", h("button.menu-item", { type: "button", style: { display: "block", width: "100%", textAlign: "left" }, on: { click: async () => {
+    m.close(true);
+    try { await call("library.open", { path: l.path }); await refresh(); go("projects"); toast(`Opened “${l.name || l.path}”`, "success"); } catch (e) { showError(e); }
+  } } }, h("strong", l.name || "Library"), h("div.small.muted.mono", l.path))))), h("div.btn-row", btn("Open another library…", { small: true, onClick: () => { m.close(true); openLibrary(); } }))), { buttons: [{ label: "Close" }] });
+}
+
+/** Copy or move sources into another library. */
+export async function copyToLibrary(ids) {
+  const list = (await call("library.recent")).filter((l) => !l.current);
+  const target = select([...list.map((l) => [l.path, `${l.name || "Library"} — ${l.path}`]), ["__pick", "Choose another library folder…"]], list[0]?.path || "__pick", { "aria-label": "Library to copy into" });
+  const files = h("input", { type: "checkbox", id: "xf-files", checked: true });
+  const mv = h("input", { type: "checkbox", id: "xf-move" });
+  const ok = await modal(`Copy ${ids.length} source${ids.length === 1 ? "" : "s"} to another library`, h("div",
+    field("Library", target),
+    h("label.row", { for: "xf-files" }, files, "With attached files, their marks and page text"),
+    h("label.row", { for: "xf-move" }, mv, "Move: put the originals here in the trash afterwards"),
+    h("p.small.muted", "Sources the other library already has are skipped, not duplicated. Labels are matched by name; projects and collections stay in this library, and marks made in a project become library-wide there. The copy is one step you can undo in that library.")),
+    { buttons: [{ label: "Cancel" }, { label: "Copy", kind: "primary", value: true }] }).done;
+  if (!ok) return;
+  let path = target.value;
+  if (path === "__pick") { path = await call("dialog.pick_folder", { title: "Choose the library to copy into" }); if (!path) return; }
+  try {
+    const r = await call("library.transfer", { target: path, ids, files: files.checked, move: mv.checked });
+    await refresh();
+    modal("Copied to another library", h("div",
+      h("p", `${r.copied} copied${r.files ? `, with ${r.files} file${r.files === 1 ? "" : "s"}` : ""}${r.marks ? `, ${r.marks} mark${r.marks === 1 ? "" : "s"}` : ""}${r.notes ? `, ${r.notes} note${r.notes === 1 ? "" : "s"}` : ""}.${r.moved_to_trash ? ` ${r.moved_to_trash} original${r.moved_to_trash === 1 ? "" : "s"} moved to the trash here.` : ""}`),
+      r.skipped.length ? h("div", h("p", "Not copied:"), h("ul.small", r.skipped.map(([t, why]) => h("li", h("strong", t || "Source"), ": ", why)))) : null), { buttons: [{ label: "Close", kind: "primary" }] });
+  } catch (e) { showError(e); }
+}
+
 export async function openLibrary() {
   const r = await call("library.choose");
   if (r?.cancelled) return;
@@ -539,6 +575,7 @@ const CLEANUP = {
   doi: { title: "Find missing DOIs", label: "Add found DOIs", none: "No DOI was found for the selected sources that do not have one. Only very close title and year matches are offered." },
   abstract: { title: "Fetch missing abstracts", label: "Add fetched abstracts", none: "No abstracts were found for the selected sources with a DOI and no abstract." },
   title_case: { title: "Titles to sentence case", label: "Change titles to sentence case", none: "The selected titles are already in sentence case." },
+  journals: { title: "Fill journal abbreviations", label: "Add journal names", none: "No missing journal abbreviation or full name could be filled from the journal list. Add pairs in Settings › Citation › Journal names." },
 };
 
 /** Propose a batch fix for the selected sources and let the person review every change. */

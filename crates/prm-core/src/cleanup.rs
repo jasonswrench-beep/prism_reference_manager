@@ -188,6 +188,25 @@ pub struct Proposal {
 
 impl Library {
     /// Sentence-case proposals for the given sources' titles (no network).
+    /// Proposed journal abbreviations (or full names) from the journal list, for sources that
+    /// have one form but not the other.
+    pub fn propose_journal_names(&self, ids: &[String]) -> Result<Vec<Proposal>> {
+        let mut out = vec![];
+        for id in ids {
+            let Some(r) = self.store.get::<Reference>(id)? else { continue };
+            if r.has("container_title") && !r.has("container_title_short") {
+                if let Some(a) = crate::journals::abbreviation(&self.store.conn, r.f("container_title")) {
+                    out.push(Proposal { ref_id: r.id.clone(), title: r.title().into(), field: "container_title_short".into(), before: String::new(), after: a, source: "journal-list".into(), note: String::new() });
+                }
+            } else if r.has("container_title_short") && !r.has("container_title") {
+                if let Some(f) = crate::journals::full_name(&self.store.conn, r.f("container_title_short")) {
+                    out.push(Proposal { ref_id: r.id.clone(), title: r.title().into(), field: "container_title".into(), before: String::new(), after: f, source: "journal-list".into(), note: String::new() });
+                }
+            }
+        }
+        Ok(out)
+    }
+
     pub fn propose_title_case(&self, ids: &[String]) -> Result<Vec<Proposal>> {
         let mut out = vec![];
         for id in ids {

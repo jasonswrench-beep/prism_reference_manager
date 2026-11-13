@@ -184,7 +184,7 @@ impl Library {
     }
 
     /// Copy a file into the managed store, checking the copy; returns its relative path.
-    fn copy_into_store(&self, src: &Path, hash: &str, original_name: &str) -> Result<String> {
+    pub(crate) fn copy_into_store(&self, src: &Path, hash: &str, original_name: &str) -> Result<String> {
         let rel = format!("{}/{}/{}", &hash[..2], &hash[..16], safe_name(original_name));
         let dest = self.files_dir().join(&rel);
         if !dest.exists() {

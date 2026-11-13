@@ -507,6 +507,10 @@ pub struct Manuscript {
     /// Revision of the citation context: increments when the set, order, style or locale changes.
     #[serde(default)]
     pub context_revision: u64,
+    /// Journal names: "" as the style says, "full" or "abbreviated". Empty uses the library's
+    /// default.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub journal_names: String,
     pub created: String,
     pub modified: String,
 }

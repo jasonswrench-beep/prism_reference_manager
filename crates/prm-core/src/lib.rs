@@ -25,6 +25,7 @@ pub mod backup;
 pub mod pdf;
 pub mod provenance;
 pub mod mirror;
+pub mod journals;
 pub mod lookup;
 pub mod health;
 pub mod cleanup;

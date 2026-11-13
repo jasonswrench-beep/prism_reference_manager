@@ -484,6 +484,7 @@ registerView("library", {
             const item = (label, run) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: () => { close(); run(); } } }, label);
             close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Files", style: { minWidth: "240px" } },
               item("Rename attached files…", () => dialogs.renameFiles(ids)),
+              item("Copy to another library…", () => dialogs.copyToLibrary(ids)),
               item("Export attached files…", () => dialogs.exportFiles(ids))));
           } }),
           n === 1 && S.project ? btn("Add task", { small: true, icon: "check", onClick: async () => {
@@ -498,6 +499,7 @@ registerView("library", {
               item("Find missing DOIs", () => dialogs.cleanup("doi", ids)),
               item("Fetch missing abstracts", () => dialogs.cleanup("abstract", ids)),
               item("Titles to sentence case", () => dialogs.cleanup("title_case", ids)),
+              item("Fill journal abbreviations", () => dialogs.cleanup("journals", ids)),
               item("Check web addresses", () => dialogs.checkLinks(ids))));
           } }),
           btn("Find free full texts", { small: true, title: "Look for legal open-access PDFs for the selected sources that have a DOI and no PDF", onClick: () => dialogs.findFreeCopies([...st.selected]) }),

@@ -35,3 +35,13 @@ are needed for a smooth update.
 
 The first version with a key and address built in must be installed by hand. Updates work from
 that version on.
+
+## Returning to the previous version
+
+`ROLLBACK_ENDPOINT` in `updates.rs` names a second manifest, for example `previous.json` beside
+`latest.json`. When publishing a release, copy the outgoing release's `latest.json` there (its
+installer stays published and signed). Settings › About then offers "Return to the previous
+version…": the updater accepts only a version older than the running one, verifies the same
+signature, and installs it after a confirmation that explains library formats. A library this
+version upgraded opens read-only in the older one until "Return to the format before the last
+upgrade" is used (see `library-format.md`).

@@ -364,6 +364,7 @@ fn to_record(kind: &str, key: &str, f: &BTreeMap<String, String>) -> Reference {
     let book_like = matches!(r.rtype.as_str(), "chapter" | "paper-conference" | "entry-encyclopedia");
     let container = if book_like { get("booktitle") } else { get("journaltitle").or_else(|| get("journal")) };
     set(&mut r, "container_title", container);
+    set(&mut r, "container_title_short", get("shortjournal"));
     if !book_like {
         used.borrow_mut().insert("booktitle".into());
         if let Some(b) = f.get("booktitle") {
@@ -552,6 +553,9 @@ pub fn export(refs: &[&Reference], biblatex: bool, exclude: &[String]) -> String
             "chapter" | "paper-conference" | "entry-encyclopedia" => push("booktitle", container),
             _ if biblatex => push("journaltitle", container),
             _ => push("journal", container),
+        }
+        if biblatex {
+            push("shortjournal", escape(r.f("container_title_short")));
         }
         if let Some(d) = &r.issued {
             if biblatex {

@@ -118,13 +118,15 @@ export async function styleCatalog() {
     } catch (e) { showError(e); }
   } });
   drawList(); drawInfo(); drawPreview();
+  const jn = select([["", "Library default"], ["style", "As the style says"], ["full", "Always full"], ["abbreviated", "Always abbreviated"]], m?.journal_names || "", { "aria-label": "Journal names" });
   const r = await modal("Citation style and language", h("div", { style: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px" } },
     h("div", q, h("div", { style: { height: "8px" } }), list, h("div.btn-row", { style: { marginTop: "8px" } }, importBtn),
       h("p.small.muted", "Bundled styles come from the CSL style repository and are shown as Untested until test cases for them are run and reviewed.")),
-    h("div", field("Citation language", lang, "Terms such as “and”, “edited by” and month names. Independent of the interface language."), info, h("hr"), preview)),
-    { size: "wide", buttons: [{ label: "Cancel" }, m ? { label: "Use for this manuscript", kind: "primary", run: () => ({ style: chosen, locale: lang.value }) } : null].filter(Boolean) }).done;
+    h("div", field("Citation language", lang, "Terms such as “and”, “edited by” and month names. Independent of the interface language."),
+      m ? field("Journal names", jn, "Abbreviations come from the sources and the journal list (Settings › Citation).") : null, info, h("hr"), preview)),
+    { size: "wide", buttons: [{ label: "Cancel" }, m ? { label: "Use for this manuscript", kind: "primary", run: () => ({ style: chosen, locale: lang.value, journal_names: jn.value }) } : null].filter(Boolean) }).done;
   if (r && m) {
-    try { await call("manuscripts.update", { manuscript: { ...m, style: r.style, locale: r.locale } }); await refresh(); toast("Style updated. Copies made with the old style are listed under Changed since copying.", "success"); }
+    try { await call("manuscripts.update", { manuscript: { ...m, style: r.style, locale: r.locale, journal_names: r.journal_names } }); await refresh(); toast("Style updated. Copies made with the old style are listed under Changed since copying.", "success"); }
     catch (e) { showError(e); }
   }
 }

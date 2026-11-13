@@ -78,7 +78,7 @@ fn from_csl(text: &str) -> Option<Reference> {
     let p = formats::parse("csljson", &wrapped, None);
     p.records.into_iter().next().map(|p: Parsed| {
         let mut r = p.record;
-        r.overflow.retain(|k, _| !matches!(k.as_str(), "csl:reference" | "csl:link" | "csl:license" | "csl:indexed" | "csl:deposited" | "csl:created" | "csl:content-domain" | "csl:member" | "csl:prefix" | "csl:source" | "csl:score" | "csl:references-count" | "csl:is-referenced-by-count" | "csl:published-print" | "csl:published-online" | "csl:published" | "csl:issued" | "csl:journal-issue" | "csl:subject" | "csl:funder" | "csl:assertion" | "csl:alternative-id" | "csl:relation" | "csl:update-policy" | "csl:container-title-short" | "csl:short-container-title" | "csl:original-title" | "csl:subtitle"));
+        r.overflow.retain(|k, _| !matches!(k.as_str(), "csl:reference" | "csl:link" | "csl:license" | "csl:indexed" | "csl:deposited" | "csl:created" | "csl:content-domain" | "csl:member" | "csl:prefix" | "csl:source" | "csl:score" | "csl:references-count" | "csl:is-referenced-by-count" | "csl:published-print" | "csl:published-online" | "csl:published" | "csl:issued" | "csl:journal-issue" | "csl:subject" | "csl:funder" | "csl:assertion" | "csl:alternative-id" | "csl:relation" | "csl:update-policy" | "csl:original-title" | "csl:subtitle"));
         r
     })
 }

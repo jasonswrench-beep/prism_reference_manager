@@ -3170,6 +3170,7 @@ dependencies = [
  "hex",
  "prm-core",
  "rusqlite",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

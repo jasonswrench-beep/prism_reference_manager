@@ -96,6 +96,13 @@ notes have a Copy link button; the prism-rm:// link opens the item in the progra
 or another program. Administrators can lock settings with Group Policy (template included) as
 well as with policy.json.
 
+**Journal names and several libraries.** Journal abbreviations are kept with each source and in
+every export format, learned into a journal list (which can also import a list file), filled in
+by a reviewed batch fix, and shown full or abbreviated per manuscript or by default. Ctrl+Shift+L
+switches library; selected sources can be copied or moved to another library with their files,
+marks, notes and labels, never as duplicates. Once releases are published, the previous version
+can be reinstalled from Settings.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

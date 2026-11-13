@@ -117,6 +117,7 @@ impl Library {
             archived: false,
             sections: vec![],
             context_revision: 1,
+            journal_names: String::new(),
             created: t.clone(),
             modified: t.clone(),
         };
@@ -265,7 +266,7 @@ impl Library {
                 }
             }
             if !created_any {
-                let m = Manuscript { id: new_id(), project_id: pp.id.clone(), title: "Untitled manuscript".into(), style: pp.default_style.clone(), locale: "en-US".into(), archived: false, sections: vec![], context_revision: 1, created: t.clone(), modified: t.clone() };
+                let m = Manuscript { id: new_id(), project_id: pp.id.clone(), title: "Untitled manuscript".into(), style: pp.default_style.clone(), locale: "en-US".into(), archived: false, sections: vec![], context_revision: 1, journal_names: String::new(), created: t.clone(), modified: t.clone() };
                 new_active = m.id.clone();
                 tx.put(&m)?;
             }
@@ -389,6 +390,7 @@ impl Library {
             archived: false,
             sections: vec![],
             context_revision: 1,
+            journal_names: String::new(),
             created: t.clone(),
             modified: t,
         };
@@ -401,13 +403,14 @@ impl Library {
     /// re-checks copied output.
     pub fn update_manuscript(&mut self, mut m: Manuscript) -> Result<Manuscript> {
         let old = self.store.must::<Manuscript>(&m.id)?;
-        if old.style != m.style || old.locale != m.locale {
+        let output_changes = old.style != m.style || old.locale != m.locale || old.journal_names != m.journal_names;
+        if output_changes {
             m.context_revision = old.context_revision + 1;
         }
         m.modified = now();
         let mm = m.clone();
         self.write("Edit manuscript", |tx| tx.put(&mm))?;
-        if old.style != m.style || old.locale != m.locale {
+        if output_changes {
             self.recompute_copies(Some(&m.id))?;
         }
         Ok(m)
