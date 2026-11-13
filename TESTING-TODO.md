@@ -11,12 +11,17 @@ already pass are listed at the end for reference.
       builds stay unsigned (Windows SmartScreen will warn).
 - [ ] **Update channel.** No automatic update check exists yet. It needs a signed update feed and
       a place to host it, which means publishing. Decide whether and where (spec PLT-009).
-- [ ] **Service names in the interface.** Research services and other reference managers appear
-      under generic labels ("Literature-mapping service", "AI research search engine",
-      "Citation-context service", "AI reading assistant", "another reference manager's
-      export"). Confirm this wording works for users.
-- [ ] **Citation-context hand-off.** The program asks the person to paste the service's report
-      address pattern once (with `{doi}`) rather than shipping a product address. Confirm.
+- [x] **Service names in the interface.** Decided 2026-11-13: real names appear in
+      interoperability labels only (Connections, the import dialog, import history). Code
+      comments, commits, docs and release notes stay generic, with no comparisons.
+- [x] **Citation-context hand-off.** Built in as the scite report page for a DOI, with a
+      "Change address" button in case the service moves it.
+- [ ] Open the scite hand-off for a source with a DOI in a real browser and confirm the report
+      page loads (an automated check reached the service's bot check, not a missing page).
+- [x] **API access.** Decided 2026-11-13: not built in. Connections explains that a person with
+      their own API access can send records through the local API (import scope, staged for
+      review) and that API costs are theirs. File exchange stays the built-in method.
+- [ ] Read the API access card in Connections and confirm the cost wording is clear.
 
 ## 2. Citation correctness (release gate G01, G02)
 

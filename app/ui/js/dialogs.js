@@ -143,11 +143,16 @@ export async function pasteBibliography() {
   if (r) importReview(r);
 }
 
+// Where an imported file came from. Service and program names here are interoperability labels
+// (which export a file came from), never comparisons.
 export const SERVICES = [
   ["file", "A file from my computer"],
-  ["mapping-service", "Literature-mapping service export (BibTeX, RIS or CSV)"],
-  ["ai-search", "AI research search export (RIS or CSV)"],
-  ["reading-assistant", "AI reading assistant export (BibTeX or RIS)"],
+  ["mapping-service", "ResearchRabbit export (BibTeX, RIS or CSV)"],
+  ["ai-search", "Consensus export (RIS or CSV)"],
+  ["reading-assistant", "SciSpace export (BibTeX or RIS)"],
+  ["zotero", "Zotero export (RIS, BibTeX or CSL JSON)"],
+  ["endnote", "EndNote export (XML or RIS)"],
+  ["mendeley", "Mendeley export (RIS or BibTeX)"],
   ["desktop-manager", "Another reference manager's export (RIS, BibTeX or XML)"],
 ];
 
@@ -157,7 +162,7 @@ export async function importFile(serviceDefault = "file") {
   if (!f || f.cancelled) return;
   const service = select(SERVICES, serviceDefault);
   const dest = select([["", "Library only (no project)"], ...S.projects.filter((p) => !p.project.archived).map((p) => [p.project.id, p.project.title])], pid());
-  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX / biblatex"], ["csljson", "CSL JSON"], ["xml", "XML records"], ["csv", "CSV / spreadsheet"], ["paste", "Plain text references"]], f.format);
+  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX / biblatex"], ["csljson", "CSL JSON"], ["xml", "XML records (EndNote XML)"], ["csv", "CSV / spreadsheet"], ["paste", "Plain text references"]], f.format);
   const mapBox = h("div");
   const mapping = {};
   const targets = ["", "ignore", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "abstract", "keywords", "isbn", "issn", "edition", "language", "note", "pmid"];
@@ -269,7 +274,7 @@ export async function undoImport(batchId) {
 // ---- exports and backups --------------------------------------------------------------------
 
 export async function exportRefs(ids = []) {
-  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX"], ["biblatex", "biblatex"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xml", "XML records"]], "ris");
+  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX"], ["biblatex", "biblatex"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xml", "Prism XML records"]], "ris");
   const scope = select([...(ids.length ? [["selected", `Selected sources (${ids.length})`]] : []), ...(S.project ? [["project", "Active project's sources"]] : []), ["all", "Whole library"]], ids.length ? "selected" : "all");
   const excl = h("input", { placeholder: "abstract, note" });
   const r = await modal("Export references", h("div", field("Format", fmt), field("Sources", scope), field("Leave out fields (BibTeX)", excl, "Comma separated."),

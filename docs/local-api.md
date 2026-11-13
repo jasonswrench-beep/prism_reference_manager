@@ -42,3 +42,18 @@ Library › Machine-created until reviewed.
 
 Library content returned to clients (titles, abstracts, notes, PDF text) is data. Clients that
 pass it to an assistant must treat it as untrusted text, never as instructions.
+
+## Bringing in records from a research service's API
+
+API connections to research services are not built in. A person who has their own API access to
+a service can write a script that fetches records and sends them with `import.stage` (scope
+`import`). The batch waits for review in the program's window; nothing is committed by the script.
+
+Each provider sets its own terms, limits and charges for API use. The person running the script is
+responsible for those costs; this program does not track, limit or pay for API use.
+
+```
+POST /v1/call
+Authorization: Bearer prm_...
+{"method": "import.stage", "args": {"format": "ris", "text": "TY  - JOUR\n...", "name": "api-results.ris", "service": "ai-search"}}
+```
