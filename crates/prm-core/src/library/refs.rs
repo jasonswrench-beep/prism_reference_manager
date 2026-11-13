@@ -317,6 +317,7 @@ impl Library {
             let v: Vec<String> = st.query_map(rusqlite::params_from_iter(args.iter()), |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).collect();
             v
         };
+        let custom_labels: BTreeMap<String, String> = self.store.all::<crate::model::CustomType>()?.into_iter().map(|t| (t.id, t.label)).collect();
         let mut rows = Vec::with_capacity(page_ids.len());
         for id in &page_ids {
             let Some(r) = self.store.get::<Reference>(id)? else { continue };
@@ -327,7 +328,7 @@ impl Library {
             rows.push(RefRow {
                 id: r.id.clone(),
                 rtype: r.rtype.clone(),
-                type_label: crate::types::label(&r.rtype).to_string(),
+                type_label: super::custom::type_label(&r, &custom_labels),
                 authors: author_short(&r),
                 year: r.issued.as_ref().map(|d| d.year.map(|y| y.to_string()).unwrap_or(d.status.clone())).unwrap_or_default(),
                 title: r.title().to_string(),
@@ -395,6 +396,8 @@ impl Library {
         }
         crate::formats::finish(r);
         crate::cleanup::apply_rules(r, &self.save_rules, &self.protected_terms);
+        self.apply_custom_defaults(r)?;
+        self.check_custom(r)?;
         let taken = self.taken_keys()?;
         if r.citekey.is_empty() || taken.contains(&r.citekey) {
             let base = if r.citekey.is_empty() { crate::citekey::generate(r, &self.citekey_pattern) } else { r.citekey.clone() };
@@ -449,6 +452,7 @@ impl Library {
     pub fn update_reference(&mut self, mut r: Reference, source: &str) -> Result<Reference> {
         let old = self.store.must::<Reference>(&r.id)?;
         crate::cleanup::apply_rules(&mut r, &self.save_rules, &self.protected_terms);
+        self.check_custom(&mut r)?;
         let changed = changed_fields(&old, &r);
         if changed.is_empty() && old.provenance == r.provenance && old.rating == r.rating && old.notices == r.notices && old.conflicts == r.conflicts && old.custom == r.custom && old.overflow == r.overflow && old.translations == r.translations && old.work_id == r.work_id && old.preferred_version == r.preferred_version && old.citekey_locked == r.citekey_locked {
             return Ok(old);

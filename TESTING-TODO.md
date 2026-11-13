@@ -106,6 +106,13 @@ already pass are listed at the end for reference.
 - [ ] Leave the program open past a scheduled health check (weekly by default) and confirm the
       notice appears only when something needs attention.
 
+## 2f. Fields and types
+
+- [ ] Settings › Fields and types: define two or three fields you would really use (a list, a
+      number, a date) and one type of your own; add sources with them; export the definitions
+      file and import it into a second library.
+- [ ] Export those sources to CSV and open it in a spreadsheet: one column per field.
+
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
 For each host, record the exact build, OS and paste mode, and whether italics, punctuation,
@@ -241,7 +248,7 @@ These are specified for the first release but not implemented in this build. Eac
 work that could not be verified here or an owner decision.
 
 - Optional local OCR for scanned PDFs (FIL-010).
-- Journal abbreviation lists (QLT-009); custom reference types and fields editor (LIB-002, DAT-008).
+- Journal abbreviation lists (QLT-009).
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).
 - Side-by-side reading of two documents (part of RDR-001); configurable colour-to-type scheme
   (RDR-003); annotation filters by colour and author (RDR-007).

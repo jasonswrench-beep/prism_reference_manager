@@ -9,6 +9,8 @@ mod projects;
 mod refs;
 mod terms;
 mod styles;
+mod custom;
+pub use custom::{applies as custom_applies, check_value as check_custom_value, KINDS as CUSTOM_KINDS};
 
 pub use cite::*;
 pub use files::*;

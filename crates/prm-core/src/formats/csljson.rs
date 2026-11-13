@@ -181,8 +181,13 @@ pub fn parse(text: &str) -> ParseOutput {
         if let Some(kw) = obj.get("keyword").and_then(|x| x.as_str()) {
             r.tags.extend(kw.split([',', ';']).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
         }
+        if let Some(Value::Object(c)) = obj.get("custom") {
+            for (k, v) in c {
+                r.custom.insert(k.clone(), v.clone());
+            }
+        }
         for (k, val) in obj {
-            if !used.contains(k.as_str()) {
+            if !used.contains(k.as_str()) && k != "custom" {
                 r.overflow.insert(format!("csl:{k}"), match val {
                     Value::String(s) => s.clone(),
                     other => other.to_string(),
@@ -298,6 +303,9 @@ pub fn to_csl(r: &Reference) -> Value {
     }
     if !r.tags.is_empty() {
         o.insert("keyword".into(), json!(r.tags.join(", ")));
+    }
+    if !r.custom.is_empty() {
+        o.insert("custom".into(), serde_json::to_value(&r.custom).unwrap_or_default());
     }
     for (k, v) in &r.overflow {
         if let Some(name) = k.strip_prefix("csl:") {

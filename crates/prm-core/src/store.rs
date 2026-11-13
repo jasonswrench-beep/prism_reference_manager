@@ -38,6 +38,7 @@ pub const TABLES: &[&str] = &[
     "styles",
     "integration_runs",
     "custom_fields",
+    "custom_types",
 ];
 
 /// Generated index columns for tables that need lookups by a JSON member.

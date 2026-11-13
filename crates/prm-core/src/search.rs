@@ -103,6 +103,10 @@ pub fn reindex(conn: &Connection, table: &str, id: &str, data: Option<&str>) -> 
                 }
             }
             ins(conn, entity, id, "", "author", -1, &names.join("; "))?;
+            if let Some(c) = v.get("custom").and_then(|c| c.as_object()) {
+                let text: Vec<String> = c.values().filter_map(|x| match x { serde_json::Value::String(s) => Some(s.clone()), serde_json::Value::Number(n) => Some(n.to_string()), _ => None }).collect();
+                ins(conn, entity, id, "", "custom", -1, &text.join("; "))?;
+            }
             if let Some(tags) = v.get("tags").and_then(|t| t.as_array()) {
                 let t: Vec<&str> = tags.iter().filter_map(|x| x.as_str()).collect();
                 ins(conn, entity, id, "", "tag", -1, &t.join(" "))?;
@@ -605,6 +609,7 @@ fn field_filter(field: &str) -> Option<&'static [&'static str]> {
         "quote" | "quotation" => &["quotation"],
         "annotation" | "annotations" => &["annotation", "comment"],
         "fulltext" | "text" | "pdf" => &["fulltext"],
+        "custom" | "field" => &["custom"],
         _ => &["__none__"],
     })
 }

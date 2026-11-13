@@ -26,10 +26,34 @@ const HELP = {
 };
 export const fieldLabel = (f) => FIELD_LABELS[f] || f;
 
+// Fields whose values repeat across sources get suggestions from values already used.
+const SUGGEST = ["container_title", "publisher", "publisher_place", "language", "genre", "edition", "event", "event_place", "medium", "archive", "collection_title"];
+let suggestN = 0;
+function suggestFor(input, field) {
+  const id = "sug" + ++suggestN;
+  const list = h("datalist", { id });
+  input.setAttribute("list", id);
+  input.after?.(list);
+  let t;
+  const load = () => { clearTimeout(t); t = setTimeout(async () => {
+    try { const vals = await call("fields.values", { field, prefix: input.value.trim() }); clear(list, ...vals.filter((v) => v !== input.value).map((v) => h("option", { value: v }))); } catch (_) {}
+  }, 150); };
+  input.addEventListener("focus", load);
+  input.addEventListener("input", load);
+  // The datalist must live in the document; attach it once the input is placed.
+  setTimeout(() => { if (!list.isConnected) input.parentElement?.append(list); }, 0);
+}
+
 function typeOptions() {
   const groups = {};
   for (const t of S.types) (groups[t.group] = groups[t.group] || []).push(t);
   const sel = h("select");
+  // The person's own types first; each is a variant of a built-in type ("sub:<id>").
+  if (S.customTypes?.length) {
+    const og = h("optgroup", { label: "Your types" });
+    for (const t of S.customTypes) og.append(h("option", { value: "sub:" + t.id }, t.label));
+    sel.append(og);
+  }
   for (const [g, ts] of Object.entries(groups)) {
     const og = h("optgroup", { label: g });
     for (const t of ts) og.append(h("option", { value: t.id }, t.label));
@@ -114,7 +138,14 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
     } catch (_) {}
   }
   const typeSel = typeOptions();
-  typeSel.value = r.type;
+  typeSel.value = r.subtype && S.customTypes?.some((t) => t.id === r.subtype) ? "sub:" + r.subtype : r.type;
+  // The chosen custom type (if any) and the built-in type that citation styles use.
+  const chosen = () => {
+    const v = typeSel.value;
+    if (v.startsWith("sub:")) { const c = S.customTypes.find((t) => "sub:" + t.id === v); return { base: c.base, sub: c.id, fields: c.fields, help: c.help || `Your type, cited as ${S.types.find((b) => b.id === c.base)?.label || c.base}.` }; }
+    const t = S.types.find((x) => x.id === v) || {};
+    return { base: v, sub: "", fields: t.fields || [], help: t.help || "" };
+  };
   const typeHelp = h("div.help");
   const creatorsBox = h("div");
   const fieldsBox = h("div");
@@ -139,7 +170,7 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
     return h("label.row.small.muted", { for: id, title: "Confirmed absence is different from unknown." }, cb, label);
   }
   const drawFields = () => {
-    const t = S.types.find((x) => x.id === typeSel.value) || {};
+    const t = chosen();
     typeHelp.textContent = t.help || "";
     const list = ["title", ...(t.fields || []), "short_title", "doi", "url", "abstract", "language", "keywords", "note"];
     const seen = new Set();
@@ -150,6 +181,7 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
       seen.add(f);
       const big = f === "abstract" || f === "note" || f === "title";
       const inp = big ? h("textarea", { value: r.fields[f] || "", rows: f === "title" ? 2 : 4 }) : h("input", { value: r.fields[f] || "" });
+      if (SUGGEST.includes(f)) suggestFor(inp, f);
       inp.addEventListener("input", () => { if (inp.value.trim()) r.fields[f] = inp.value; else delete r.fields[f]; });
       const prov = r.provenance?.[f];
       const helpTxt = [HELP[f], prov ? `From ${prov.source}${prov.review ? ", " + prov.review : ""}` : ""].filter(Boolean).join(" · ");
@@ -175,13 +207,33 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
     const chgRow = h("div.field", { style: { gridColumn: "1 / -1" } }, h("label.row", { for: cid }, chg, "Content is designed to change and is not archived"), h("div.help", "Only then does APA include a retrieval date (for example a page that is updated in place). Add the access date under More dates."));
     grid.append(chgRow);
     fieldsBox.append(grid);
+    const own = (S.customFields || []).filter((d) => !d.types?.length || d.types.includes(t.base) || (t.sub && d.types.includes(t.sub)));
+    if (own.length) {
+      r.custom = r.custom || {};
+      const cg = h("div.grid2");
+      for (const d of own) {
+        const cur = r.custom[d.id];
+        const set = (v) => { if (v === "" || v === null || v === undefined) delete r.custom[d.id]; else r.custom[d.id] = v; };
+        let ctl;
+        if (d.kind === "list") ctl = select([["", ""], ...d.options.map((o) => [o, o])], cur ?? "", { on: { change: (e) => set(e.target.value) } });
+        else if (d.kind === "boolean") ctl = select([["", ""], ["true", "Yes"], ["false", "No"]], cur === true ? "true" : cur === false ? "false" : "", { on: { change: (e) => set(e.target.value === "" ? "" : e.target.value === "true") } });
+        else {
+          ctl = h("input", { value: cur ?? "", placeholder: d.kind === "date" ? "2024, 2024-03 or 2024-03-15" : d.kind === "link" ? "https://" : d.kind === "number" ? "A number" : "" });
+          ctl.addEventListener("input", () => set(ctl.value.trim()));
+          if (d.kind === "text") suggestFor(ctl, "custom:" + d.id);
+        }
+        cg.append(field(d.name + (d.required ? " (required)" : ""), ctl, d.help || null));
+      }
+      fieldsBox.append(h("h3", { style: { margin: "14px 0 6px" } }, "Your fields"), cg);
+    }
   };
   typeSel.addEventListener("change", () => {
-    const t = S.types.find((x) => x.id === typeSel.value);
+    const t = chosen();
     // Fields that no longer fit move to a visible overflow section instead of disappearing.
-    const keep = new Set(["title", "short_title", "doi", "url", "abstract", "language", "keywords", "note", ...(t?.fields || [])]);
+    const keep = new Set(["title", "short_title", "doi", "url", "abstract", "language", "keywords", "note", ...(t.fields || [])]);
     for (const k of Object.keys(r.fields)) if (!keep.has(k)) { r.overflow = r.overflow || {}; r.overflow["moved:" + k] = r.fields[k]; delete r.fields[k]; }
-    r.type = typeSel.value;
+    r.type = t.base;
+    r.subtype = t.sub;
     drawFields();
     drawOverflow();
   });

@@ -543,3 +543,49 @@ fn migration_groups_ratings_reimport_updates_and_stop() {
     assert_eq!(lib.import_batches().unwrap().len(), before);
     lib.progress = None;
 }
+
+#[test]
+fn custom_fields_types_validation_exchange_and_sharing() {
+    use prm_core::model::{CustomFieldDef, CustomType};
+    let (mut lib, _root) = open("custom");
+    let method = lib.save_custom_field(CustomFieldDef { name: "Study design".into(), kind: "list".into(), options: vec!["RCT".into(), "Cohort".into(), "Qualitative".into()], ..Default::default() }).unwrap();
+    assert_eq!(method.id, "study_design");
+    let n = lib.save_custom_field(CustomFieldDef { name: "Sample size".into(), kind: "number".into(), ..Default::default() }).unwrap();
+    let coded = lib.save_custom_field(CustomFieldDef { name: "Coded".into(), kind: "boolean".into(), default: "no".into(), ..Default::default() }).unwrap();
+    assert!(lib.save_custom_field(CustomFieldDef { name: "study design".into(), kind: "text".into(), ..Default::default() }).is_err(), "names are unique");
+    assert!(lib.save_custom_field(CustomFieldDef { name: "Empty list".into(), kind: "list".into(), ..Default::default() }).is_err());
+    // A custom type based on a built-in type; output uses the base type.
+    let brief = lib.save_custom_type(CustomType { label: "Policy brief".into(), base: "report".into(), ..Default::default() }).unwrap();
+    assert!(brief.id.starts_with("custom-") && !brief.fields.is_empty());
+    let mut r = article("Phonics outcomes", 2022, &[("Ode", "A")]);
+    r.rtype = "report".into();
+    r.subtype = brief.id.clone();
+    r.custom.insert(method.id.clone(), serde_json::json!("RCT"));
+    r.custom.insert(n.id.clone(), serde_json::json!("1,250"));
+    let r = lib.add_reference(r, None).unwrap();
+    assert_eq!(r.custom[&n.id], serde_json::json!(1250.0), "a comma between thousands");
+    assert_eq!(prm_core::library::check_custom_value(&n, &serde_json::json!("2,5")).unwrap(), serde_json::json!(2.5), "a decimal comma");
+    assert_eq!(r.custom[&coded.id], serde_json::json!(false), "default filled");
+    let mut bad = r.clone();
+    bad.custom.insert(method.id.clone(), serde_json::json!("Survey"));
+    assert!(lib.update_reference(bad, "user").is_err(), "a value outside the list is refused");
+    let row = lib.list_references(&prm_core::library::ListQuery { limit: 5, ..Default::default() }).unwrap().rows.remove(0);
+    assert_eq!(row.type_label, "Policy brief");
+    assert!(lib.list_references(&prm_core::library::ListQuery { search: "RCT".into(), limit: 5, ..Default::default() }).unwrap().total == 1, "custom values are searchable");
+    // CSL JSON and CSV carry the values.
+    let csl = prm_core::formats::csljson::export(&[&r]);
+    assert!(csl.contains("\"study_design\""));
+    let csv = prm_core::formats::csvfmt::export(&[&r]).unwrap();
+    assert!(csv.contains("custom:study_design"));
+    // A second library receives the definitions file and the records.
+    let defs = lib.export_definitions().unwrap().to_string();
+    let (mut other, _r2) = open("custom2");
+    let rep = other.import_definitions(&defs).unwrap();
+    assert_eq!(rep["fields_added"], 3);
+    assert_eq!(rep["types_added"], 1);
+    let b = other.stage_import("x.json", &csl, "csljson", "", "", "", None).unwrap();
+    assert_eq!(b.records[0].record.custom.get("study_design"), Some(&serde_json::json!("RCT")));
+    // Deleting a field with values needs the explicit choice to remove them.
+    assert!(lib.delete_custom_field(&method.id, false).is_err());
+    assert_eq!(lib.delete_custom_field(&method.id, true).unwrap(), 1);
+}

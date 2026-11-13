@@ -14,6 +14,12 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Fields and types.** Your own fields (text, number, date, list, yes/no, web link) with
+defaults, required values and validation, shown in the editor and details, searchable, and
+carried in CSV and CSL JSON. Your own source types as named variants of built-in types, which
+citation styles format as their base type. Both can be shared as a file. Fields whose values
+repeat across sources suggest earlier values as you type.
+
 **Clean-up.** Tidying rules run whenever a source is saved (spaces, standard DOIs, ISBNs and
 ISSNs, final periods in titles, and optionally titles and names typed in capitals). Batch fixes
 for selected sources find missing DOIs, fetch missing abstracts and change titles to sentence

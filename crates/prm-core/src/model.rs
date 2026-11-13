@@ -309,6 +309,9 @@ pub struct Reference {
     /// Reference type id from `types::TYPES` ("article-journal", "book", "chapter", ...).
     #[serde(rename = "type")]
     pub rtype: String,
+    /// A custom type built on `rtype`, when the person chose one.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub subtype: String,
     #[serde(default)]
     pub citekey: String,
     #[serde(default)]
@@ -1048,5 +1051,24 @@ pub struct CustomFieldDef {
     pub default: String,
     #[serde(default)]
     pub types: Vec<String>,
+    /// A value must be given before the source can be saved.
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub help: String,
 }
 entity!(CustomFieldDef, "custom_fields");
+
+/// A person-defined source type: a named variant of a built-in type with its own field set.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct CustomType {
+    pub id: String,
+    pub label: String,
+    /// Built-in type used for citation styles and exchange formats.
+    pub base: String,
+    /// Fields shown in the editor, in order.
+    pub fields: Vec<String>,
+    pub help: String,
+}
+entity!(CustomType, "custom_types");

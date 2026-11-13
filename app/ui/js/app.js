@@ -68,6 +68,8 @@ export async function loadInfo() {
   if (info.library) setTimeout(autoIndex, 3000);
   S.settings = info.settings;
   S.types = info.types;
+  S.customFields = info.custom_fields || [];
+  S.customTypes = info.custom_types || [];
   S.styles = info.styles;
   S.noteKinds = info.note_kinds;
   if (info.library) {

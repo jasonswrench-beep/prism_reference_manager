@@ -554,7 +554,7 @@ registerView("library", {
       const body = h("div", { style: { padding: "12px 14px" } });
       inspector.append(tabBar, body);
       if (st.inspectorTab === "details") {
-        const typeLabel = S.types.find((t) => t.id === r.type)?.label || r.type;
+        const typeLabel = (r.subtype && S.customTypes?.find((t) => t.id === r.subtype)?.label) || S.types.find((t) => t.id === r.type)?.label || r.type;
         const rows = [];
         const people = (role) => r.creators.filter((c) => c.role === role).map((c) => c.name.literal || [c.name.particle, c.name.family].filter(Boolean).join(" ") + (c.name.given ? ", " + c.name.given : "") + (c.name.suffix ? ", " + c.name.suffix : "")).join("; ");
         const authors = people("author");
@@ -565,6 +565,11 @@ registerView("library", {
         for (const f of ["container_title", "volume", "issue", "page", "article_number", "publisher", "edition", "isbn", "url"]) if (r.fields[f]) rows.push([fieldLabel(f), f === "container_title" ? h("i", r.fields[f]) : r.fields[f]]);
         rows.push(["DOI", r.fields.doi ? r.fields.doi : r.confirmed_absent?.includes("doi") ? h("span.muted", "This work has no DOI (confirmed)") : h("span", h("span.muted", "Not supplied"), h("div.small.muted", "A DOI is not recorded for this source. Add one if the work has one; a missing DOI does not by itself make the reference incomplete."))]);
         rows.push(["Citation key", h("span.mono", r.citekey)]);
+        for (const def of S.customFields || []) {
+          const v = r.custom?.[def.id];
+          if (v === undefined || v === null || v === "") continue;
+          rows.push([def.name, def.kind === "boolean" ? (v ? "Yes" : "No") : def.kind === "link" ? h("a", { href: "#", on: { click: (e) => { e.preventDefault(); call("system.open_url", { url: String(v) }); } } }, String(v)) : String(v)]);
+        }
         const membership = d.membership;
         body.append(
           h("div.row.muted", icon("doc"), typeLabel, h("span.grow"), btn("Edit", { small: true, icon: "edit", onClick: editSelected })),

@@ -1,9 +1,10 @@
 // Settings: appearance, storage and backup, network, citation keys, local connections, privacy.
 
 import { call, on } from "../api.js";
-import { h, clear, icon, btn, toast, select, field, showError, fmtDate, tabs, confirmDialog } from "../dom.js";
-import { S, registerView, go, saveSettings, refresh, autoIndex } from "../app.js";
+import { h, clear, icon, btn, toast, select, field, showError, fmtDate, tabs, confirmDialog, modal } from "../dom.js";
+import { S, registerView, go, saveSettings, refresh, autoIndex, loadInfo } from "../app.js";
 import * as dialogs from "../dialogs.js";
+import { fieldLabel } from "../editor.js";
 
 // Updates: built in but not set up until releases are published. Checks happen only when asked,
 // or once a day if the person turns that on; installing always needs a click.
@@ -46,7 +47,7 @@ registerView("settings", {
     const locked = S.info?.policy?.locked || {};
     const lockNote = (k) => (k in locked ? h("span.badge.neutral", { title: "Set by your administrator" }, icon("shield", 13), "Managed") : null);
     el.append(h("h1.view-title", { tabindex: "-1" }, "Settings"), h("p.view-sub", "Saved for you on this computer" + (S.info?.portable ? " (portable mode: next to the program)" : "") + "."),
-      tabs([["appearance", "Appearance"], ["library", "Library and backup"], ["network", "Network and privacy"], ["citation", "Citation keys"], ["api", "Local connections"], ["about", "About"]], tab, (k) => go("settings", { tab: k }), { label: "Settings sections" }));
+      tabs([["appearance", "Appearance"], ["library", "Library and backup"], ["fields", "Fields and types"], ["network", "Network and privacy"], ["citation", "Citation keys"], ["api", "Local connections"], ["about", "About"]], tab, (k) => go("settings", { tab: k }), { label: "Settings sections" }));
     const body = h("div", { style: { marginTop: "14px", maxWidth: "900px" } });
     el.append(body);
     const s = S.settings;
@@ -115,6 +116,69 @@ registerView("settings", {
         card("Trash", field("Delete items from the trash after", select([["7", "7 days"], ["30", "30 days"], ["90", "90 days"], ["365", "One year"]], String(s.trash_retention_days), { on: { change: (e) => saveSettings({ trash_retention_days: +e.target.value }) } })),
           btn("Empty trash now", { kind: "danger", onClick: async () => { if (await confirmDialog("Empty trash", "Permanently delete everything in the trash, with its files and annotations? This cannot be undone.", { ok: "Empty trash", kind: "danger" })) { const n = await call("refs.empty_trash", { confirmed: true }); toast(`${n} items deleted permanently`, "success"); await refresh(); } } })),
         card("Duplicate detection", field("Sensitivity", select([["0.80", "More matches"], ["0.88", "Balanced"], ["0.94", "Fewer, surer matches"]], String(s.duplicate_sensitivity?.toFixed?.(2) || "0.88"), { on: { change: (e) => saveSettings({ duplicate_sensitivity: +e.target.value }) } }))));
+    }
+    if (tab === "fields") {
+      if (!S.info?.library) { body.append(card("Fields and types", h("p", "Open a library first."))); return; }
+      const [fields, types] = await Promise.all([call("custom.fields"), call("custom.types")]);
+      const KIND = { text: "Text", number: "Number", date: "Date", list: "List of values", boolean: "Yes or no", link: "Web link" };
+      const reload = async () => { await loadInfo(); go("settings", { tab: "fields" }); };
+      const typeName = (id) => S.customTypes.find((t) => t.id === id)?.label || S.types.find((t) => t.id === id)?.label || id;
+      const editField = async (d = {}) => {
+        const name = h("input", { value: d.name || "" });
+        const kind = select(Object.entries(KIND), d.kind || "text");
+        const opts = h("textarea", { rows: 4, value: (d.options || []).join("\n"), placeholder: "One value per line" });
+        const optsField = field("Allowed values", opts, "For a list: the values people can choose from.");
+        const def = h("input", { value: d.default || "" });
+        const req = h("input", { type: "checkbox", id: "cf-req", checked: !!d.required });
+        const help = h("input", { value: d.help || "" });
+        const scope = new Set(d.types || []);
+        const typeBoxes = h("div", { style: { maxHeight: "160px", overflow: "auto", columns: 2 } }, [...S.customTypes.map((t) => [t.id, t.label + " (yours)"]), ...S.types.map((t) => [t.id, t.label])].map(([id, l]) => {
+          const cb = h("input", { type: "checkbox", checked: scope.has(id), on: { change: (e) => (e.target.checked ? scope.add(id) : scope.delete(id)) } });
+          return h("label.row.small", cb, l);
+        }));
+        const sync = () => { optsField.hidden = kind.value !== "list"; };
+        kind.addEventListener("change", sync); sync();
+        const r = await modal(d.id ? "Edit field" : "New field", h("div", field("Name", name), field("Kind of value", kind, d.id ? "Changing the kind of a field with values can make existing values invalid." : null), optsField,
+          field("Default value", def, "Filled in for new sources."), h("label.row", { for: "cf-req" }, req, "Required: a source cannot be saved without it"), field("Help text", help),
+          h("details", h("summary", `Applies to ${scope.size ? "some types" : "every type"}`), h("p.small.muted", "Leave all unticked to use the field for every type."), typeBoxes)),
+          { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Save", kind: "primary", run: () => call("custom.save_field", { field: { ...d, name: name.value, kind: kind.value, options: opts.value.split("\n"), default: def.value, required: req.checked, help: help.value, types: [...scope] } }) }] }).done;
+        if (r) { toast(`Field “${r.name}” saved`, "success"); reload(); }
+      };
+      const editType = async (t = {}) => {
+        const label = h("input", { value: t.label || "" });
+        const base = select(S.types.map((b) => [b.id, b.label]), t.base || "report");
+        const help = h("input", { value: t.help || "" });
+        const ALL = ["container_title", "volume", "issue", "page", "article_number", "publisher", "publisher_place", "edition", "isbn", "issn", "number", "genre", "medium", "version", "event", "event_place", "event_date", "archive", "archive_location", "collection_title", "section", "jurisdiction", "authority", "original_publisher", "status", "dimensions", "scale"];
+        const picked = new Set(t.fields?.length ? t.fields : (S.types.find((b) => b.id === base.value)?.fields || []));
+        const boxes = h("div", { style: { columns: 2 } });
+        const drawBoxes = () => clear(boxes, ...ALL.map((f) => h("label.row.small", h("input", { type: "checkbox", checked: picked.has(f), on: { change: (e) => (e.target.checked ? picked.add(f) : picked.delete(f)) } }), fieldLabel(f))));
+        base.addEventListener("change", () => { if (!t.id) { picked.clear(); for (const f of S.types.find((b) => b.id === base.value)?.fields || []) picked.add(f); drawBoxes(); } });
+        drawBoxes();
+        const r = await modal(t.id ? "Edit type" : "New type", h("div", field("Name", label, "For example Policy brief, Lab protocol, Podcast transcript."),
+          field("Cited as", base, "Citation styles and export formats treat it as this built-in type, so output stays correct."), field("Help text", help),
+          h("h3", "Fields shown"), h("p.small.muted", "Title, authors, date, DOI, URL, abstract, language, keywords and notes are always available."), boxes),
+          { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Save", kind: "primary", run: () => call("custom.save_type", { type: { ...t, label: label.value, base: base.value, help: help.value, fields: ALL.filter((f) => picked.has(f)) } }) }] }).done;
+        if (r) { toast(`Type “${r.label}” saved`, "success"); reload(); }
+      };
+      body.append(card("Your fields",
+        h("p.small.muted", "Fields for information the built-in fields do not cover, such as study design or sample size. Values can be searched, exported to CSV and CSL JSON, and shown in the source details."),
+        fields.length ? h("table.table", h("thead", h("tr", h("th", "Name"), h("th", "Kind"), h("th", "Applies to"), h("th", ""))), h("tbody", fields.map((d) => h("tr", h("td", h("strong", d.name), d.required ? h("span.small.muted", " required") : null), h("td.small", KIND[d.kind] + (d.kind === "list" ? `: ${d.options.join(", ")}` : "")), h("td.small", d.types?.length ? d.types.map(typeName).join(", ") : "Every type"),
+          h("td.nowrap", btn("Edit", { small: true, onClick: () => editField(d) }), btn("Delete", { small: true, kind: "ghost", onClick: async () => {
+            try { await call("custom.delete_field", { id: d.id }); toast("Field deleted", "success"); reload(); }
+            catch (e) { if (await confirmDialog("Delete field and its values?", e.message + " Undo can bring them back.", { ok: "Delete field and values", kind: "danger" })) { const n = await call("custom.delete_field", { id: d.id, remove_values: true }); toast(`Field deleted; values removed from ${n} sources.`, "success"); reload(); } }
+          } })))))) : h("p.small", "No fields yet."),
+        btn("New field…", { small: true, kind: "primary", icon: "plus", onClick: () => editField() })),
+        card("Your types",
+          h("p.small.muted", "A type of your own is a named variant of a built-in type with its own fields. Citation styles format it as the built-in type it is based on."),
+          types.length ? h("table.table", h("tbody", types.map((t) => h("tr", h("td", h("strong", t.label)), h("td.small", "Cited as " + typeName(t.base)), h("td.nowrap", btn("Edit", { small: true, onClick: () => editType(t) }), btn("Delete", { small: true, kind: "ghost", onClick: async () => {
+            if (!(await confirmDialog("Delete type?", `Sources of type “${t.label}” keep their data and become “${typeName(t.base)}”.`, { ok: "Delete type" }))) return;
+            const n = await call("custom.delete_type", { id: t.id }); toast(`Type deleted${n ? `; ${n} sources are now ${typeName(t.base)}` : ""}.`, "success"); reload();
+          } })))))) : h("p.small", "No types yet."),
+          btn("New type…", { small: true, kind: "primary", icon: "plus", onClick: () => editType() })),
+        card("Share fields and types",
+          h("p.small.muted", "Save your fields and types as a file that another library or colleague can import. Matching fields and types are updated, new ones added; nothing is deleted."),
+          h("div.btn-row", btn("Export…", { small: true, onClick: async () => { const r = await call("custom.export"); if (r && !r.cancelled) toast("Saved to " + r.path, "success"); } }),
+            btn("Import…", { small: true, onClick: async () => { try { const r = await call("custom.import"); if (r && !r.cancelled) { toast(`${r.fields_added} fields and ${r.types_added} types added, ${r.fields_updated + r.types_updated} updated.${r.problems.length ? " Problems: " + r.problems.join("; ") : ""}`, r.problems.length ? "info" : "success"); reload(); } } catch (e) { showError(e); } } }))));
     }
     if (tab === "network") {
       const inv = S.info.network_inventory;

@@ -144,7 +144,7 @@ pub fn scheduled_backup(lib: &Library, s: &settings::Settings) -> Result<String,
 pub fn scope_of(method: &str) -> &'static str {
     let ns = method.split('.').next().unwrap_or("");
     match method {
-        "refs.list" | "refs.get" | "search.run" | "projects.list" | "projects.summary" | "notes.list" | "collections.list" | "labels.list" | "types.list" | "styles.list" | "library.info" => "read",
+        "refs.list" | "refs.get" | "search.run" | "projects.list" | "projects.summary" | "notes.list" | "collections.list" | "labels.list" | "types.list" | "styles.list" | "library.info" | "custom.fields" | "custom.types" | "fields.values" => "read",
         "cite.render" => "format",
         "capture.options" | "capture.check" => "read",
         // Connected programs may stage imports for review; committing, changing or undoing an
@@ -450,6 +450,8 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             pre_path = needs_save(&f, &format!("notes.{}", if f == "json" { "json" } else { &f }), "Export notes");
         }
         "family.export" => pre_path = needs_save("json", "prism-exchange.json", "Export exchange file"),
+        "custom.export" => pre_path = needs_save("json", "prism-fields-and-types.json", "Save fields and types"),
+        "custom.import" => pre_path = pick_file(app, "json", "Choose a fields and types file"),
         "styles.import" => pre_path = pick_file(app, "csl", "Choose a CSL style file"),
         "ann.export_pdf" => pre_path = needs_save("pdf", &format!("{}-annotated.pdf", s(&a, "name").trim_end_matches(".pdf")), "Export annotated PDF copy"),
         "ann.export_list" => {
@@ -480,7 +482,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         "diagnostics.save" => pre_path = needs_save("zip", "prism-diagnostics.zip", "Save diagnostic bundle"),
         _ => {}
     }
-    let dialog_methods = ["styles.import", "cite.export_bibliography", "notes.export", "family.export", "ann.export_pdf", "ann.export_list", "ann.preview_external", "export.refs", "export.package", "export.attachments", "backup.now", "backup.verify", "backup.restore", "package.import", "files.relink_pick", "files.replace_pick", "import.pick", "library.choose", "diagnostics.save"];
+    let dialog_methods = ["custom.export", "custom.import", "styles.import", "cite.export_bibliography", "notes.export", "family.export", "ann.export_pdf", "ann.export_list", "ann.preview_external", "export.refs", "export.package", "export.attachments", "backup.now", "backup.verify", "backup.restore", "package.import", "files.relink_pick", "files.replace_pick", "import.pick", "library.choose", "diagnostics.save"];
     if dialog_methods.contains(&method) && pre_path.is_none() {
         return ok(json!({"cancelled": true}));
     }
@@ -528,6 +530,8 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
                 "library": lib_info,
                 "styles": st.lib.as_ref().map(|l| l.styles()).unwrap_or_else(prm_core::render::installed_styles),
                 "types": prm_core::types::TYPES,
+                "custom_fields": st.lib.as_ref().and_then(|l| l.custom_fields().ok()).unwrap_or_default(),
+                "custom_types": st.lib.as_ref().and_then(|l| l.custom_types().ok()).unwrap_or_default(),
                 "note_kinds": NOTE_KINDS,
                 "network_inventory": prm_core::lookup::NETWORK_INVENTORY.iter().map(|(k, h, p)| json!({"kind": k, "host": h, "purpose": p})).collect::<Vec<_>>(),
             }))
@@ -705,6 +709,23 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         }
         "refs.labels" => ok(lib_mut(st)?.source_labels(&arg::<Vec<String>>(a, "ids")?).map_err(err)?),
         "types.list" => ok(prm_core::types::TYPES),
+        "custom.fields" => ok(lib_mut(st)?.custom_fields().map_err(err)?),
+        "custom.types" => ok(lib_mut(st)?.custom_types().map_err(err)?),
+        "custom.save_field" => ok(lib_mut(st)?.save_custom_field(arg(a, "field")?).map_err(err)?),
+        "custom.delete_field" => ok(lib_mut(st)?.delete_custom_field(&s(a, "id"), opt(a, "remove_values")).map_err(err)?),
+        "custom.save_type" => ok(lib_mut(st)?.save_custom_type(arg(a, "type")?).map_err(err)?),
+        "custom.delete_type" => ok(lib_mut(st)?.delete_custom_type(&s(a, "id")).map_err(err)?),
+        "custom.export" => {
+            let v = lib_mut(st)?.export_definitions().map_err(err)?;
+            let p = path.unwrap();
+            write_out(&p, serde_json::to_string_pretty(&v).unwrap_or_default().as_bytes())?;
+            ok(json!({"path": p.to_string_lossy()}))
+        }
+        "custom.import" => {
+            let text = std::fs::read_to_string(path.unwrap()).map_err(|_| user("The file could not be read."))?;
+            ok(lib_mut(st)?.import_definitions(&text).map_err(err)?)
+        }
+        "fields.values" => ok(lib_mut(st)?.field_values(&s(a, "field"), &s(a, "prefix")).map_err(err)?),
         "labels.list" => ok(lib_mut(st)?.store.all::<Label>().map_err(err)?),
         "labels.save" => ok(lib_mut(st)?.save_label(arg(a, "label")?).map_err(err)?),
         "labels.delete" => {

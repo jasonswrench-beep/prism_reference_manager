@@ -35,6 +35,7 @@ pub fn suggest(header: &str) -> &'static str {
         "collections" | "collection" | "folders" | "folder" | "groups" | "group" => "collections",
         "rating" | "stars" => "rating",
         "id" | "record id" | "item key" | "key" => "source_id",
+        h if h.starts_with("custom:") => "custom",
         _ => "",
     }
 }
@@ -97,6 +98,10 @@ pub fn parse(text: &str, mapping: Option<&BTreeMap<String, String>>) -> ParseOut
                 "source_id" => {
                     r.overflow.insert("import:source-id".into(), val.to_string());
                 }
+                "custom" => {
+                    let id = header.trim().trim_start_matches("custom:").to_string();
+                    r.custom.insert(id, serde_json::Value::String(val.to_string()));
+                }
                 "" => {
                     r.overflow.insert(format!("csv:{header}"), val.to_string());
                 }
@@ -114,8 +119,12 @@ pub fn parse(text: &str, mapping: Option<&BTreeMap<String, String>>) -> ParseOut
 /// spreadsheet edit can be matched back.
 pub fn export(refs: &[&Reference]) -> crate::Result<String> {
     let mut w = csv::Writer::from_writer(vec![]);
-    w.write_record(["id", "citekey", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "publisher_place", "edition", "isbn", "issn", "abstract", "keywords", "language", "note"])?;
+    let custom: Vec<String> = refs.iter().flat_map(|r| r.custom.keys().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    let mut head: Vec<String> = ["id", "citekey", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "publisher_place", "edition", "isbn", "issn", "abstract", "keywords", "language", "note"].iter().map(|s| s.to_string()).collect();
+    head.extend(custom.iter().map(|c| format!("custom:{c}")));
+    w.write_record(&head)?;
     for r in refs {
+        let cv: Vec<String> = custom.iter().map(|c| match r.custom.get(c) { Some(serde_json::Value::String(s)) => s.clone(), Some(serde_json::Value::Null) | None => String::new(), Some(v) => v.to_string() }).collect();
         let names = |role: &str| {
             r.creators
                 .iter()
@@ -126,7 +135,7 @@ pub fn export(refs: &[&Reference]) -> crate::Result<String> {
         };
         let year = r.year().map(|y| y.to_string()).unwrap_or_default();
         let date = r.issued.as_ref().map(|d| if d.status.is_empty() { d.iso() } else { d.status.clone() }).unwrap_or_default();
-        w.write_record([
+        w.write_record(vec![
             r.id.as_str(),
             &r.citekey,
             &r.rtype,
@@ -151,7 +160,7 @@ pub fn export(refs: &[&Reference]) -> crate::Result<String> {
             &r.tags.join("; "),
             r.f("language"),
             r.f("note"),
-        ])?;
+        ].into_iter().map(|s| s.to_string()).chain(cv.into_iter()).collect::<Vec<String>>())?;
     }
     let bytes = w.into_inner().map_err(|e| crate::Error::user(e.to_string()))?;
     // A byte-order mark helps spreadsheet programs detect UTF-8.

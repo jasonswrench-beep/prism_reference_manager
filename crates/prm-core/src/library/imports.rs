@@ -167,6 +167,7 @@ impl Library {
             }
         }
         let mut groups_found: Vec<String> = vec![];
+        let custom_defs = self.custom_fields()?;
         let total = parsed.records.len();
         let file_hash = sha256_hex(text.as_bytes());
         let already = self.store.all::<ImportBatch>()?.into_iter().find(|b| b.file_hash == file_hash && b.state == "committed");
@@ -195,6 +196,31 @@ impl Library {
                 }
             }
             let mut issues = p.issues.clone();
+            // Custom values: canonical form for defined fields, a note for anything that does not fit.
+            if !rec.custom.is_empty() {
+                let mut unknown = vec![];
+                for k in rec.custom.keys().cloned().collect::<Vec<_>>() {
+                    match custom_defs.iter().find(|d| d.id == k || d.name.to_lowercase() == k.to_lowercase()) {
+                        Some(d) => {
+                            let v = rec.custom.remove(&k).unwrap_or_default();
+                            match super::custom::check_value(&crate::model::CustomFieldDef { required: false, ..d.clone() }, &v) {
+                                Ok(serde_json::Value::Null) => {}
+                                Ok(n) => {
+                                    rec.custom.insert(d.id.clone(), n);
+                                }
+                                Err(e) => {
+                                    issues.push(format!("{e} The value “{}” is kept for you to correct.", v.as_str().unwrap_or(&v.to_string())));
+                                    rec.custom.insert(d.id.clone(), v);
+                                }
+                            }
+                        }
+                        None => unknown.push(k),
+                    }
+                }
+                if !unknown.is_empty() {
+                    issues.push(format!("Values for fields not defined in this library are kept but hidden: {}. Define them under Settings › Fields and types to see them.", unknown.join(", ")));
+                }
+            }
             let mut status = "new".to_string();
             let mut match_id = String::new();
             let mut reason = String::new();
