@@ -37,6 +37,7 @@ pub enum NameKind {
 
 /// A structured name. Display values keep their original script; folding is only for search.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Name {
     #[serde(default)]
     pub kind: NameKind,
@@ -58,6 +59,7 @@ pub struct Name {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct NameVariant {
     pub lang: String,
     pub family: String,
@@ -150,6 +152,7 @@ fn is_suffix(s: &str) -> bool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Creator {
     /// author, editor, translator, director, producer, guest, host, inventor, interviewer,
     /// recipient, contributor, chair, compiler, performer, reviewed-author ...
@@ -158,6 +161,7 @@ pub struct Creator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct PartialDate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub year: Option<i32>,
@@ -261,6 +265,7 @@ impl PartialDate {
 // References
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Provenance {
     /// "user", "import:<adapter>", "lookup:<resolver>", "pdf", "rule:<name>", "ai:<provider>"
     pub source: String,
@@ -275,6 +280,7 @@ pub struct Provenance {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct FieldConflict {
     pub field: String,
     pub value: String,
@@ -283,6 +289,7 @@ pub struct FieldConflict {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Notice {
     /// "retraction", "correction", "expression-of-concern"
     pub kind: String,
@@ -293,6 +300,7 @@ pub struct Notice {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Reference {
     pub id: String,
     /// Reference type id from `types::TYPES` ("article-journal", "book", "chapter", ...).
@@ -387,6 +395,7 @@ impl Reference {
 
 /// A retired identifier that now resolves to a canonical record after a merge.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Alias {
     pub id: String,
     pub target: String,
@@ -398,6 +407,7 @@ entity!(Alias, "aliases");
 // Projects and manuscripts
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Project {
     pub id: String,
     pub title: String,
@@ -423,6 +433,7 @@ entity!(Project, "projects");
 
 /// Membership of a canonical source in a project, with project-specific decisions.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct ProjectSource {
     /// "<project id>:<reference id>"
     pub id: String,
@@ -458,6 +469,7 @@ impl ProjectSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct ReadingPosition {
     pub attachment_id: String,
     pub page_index: u32,
@@ -469,6 +481,7 @@ pub struct ReadingPosition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Manuscript {
     pub id: String,
     pub project_id: String,
@@ -504,6 +517,7 @@ pub enum UseState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct ManuscriptSource {
     /// "<manuscript id>:<reference id>"
     pub id: String,
@@ -527,6 +541,7 @@ impl ManuscriptSource {
 // Citation output
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct CiteItem {
     pub ref_id: String,
     /// page, pages, paragraph, chapter, section, figure, table, line, timestamp, ...
@@ -569,6 +584,7 @@ pub enum CopyStatus {
 
 /// A successful clipboard write. It records copying only, never presumed insertion.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct CopyEvent {
     pub id: String,
     pub manuscript_id: String,
@@ -606,6 +622,7 @@ entity!(CopyEvent, "copy_events");
 
 /// A frozen submission snapshot: immutable citation-context package.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Snapshot {
     pub id: String,
     pub manuscript_id: String,
@@ -629,6 +646,7 @@ entity!(Snapshot, "snapshots");
 // Organization
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Collection {
     pub id: String,
     pub name: String,
@@ -649,6 +667,7 @@ pub struct Collection {
 entity!(Collection, "collections");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Label {
     pub id: String,
     pub name: String,
@@ -657,6 +676,7 @@ pub struct Label {
 entity!(Label, "labels");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct SavedSearch {
     pub id: String,
     pub name: String,
@@ -668,6 +688,7 @@ pub struct SavedSearch {
 entity!(SavedSearch, "saved_searches");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct DuplicateDecision {
     /// "<smaller id>|<larger id>"
     pub id: String,
@@ -686,6 +707,7 @@ impl DuplicateDecision {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Task {
     pub id: String,
     pub title: String,
@@ -709,6 +731,7 @@ entity!(Task, "tasks");
 // Files and annotations
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Attachment {
     pub id: String,
     pub ref_id: String,
@@ -752,6 +775,7 @@ pub struct Attachment {
 entity!(Attachment, "attachments");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Rect {
     /// Page-relative coordinates in 0..1 of the unrotated page, origin top-left.
     pub x: f32,
@@ -761,6 +785,7 @@ pub struct Rect {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Annotation {
     pub id: String,
     pub attachment_id: String,
@@ -825,6 +850,7 @@ entity!(Annotation, "annotations");
 // Notes and outline
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Note {
     pub id: String,
     /// quotation, paraphrase, summary, comment, question, task, evidence, thought, note
@@ -871,6 +897,7 @@ pub struct Note {
 entity!(Note, "notes");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct OutlineSection {
     pub id: String,
     pub project_id: String,
@@ -890,6 +917,7 @@ entity!(OutlineSection, "outline_sections");
 // Imports, styles, integrations
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct StagedRecord {
     pub index: usize,
     /// Original input text for this record.
@@ -912,6 +940,7 @@ pub struct StagedRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct ImportBatch {
     pub id: String,
     pub adapter: String,
@@ -943,6 +972,7 @@ pub struct ImportBatch {
 entity!(ImportBatch, "import_batches");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct StylePackage {
     pub id: String,
     pub title: String,
@@ -961,6 +991,7 @@ pub struct StylePackage {
 entity!(StylePackage, "styles");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct IntegrationRun {
     pub id: String,
     pub provider: String,
@@ -982,6 +1013,7 @@ pub struct IntegrationRun {
 entity!(IntegrationRun, "integration_runs");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct CustomFieldDef {
     pub id: String,
     pub name: String,

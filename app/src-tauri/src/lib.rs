@@ -160,6 +160,17 @@ pub fn run() {
             if let Some(i) = icon {
                 let _ = win.set_icon(i);
             }
+            // Debug builds only: run an end-to-end test script inside the window.
+            #[cfg(debug_assertions)]
+            if let Ok(p) = std::env::var("PRM_TEST_SCRIPT") {
+                let w = win.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    if let Ok(js) = std::fs::read_to_string(&p) {
+                        let _ = w.eval(&js);
+                    }
+                });
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

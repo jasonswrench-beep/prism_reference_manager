@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title description">
+<title id="title">Prism Reference Manager Icon</title>
+<desc id="description">Square navy app icon with a full spectrum faceted prism and white quotation marks. All artwork is editable vector geometry. No embedded raster image or external font dependency.</desc>
+<defs>
+ <linearGradient id="left" x1="252" y1="810" x2="626" y2="360" gradientUnits="userSpaceOnUse"><stop stop-color="#00decf"/><stop offset=".52" stop-color="#00bff4"/><stop offset="1" stop-color="#06a6ff"/></linearGradient>
+ <linearGradient id="right" x1="626" y1="178" x2="990" y2="860" gradientUnits="userSpaceOnUse"><stop stop-color="#99d8ff"/><stop offset=".25" stop-color="#4b4aff"/><stop offset=".62" stop-color="#8e16ff"/><stop offset="1" stop-color="#ff25c7"/></linearGradient>
+ <linearGradient id="core" x1="340" y1="600" x2="900" y2="800" gradientUnits="userSpaceOnUse"><stop stop-color="#008eff"/><stop offset=".38" stop-color="#0738fe"/><stop offset=".7" stop-color="#3710ce"/><stop offset="1" stop-color="#b908c7"/></linearGradient>
+ <linearGradient id="warm" x1="0" y1="700" x2="0" y2="950" gradientUnits="userSpaceOnUse"><stop stop-color="#22bcde" stop-opacity="0"/><stop offset=".67" stop-color="#13a0b9" stop-opacity=".12"/><stop offset="1" stop-color="#f1ba44" stop-opacity=".7"/></linearGradient>
+ <linearGradient id="mint" x1="140" y1="1010" x2="380" y2="810" gradientUnits="userSpaceOnUse"><stop stop-color="#00efbd"/><stop offset="1" stop-color="#00b7de"/></linearGradient>
+ <linearGradient id="pink" x1="878" y1="850" x2="1115" y2="1012" gradientUnits="userSpaceOnUse"><stop stop-color="#ff35ce"/><stop offset="1" stop-color="#ff3157"/></linearGradient>
+ <linearGradient id="lime" x1="160" y1="990" x2="630" y2="935" gradientUnits="userSpaceOnUse"><stop stop-color="#00e1a9"/><stop offset=".55" stop-color="#66e419"/><stop offset="1" stop-color="#fff334"/></linearGradient>
+ <linearGradient id="spectrum" x1="138" y1="1011" x2="1114" y2="1011" gradientUnits="userSpaceOnUse"><stop stop-color="#00e2bd"/><stop offset=".2" stop-color="#8de913"/><stop offset=".42" stop-color="#fff80a"/><stop offset=".64" stop-color="#ffc008"/><stop offset=".84" stop-color="#ff640d"/><stop offset="1" stop-color="#ff1542"/></linearGradient>
+ <linearGradient id="orange" x1="627" y1="935" x2="1100" y2="1000" gradientUnits="userSpaceOnUse"><stop stop-color="#ffbd13"/><stop offset=".5" stop-color="#ff9513"/><stop offset="1" stop-color="#ff2845"/></linearGradient>
+ <linearGradient id="edge" x1="350" y1="180" x2="850" y2="1011" gradientUnits="userSpaceOnUse"><stop stop-color="#ecffff"/><stop offset=".55" stop-color="#b6ffff"/><stop offset="1" stop-color="#fff1c6"/></linearGradient>
+</defs>
+<rect id="navy-background" width="1254" height="1254" fill="#03042a"/>
+<g id="citation-prism" stroke-linejoin="round">
+ <path d="M626 178 L138 1011 H1114 Z" fill="#2356f5"/>
+ <path id="cyan-facet" d="M626 178 L626 397 L379 894 L252 811 Z" fill="url(#left)"/>
+ <path id="violet-facet" d="M626 178 L996 811 L874 877 L626 397 Z" fill="url(#right)"/>
+ <path id="central-face" d="M626 397 L379 894 L628 935 L874 877 Z" fill="url(#core)"/>
+ <path d="M626 397 L379 894 L628 935 L874 877 Z" fill="url(#warm)"/>
+ <path id="teal-facet" d="M252 811 L379 894 L138 1011 Z" fill="url(#mint)"/>
+ <path id="magenta-facet" d="M996 811 L1114 1011 L874 877 Z" fill="url(#pink)"/>
+ <path id="green-facet" d="M138 1011 L379 894 L628 935 Z" fill="url(#lime)"/>
+ <path id="yellow-facet" d="M138 1011 L628 935 L1114 1011 Z" fill="url(#spectrum)"/>
+ <path id="orange-facet" d="M628 935 L874 877 L1114 1011 Z" fill="url(#orange)"/>
+ <path d="M626 178 L138 1011 H1114 Z" fill="none" stroke="url(#edge)" stroke-width="3.5" opacity=".85"/>
+ <path d="M626 178 V397 M138 1011 L379 894 L628 935 L874 877 L1114 1011" fill="none" stroke="url(#edge)" stroke-width="2.5" opacity=".9"/>
+ <path d="M626 397 L379 894 M626 397 L874 877 M252 811 L379 894 M996 811 L874 877" fill="none" stroke="#dbedff" stroke-width="1.2" opacity=".25"/>
+ <path id="quotation-marks" d="M487.20,844.17 C485.52,839.95 482.56,832.70 480.63,828.05 L477.12,819.60 L487.31,814.20 C520.61,796.57 543.70,769.17 548.77,741.29 L549.68,736.28 L539.09,735.67 C521.72,734.66 509.49,730.30 497.83,720.94 C482.73,708.82 475.56,693.52 475.61,673.50 C475.64,660.33 477.44,652.85 483.31,641.50 C488.17,632.12 500.13,619.47 509.17,614.18 C535.19,598.92 570.77,602.06 594.44,621.71 C605.73,631.08 615.76,647.00 619.50,661.50 C628.14,695.00 617.95,740.68 593.80,776.74 C571.90,809.44 539.84,834.11 501.38,847.87 L490.25,851.85 L487.20,844.17 Z M662.79,836.73 C659.65,828.90 656.82,821.81 656.51,820.96 C656.09,819.82 658.37,818.18 665.39,814.58 C685.51,804.26 706.44,785.61 716.35,769.18 C721.22,761.10 726.27,748.03 727.48,740.39 L728.13,736.29 L717.31,735.74 C692.23,734.48 672.81,722.67 663.06,702.76 C657.83,692.07 656.00,684.59 656.02,674.04 C656.08,643.26 674.34,617.98 703.50,608.27 C710.65,605.89 712.99,605.60 725.50,605.61 C741.09,605.63 746.14,606.84 759.28,613.72 C772.20,620.50 786.68,636.91 792.90,651.83 C798.42,665.07 800.89,685.87 799.08,703.82 C793.23,761.63 753.01,815.43 696.50,841.03 C688.31,844.75 671.44,851.01 669.70,850.98 C669.04,850.97 665.93,844.56 662.79,836.73 Z" fill="#ffffff" fill-rule="evenodd"/>
+</g>
+</svg>

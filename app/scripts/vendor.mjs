@@ -12,4 +12,5 @@ copyFileSync(join(src, "build", "pdf.worker.min.mjs"), join(dest, "pdf.worker.mi
 cpSync(join(src, "cmaps"), join(dest, "cmaps"), { recursive: true });
 cpSync(join(src, "standard_fonts"), join(dest, "standard_fonts"), { recursive: true });
 copyFileSync(join(src, "LICENSE"), join(dest, "LICENSE"));
+copyFileSync(join(src, "web", "pdf_viewer.css"), join(dest, "pdf_viewer.css"));
 console.log("PDF library copied to", dest);

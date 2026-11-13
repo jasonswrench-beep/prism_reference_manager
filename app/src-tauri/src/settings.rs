@@ -117,6 +117,10 @@ pub fn portable() -> bool {
 }
 
 pub fn config_dir(default: PathBuf) -> PathBuf {
+    #[cfg(debug_assertions)]
+    if let Ok(d) = std::env::var("PRM_CONFIG_DIR") {
+        return PathBuf::from(d);
+    }
     if portable() {
         exe_dir().join("data").join("settings")
     } else {

@@ -463,6 +463,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             crate::clipboard::write(&text, None, None).map_err(|e| user(&e))?;
             ok(text)
         }
+        "refs.labels" => ok(lib_mut(st)?.source_labels(&arg::<Vec<String>>(a, "ids")?).map_err(err)?),
         "types.list" => ok(prm_core::types::TYPES),
         "labels.list" => ok(lib_mut(st)?.store.all::<Label>().map_err(err)?),
         "labels.save" => ok(lib_mut(st)?.save_label(arg(a, "label")?).map_err(err)?),
@@ -910,6 +911,34 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let p = path.unwrap();
             write_out(&p, serde_json::to_string_pretty(&d).unwrap_or_default().as_bytes())?;
             ok(json!({"path": p.to_string_lossy()}))
+        }
+
+        #[cfg(debug_assertions)]
+        "debug.log" => {
+            use std::io::Write;
+            if let Ok(p) = std::env::var("PRM_TEST_LOG") {
+                for _ in 0..20 {
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&p) {
+                        let _ = writeln!(f, "{}", a.get("line").and_then(|v| v.as_str()).unwrap_or(""));
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            }
+            ok(true)
+        }
+        #[cfg(debug_assertions)]
+        "debug.attach" => {
+            let p = PathBuf::from(s(a, "path"));
+            remember(&p);
+            ok(lib_mut(st)?.attach_file(&s(a, "ref_id"), &p, "managed", "full-text").map_err(err)?)
+        }
+        #[cfg(debug_assertions)]
+        "debug.exit" => {
+            if let Some(l) = st.lib.as_ref() {
+                l.close();
+            }
+            std::process::exit(0);
         }
 
         // ---- local API administration ---------------------------------------------------------
