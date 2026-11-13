@@ -23,7 +23,10 @@ export async function newLibrary() {
     if (!loc.value.trim()) throw new Error("Choose a folder.");
     return call("library.create", { path: loc.value.trim(), name: name.value.trim() });
   } }] }).done;
-  if (r) { await refresh(); go("projects"); toast("Library ready. Backups run automatically once a day; change that in Settings.", "success"); }
+  if (r) {
+    await refresh(); go("projects"); toast("Library ready. Backups run automatically once a day; change that in Settings.", "success");
+    if (!S.settings?.tour_done) import("./quick.js").then((q) => setTimeout(() => q.tour(), 600));
+  }
 }
 
 export async function openLibrary() {
@@ -762,16 +765,7 @@ export async function jobs() {
 }
 
 export function shortcuts() {
-  const rows = [
-    ["Ctrl+K", "Command palette (every action)"], ["Ctrl+F", "Search in the current view"], ["Ctrl+Shift+F", "Search the library"], ["Ctrl+Shift+C", "Compose a citation"],
-    ["Ctrl+N", "Add a source manually"], ["Ctrl+I", "Add by identifier"], ["Ctrl+O", "Import a file"], ["Ctrl+Shift+N", "New project"], ["Ctrl+H", "Find and replace"],
-    ["Ctrl+Z / Ctrl+Y", "Undo / Redo"], ["Alt+1 … Alt+6", "Projects, Library, Reader, Notes, Cite, Connections"], ["F6 / Shift+F6", "Move between navigation, context bar and content"],
-    ["Ctrl+B", "Collapse navigation"], ["F1", "Help"],
-    ["Reader: V H U S C T D A E", "Select, Highlight, Underline, Strikeout, Comment, Text box, Draw, Area, Ellipse"],
-    ["Reader: PageUp / PageDown", "Previous / next page"], ["Reader: Ctrl+= / Ctrl+-", "Zoom in / out"], ["Reader: Enter on a selection", "Create a mark with the active tool"],
-    ["Lists: arrows, Home, End", "Move through rows; Space selects; Shift+arrows extends"],
-  ];
-  modal("Keyboard shortcuts", h("div", h("table.table", h("tbody", rows.map(([k, d]) => h("tr", h("td", h("span.kbd-key", k)), h("td", d))))), h("p.small.muted", "Print this list from the Help view.")), { buttons: [{ label: "Close" }] });
+  import("./quick.js").then((q) => q.shortcutList());
 }
 
 export function about() {

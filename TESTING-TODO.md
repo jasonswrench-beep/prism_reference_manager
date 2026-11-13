@@ -91,6 +91,14 @@ already pass are listed at the end for reference.
       note's Markdown, delete one file, break one), then Tools › Text mirror. Check the preview,
       apply some and decline others, and confirm Undo. On a large library, time the scan and
       "Check that the mirror is complete".
+- [ ] Keyboard: change a few shortcuts (Settings › Appearance › Keyboard › Change shortcuts), use
+      them, then Help › Keyboard shortcuts › Print and check the printed sheet. With a screen reader
+      running, check that no default shortcut clashes with the reader's own keys.
+- [ ] Quick add (Ctrl+Shift+A): paste a real DOI, an ISBN, a web address and a typed reference.
+      A clean lookup is added at once (with Undo); anything uncertain opens the review.
+- [ ] Special characters (Ctrl+Shift+U) and Alt+X in the source editor, for names with accents
+      and titles with Greek letters.
+- [ ] Create a first library and follow the getting-started tour; check every "Go there" button.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder
@@ -314,7 +322,6 @@ work that could not be verified here or an owner decision.
 - Journal abbreviation lists (QLT-009).
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).
 - Side-by-side reading of two documents (part of RDR-001).
-- Customizable keyboard shortcuts (UIX-012). Navigation can be collapsed (Ctrl+B).
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other

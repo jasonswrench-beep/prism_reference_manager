@@ -5,6 +5,7 @@ import { call, on } from "./api.js";
 import { h, clear, icon, iconBtn, toast, modal, announce, showError, select } from "./dom.js";
 import * as styles from "./styles.js";
 import * as dialogs from "./dialogs.js";
+import * as quick from "./quick.js";
 
 export const S = {
   info: null,
@@ -225,7 +226,10 @@ export async function doRedo() {
 }
 
 export const commands = [];
-export function command(id, label, run, keys = "", group = "") { commands.push({ id, label, run, keys, group }); }
+/** Register an action. `keys` is its default shortcut; the person can change it in Settings. */
+export function command(id, label, run, keys = "", group = "") {
+  commands.push({ id, label, run, defaultKeys: keys, group, get keys() { return quick.keyFor(this); } });
+}
 
 function registerCommands() {
   NAV.forEach(([k, l], i) => command("go." + k, "Go to " + l, () => go(k), "Alt+" + (i + 1), "View"));
@@ -250,7 +254,7 @@ function registerCommands() {
   command("lib.close", "Close library", async () => { await call("library.close"); await refresh(); go("welcome"); }, "", "File");
   command("edit.find", "Search the library", () => go("library", { focusSearch: true }), "Ctrl+Shift+F", "Edit");
   command("edit.replace", "Find and replace…", () => dialogs.findReplace(), "Ctrl+H", "Edit");
-  command("cite.compose", "Compose a citation", () => go("cite", { tab: "workspace" }), "Ctrl+Shift+C", "Cite");
+  command("cite.compose", "Compose a citation", () => go("cite", { tab: "workspace", ...(S.params.selected ? { ref: S.params.selected } : {}) }), "Ctrl+Shift+C", "Cite");
   command("cite.readiness", "Manuscript readiness and changed copies", () => go("cite", { tab: "readiness" }), "", "Cite");
   command("cite.checks", "Style checks", () => go("cite", { tab: "checks" }), "", "Cite");
   command("tools.duplicates", "Find duplicates…", () => dialogs.duplicates(), "", "Tools");
@@ -271,7 +275,12 @@ function registerCommands() {
   command("view.nav", "Collapse or expand navigation", async () => {
     await saveSettings({ layout: { ...(S.settings.layout || {}), navCollapsed: !S.settings.layout?.navCollapsed } });
   }, "Ctrl+B", "View");
-  command("help.shortcuts", "Keyboard shortcuts", () => dialogs.shortcuts(), "Ctrl+/", "Help");
+  command("help.shortcuts", "Keyboard shortcuts", () => quick.shortcutList(), "Ctrl+/", "Help");
+  command("help.shortcuts_edit", "Change keyboard shortcuts…", () => quick.editShortcuts(), "", "Help");
+  command("help.tour", "Take the getting-started tour", () => quick.tour(), "", "Help");
+  command("palette", "Command palette", () => palette(), "Ctrl+K", "View");
+  command("source.quick", "Quick add (paste an identifier or reference)", () => quick.quickAdd(), "Ctrl+Shift+A", "File");
+  command("edit.chars", "Insert a special character…", () => quick.specialChars(), "Ctrl+Shift+U", "Edit");
   command("help.about", "About Prism Reference Manager", () => dialogs.about(), "", "Help");
   command("help.diagnostics", "Diagnostic bundle…", () => dialogs.diagnostics(), "", "Help");
 }
@@ -341,26 +350,18 @@ function inText(e) {
   return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
 }
 
+// Commands that make sense only with a library open.
+const NEEDS_LIBRARY = new Set(["source.add", "source.lookup", "source.quick", "import.file", "edit.replace"]);
+
 function keys(e) {
-  const ctrl = e.ctrlKey || e.metaKey;
-  const k = e.key.toLowerCase();
-  if (ctrl && k === "k") { e.preventDefault(); palette(); return; }
-  if (ctrl && e.shiftKey && k === "f") { e.preventDefault(); go("library", { focusSearch: true }); return; }
-  if (ctrl && e.shiftKey && k === "c") { e.preventDefault(); go("cite", { tab: "workspace", ...(S.params.selected ? { ref: S.params.selected } : {}) }); return; }
-  if (ctrl && e.shiftKey && k === "n") { e.preventDefault(); dialogs.newProject(); return; }
-  if (ctrl && !e.shiftKey && k === "n" && S.info?.library) { e.preventDefault(); dialogs.addSource(); return; }
-  if (ctrl && k === "i" && S.info?.library) { e.preventDefault(); dialogs.lookup(); return; }
-  if (ctrl && k === "o" && S.info?.library) { e.preventDefault(); dialogs.importFile(); return; }
-  if (ctrl && k === "h" && S.info?.library) { e.preventDefault(); dialogs.findReplace(); return; }
-  if (ctrl && k === "b") { e.preventDefault(); commands.find((c) => c.id === "view.nav").run(); return; }
-  if (ctrl && k === "/") { e.preventDefault(); dialogs.shortcuts(); return; }
-  if (ctrl && k === "f") {
+  const combo = quick.comboOf(e);
+  if (!combo) return;
+  if (combo === "Alt+X" && inText(e)) { if (quick.altX(e)) e.preventDefault(); return; }
+  if (combo === "Ctrl+F") {
     const s = mainEl.querySelector("[data-search]");
     if (s) { e.preventDefault(); s.focus(); s.select?.(); }
     return;
   }
-  if (e.key === "F1") { e.preventDefault(); go("help"); return; }
-  if (e.altKey && /^[1-6]$/.test(e.key)) { e.preventDefault(); go(NAV[+e.key - 1][0]); return; }
   if (e.key === "F6") {
     // Move focus between regions: navigation, context bar, main content.
     e.preventDefault();
@@ -370,8 +371,14 @@ function keys(e) {
     next.querySelector("button, select, input, [tabindex='0']")?.focus();
     return;
   }
-  if (!inText(e) && ctrl && k === "z" && !e.shiftKey) { e.preventDefault(); doUndo(); return; }
-  if (!inText(e) && ctrl && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); doRedo(); }
+  // Shift+Ctrl+Z also redoes.
+  const c = quick.bindings().get(combo) || (combo === "Ctrl+Shift+Z" ? commands.find((x) => x.id === "redo") : null);
+  if (!c) return;
+  // In a text field, undo and redo belong to the field.
+  if (inText(e) && (c.id === "undo" || c.id === "redo")) return;
+  if (NEEDS_LIBRARY.has(c.id) && !S.info?.library) return;
+  e.preventDefault();
+  c.run();
 }
 
 // ---- menu bar --------------------------------------------------------------------------------

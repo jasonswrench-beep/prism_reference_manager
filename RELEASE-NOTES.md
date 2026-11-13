@@ -76,6 +76,13 @@ with their changes field by field and taken in only when you apply them, as one 
 broken files are explained and put back. An outside edit is never overwritten without being kept
 for review.
 
+**Keyboard and quick entry.** Every shortcut can be changed (a key already in use is moved, and
+plain letters are refused so typing is never taken), and the list can be printed. Quick add
+(Ctrl+Shift+A) takes a pasted identifier, web address or reference: a clean lookup is added in one
+step, anything uncertain goes to review. A special-character palette (Ctrl+Shift+U) inserts
+accents, punctuation, symbols, Greek and Cyrillic at the cursor, and Alt+X turns a character code
+into its character. A short getting-started tour follows the first library.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

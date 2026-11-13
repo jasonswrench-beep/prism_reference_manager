@@ -61,7 +61,9 @@ registerView("settings", {
           field("Text size", select([12, 13, 14, 15, 16, 18, 20, 22, 24, 28].map((n) => [String(n), n + " px" + (n === 14 ? " (default)" : "")]), String(s.font_size), { on: { change: (e) => saveSettings({ font_size: +e.target.value }) } }), "Windows text scaling also applies."),
           field("Motion", select([["no", "Use Windows setting"], ["yes", "Reduce motion"]], s.reduce_motion ? "yes" : "no", { on: { change: (e) => saveSettings({ reduce_motion: e.target.value === "yes" }) } }))),
         h("p.small.muted", "Colour is never the only cue: states also use text and icons. Windows contrast themes are respected.")),
-        card("Keyboard", h("p", "Every action is in the command palette (Ctrl+K) and the menus. "), btn("Show keyboard shortcuts", { onClick: () => dialogs.shortcuts() })));
+        card("Keyboard", h("p", "Every action is in the command palette (Ctrl+K) and the menus. Shortcuts can be changed, and the list can be printed."),
+          h("div.btn-row", btn("Show keyboard shortcuts", { onClick: () => dialogs.shortcuts() }), btn("Change shortcuts…", { onClick: async () => { const { editShortcuts } = await import("../quick.js"); await editShortcuts(); go("settings"); } }),
+            btn("Take the getting-started tour", { onClick: async () => { const { tour } = await import("../quick.js"); tour(); } }))));
     }
     if (tab === "library") {
       const info = S.info?.library;

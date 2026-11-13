@@ -388,3 +388,22 @@ details.support pre { white-space: pre-wrap; font-size: 12px; background: var(--
 .popover hr { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; }
 /* A value filled in automatically with low confidence: check it against the source. */
 .field.needs-check > input, .field.needs-check > textarea { border-color: var(--attention); box-shadow: inset 3px 0 0 var(--attention); }
+/* Quick add, special characters, tour, printable shortcut sheet */
+.quick-add .quick-status { background: var(--surface); border: 1px solid var(--divider); border-top: 0; border-radius: 0 0 8px 8px; padding: 10px 14px; box-shadow: var(--shadow); min-height: 20px; }
+.quick-add .quick-status:empty { display: none; }
+.chars-grid { max-height: 55vh; overflow: auto; margin-top: 8px; }
+.chars-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.char { min-width: 34px; height: 34px; font-size: 18px; border: 1px solid var(--divider); border-radius: 5px; background: var(--surface); color: var(--text); cursor: pointer; }
+.char:hover, .char:focus-visible { background: var(--primary-soft); }
+.tour p { font-size: 15px; line-height: 1.5; }
+.tour-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+.tour-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--divider); }
+.tour-dots span.on { background: var(--primary); }
+.print-sheet { display: none; }
+@media print {
+  body.printing-sheet > *:not(.print-sheet) { display: none !important; }
+  body.printing-sheet .print-sheet { display: block; color: #000; background: #fff; font: 11pt sans-serif; }
+  .print-sheet table { border-collapse: collapse; width: 100%; }
+  .print-sheet td { border-bottom: 1px solid #ccc; padding: 4px 8px; }
+  .print-sheet td:first-child { font-family: monospace; white-space: nowrap; }
+}
