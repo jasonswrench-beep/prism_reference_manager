@@ -1,5 +1,6 @@
 /target
 /app/node_modules
 /app/src-tauri/gen
+/app/ui/vendor
 /dist
 *.tmp-*

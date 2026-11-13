@@ -127,7 +127,8 @@ impl Library {
         Ok(v)
     }
 
-    fn save_staged(&self, b: &ImportBatch) -> Result<()> {
+    /// Save changes to a staged (uncommitted) batch; staged review state is not an undo step.
+    pub fn save_staged(&self, b: &ImportBatch) -> Result<()> {
         let s = crate::util::canonical_json(&serde_json::to_value(b)?);
         self.store.conn.execute("UPDATE import_batches SET data=?1 WHERE id=?2", rusqlite::params![s, b.id])?;
         Ok(())
