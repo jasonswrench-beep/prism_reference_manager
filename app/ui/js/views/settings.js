@@ -64,6 +64,17 @@ registerView("settings", {
     }
     if (tab === "library") {
       const info = S.info?.library;
+      if (info) {
+        const watched = await call("watch.list").catch(() => []);
+        const mirror = h("input", { type: "checkbox", id: "w-mirror" });
+        body.append(card("Watched folders",
+          h("p.small.muted", "New PDFs that appear in a watched folder (for example your downloads folder) are read about once a minute and wait for your review under Connections; nothing is added without it. Files already in the library are ignored."),
+          watched.length ? h("table.table", h("tbody", watched.map((w) => h("tr", h("td.mono.small", w.path), h("td.small", w.project_id ? (S.projects.find((p) => p.project.id === w.project_id)?.project.title || "Project") : "Library only"), h("td.small", w.mirror ? "Subfolders become collections" : ""),
+            h("td", btn("Stop watching", { small: true, onClick: async () => { await call("watch.remove", { path: w.path }); go("settings", { tab: "library" }); } }))))) ) : h("p.small", "No folders are watched."),
+          h("label.row.small", { for: "w-mirror" }, mirror, "Turn subfolders into collections"),
+          h("div.btn-row", btn("Watch a folder…", { small: true, kind: "primary", onClick: async () => { try { const r = await call("watch.add", { project_id: S.project?.project.id || "", mirror: mirror.checked }); if (r && !r.cancelled) { toast(`Watching ${r.path}`, "success"); go("settings", { tab: "library" }); } } catch (e) { showError(e); } } }),
+            watched.length ? btn("Check now", { small: true, onClick: async () => { const r = await call("watch.scan"); toast(r.length ? `${r.reduce((n, x) => n + x.count, 0)} new PDFs staged for review` : "No new PDFs found", r.length ? "success" : "info"); } }) : null)));
+      }
       const bl = info ? await call("backup.list").catch(() => null) : null;
       body.append(card("This library", info ? h("div",
         h("p", h("strong", info.name), h("br"), h("span.mono", info.root)),

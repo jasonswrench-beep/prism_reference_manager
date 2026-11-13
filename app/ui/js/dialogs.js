@@ -2,7 +2,7 @@
 // duplicates, bulk edits, health, history, network, diagnostics and local connections.
 
 import { styleSelect, LOCALES } from "./styles.js";
-import { call } from "./api.js";
+import { call, on } from "./api.js";
 import { h, clear, icon, iconBtn, btn, modal, toast, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml } from "./dom.js";
 import { S, refresh, go, manuscript, loadProjects, render, setProject } from "./app.js";
 import { sourceEditor, fieldLabel } from "./editor.js";
@@ -197,14 +197,67 @@ export async function importFile(serviceDefault = "file") {
   if (r) importReview(r);
 }
 
+// Progress for reading files and looking up identifiers, shown while an import runs.
+async function withImportProgress(run) {
+  const bar = h("div.small", "Starting…");
+  const back = h("div.toasts", { role: "status", style: { pointerEvents: "none" } }, h("div.toast", bar));
+  document.body.append(back);
+  const off = await on("import-progress", (p) => { bar.textContent = p.total ? `${p.phase}: ${Math.min(p.done + 1, p.total)} of ${p.total}` : p.phase; });
+  try { return await run(); } finally { if (typeof off === "function") off(); back.remove(); }
+}
+
 export async function importPdfs() {
   if (!S.info?.library) return;
-  toast("Reading PDF files…", "info", { ms: 2500 });
   try {
-    const r = await call("import.pick_pdfs", { project_id: pid() });
+    const r = await withImportProgress(() => call("import.pick_pdfs", { project_id: pid() }));
     if (!r || r.cancelled) return;
     importReview(r);
   } catch (e) { showError(e); }
+}
+
+/** Import every PDF in a folder and its subfolders, optionally turning subfolders into collections. */
+export async function importFolder() {
+  if (!S.info?.library) return;
+  const mirror = h("input", { type: "checkbox", id: "if-mirror", checked: true });
+  const go2 = await modal("Import a folder of PDFs", h("div",
+    h("p", "Every PDF in the folder you choose and its subfolders is read, identifiers (DOI, arXiv) are looked up when network use allows, and the results wait for your review."),
+    h("label.row", { for: "if-mirror" }, mirror, "Turn subfolders into collections"),
+    h("p.small.muted", "Files that are already in the library are recognized and marked to skip. Originals are not moved or changed; imported files are copied into the library.")),
+    { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Choose folder…", kind: "primary", value: "go" }] }).done;
+  if (go2 !== "go") return;
+  try {
+    const r = await withImportProgress(() => call("import.folder", { project_id: pid(), mirror: mirror.checked }));
+    if (!r || r.cancelled) return;
+    importReview(r);
+  } catch (e) { showError(e); }
+}
+
+/** Look for a free, legal copy of each source and attach it; explain the options when none is found. */
+export async function findFreeCopies(ids) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  const bar = h("div.small", "Looking for free copies…");
+  const back = h("div.toasts", { role: "status", style: { pointerEvents: "none" } }, h("div.toast", bar));
+  document.body.append(back);
+  const off = await on("oa-progress", (p) => { bar.textContent = `Looking for free copies: ${Math.min(p.done + 1, p.total)} of ${p.total}`; });
+  let results;
+  try { results = list.length === 1 ? [await call("files.find_oa", { ref_id: list[0], project_id: pid() })] : await call("files.find_oa_many", { ids: list, project_id: pid() }); }
+  catch (e) { showError(e); return; }
+  finally { if (typeof off === "function") off(); back.remove(); }
+  const versionName = (v) => ({ publishedVersion: "published version", acceptedVersion: "accepted manuscript", submittedVersion: "submitted manuscript (preprint)" })[v] || (v ? v : "version not stated");
+  const attached = results.filter((r) => r.status === "attached").length;
+  const rows = results.map((r) => h("div.card.pad", { style: { marginBottom: "8px" } },
+    h("div.row", icon(r.status === "attached" ? "checkCircle" : r.error || r.status === "error" || r.status === "download_failed" ? "warn" : "info", 18), h("strong.grow.ellipsis", r.title || "Source")),
+    h("div.small", r.error || r.message),
+    r.status === "attached" ? h("div.small.muted", `Source: ${r.host} • ${versionName(r.version)} • licence: ${r.license || "not stated"}`) : null,
+    r.status === "attached" && r.version && r.version !== "publishedVersion" ? h("div.small.status-review", icon("info", 13), " This is not the published version. Cite the published version, and check page numbers against it.") : null,
+    r.status !== "attached" && r.status !== "has_pdf" ? h("div.btn-row", { style: { marginTop: "6px" } },
+      r.publisher_url ? btn("Open publisher page", { small: true, icon: "external", onClick: () => call("system.open_url", { url: r.publisher_url }) }) : null,
+      r.landing_url ? btn("Open free copy page", { small: true, icon: "external", onClick: () => call("system.open_url", { url: r.landing_url }) }) : null,
+      btn("Attach a file…", { small: true, onClick: async () => { const res = await call("files.attach_pick", { ref_id: r.ref_id, mode: "managed" }); if (!res?.cancelled) toast("Attached", "success"); } })) : null));
+  await modal(list.length === 1 ? "Free copy" : `Free copies: ${attached} of ${list.length} attached`, h("div",
+    h("p.small.muted", "Free copies come from open-access repositories and publishers listed in an open scholarly index. Only legal open-access copies are fetched; a licence and version are recorded with each file."),
+    rows), { size: "narrow", buttons: [{ label: "Close" }] }).done;
+  await refresh();
 }
 
 const STATUS_LABEL = { new: ["New source", "success"], duplicate: ["Possible duplicate", "attention"], conflict: ["Identifier conflict", "danger"], unresolved: ["Needs metadata review", "attention"], version: ["Another version of a library work", "info"], invalid: ["Invalid", "danger"] };

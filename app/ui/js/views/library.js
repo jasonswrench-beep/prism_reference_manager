@@ -181,7 +181,8 @@ registerView("library", {
         btn("By identifier (DOI, PMID, arXiv, ISBN, web page)", { icon: "search", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.lookup(); } }),
         btn("Enter manually", { icon: "edit", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.addSource(); } }),
         btn("Paste a bibliography", { icon: "copy", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.pasteBibliography(); } }),
-        btn("Import PDF files", { icon: "pdf", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.importPdfs(); } })), { size: "narrow" }).done;
+        btn("Import PDF files", { icon: "pdf", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.importPdfs(); } }),
+        btn("Import a folder of PDFs", { icon: "folder", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.importFolder(); } })), { size: "narrow" }).done;
       void v;
     } });
     const toolbar = h("div.row", h("div.grow", { style: { position: "relative" } }, searchBox), searchHelp, addMenuBtn, btn("Import", { icon: "download", onClick: () => dialogs.importFile() }));
@@ -304,6 +305,7 @@ registerView("library", {
           btn("Label", { small: true, icon: "tag", onClick: () => labelDialog([...st.selected], labels) }),
           btn("Bulk edit", { small: true, onClick: () => dialogs.bulkEdit([...st.selected]) }),
           btn("Export", { small: true, onClick: () => dialogs.exportRefs([...st.selected]) }),
+          btn("Find free full texts", { small: true, title: "Look for legal open-access PDFs for the selected sources that have a DOI and no PDF", onClick: () => dialogs.findFreeCopies([...st.selected]) }),
           n === 2 ? btn("Compare", { small: true, onClick: () => dialogs.compareRecords(...st.selected) }) : null,
           btn("Trash", { small: true, kind: "danger", icon: "trash", onClick: async () => { const k = await call("refs.trash", { ids: [...st.selected] }); toast(`${k} moved to trash`, "success", { action: { label: "Undo", run: async () => { await call("undo"); await refresh(); } } }); st.selected.clear(); await refresh(); } }));
       } else if (st.search) {
@@ -498,7 +500,8 @@ registerView("library", {
           await citationPreview(r));
       } else if (st.inspectorTab === "files") {
         body.append(h("div.btn-row", btn("Attach files…", { small: true, icon: "plus", onClick: async () => { const res = await call("files.attach_pick", { ref_id: r.id, mode: "managed" }); if (!res?.cancelled) { toast("Attached", "success"); drawInspector(); } } }),
-          btn("Link files in place…", { small: true, onClick: async () => { const res = await call("files.attach_pick", { ref_id: r.id, mode: "linked" }); if (!res?.cancelled) drawInspector(); } })),
+          btn("Link files in place…", { small: true, onClick: async () => { const res = await call("files.attach_pick", { ref_id: r.id, mode: "linked" }); if (!res?.cancelled) drawInspector(); } }),
+          !d.attachments.some((x) => x.mime === "application/pdf" && !x.superseded) && r.fields.doi ? btn("Find free full text", { small: true, icon: "search", onClick: async () => { await dialogs.findFreeCopies(r.id); drawInspector(); } }) : null),
           h("p.small.muted", "Attached files are copied into the library (managed). Linked files stay where they are. Originals are never modified; annotations live in the library and export into copies."));
         for (const a of d.attachments) {
           const state = { ok: null, protected: "Password-protected or encrypted", malformed: "The file structure could not be read", large: "Very large file", "image-only": "No text layer (scanned); needs OCR for text search", placeholder: "Cloud placeholder not downloaded", missing: "Missing" }[a.state];
@@ -506,6 +509,7 @@ registerView("library", {
             h("div.row", icon(a.mime === "application/pdf" ? "pdf" : "doc"), h("strong.ellipsis", a.original_name), h("span.grow"), a.superseded ? h("span.badge.neutral", "Earlier version") : null),
             h("div.small.muted", `${a.role} • ${(a.size / 1048576).toFixed(1)} MB • ${a.mode}${a.page_count ? ` • ${a.page_count} pages` : ""} • ${a.indexed ? "text indexed" : a.index_excluded ? "excluded from search" : "not yet indexed"}`),
             state ? h("div.small.status-review", icon("warn", 13), " " + state) : null,
+            a.source_url ? h("div.small.muted", "Free copy from ", h("span.mono", a.source_url.split("/")[2] || a.source_url), ` • ${({ publishedVersion: "published version", acceptedVersion: "accepted manuscript", submittedVersion: "submitted manuscript" })[a.source_version] || "version not stated"} • licence: ${a.license || "not stated"}`) : null,
             h("div.btn-row", { style: { marginTop: "6px" } },
               a.mime === "application/pdf" ? btn("Read", { small: true, onClick: () => go("reader", { ref: r.id, att: a.id }) }) : null,
               btn("Open in default app", { small: true, onClick: () => call("files.open_external", { id: a.id }) }),

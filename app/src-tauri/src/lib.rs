@@ -4,6 +4,7 @@
 //! operations. The optional local API (loopback only, token scopes) uses the same dispatcher.
 
 mod updates;
+mod pdfimport;
 mod api;
 mod capture;
 mod clipboard;
@@ -115,6 +116,14 @@ pub fn run() {
                 jobs: vec![],
             }));
             app.manage(state.clone());
+
+            // Watched folders: new PDFs are staged for review about once a minute.
+            let wh = app.handle().clone();
+            let ws = state.clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                let _ = pdfimport::scan_watched(&wh, &ws);
+            });
 
             // Automatic update checks (off unless the person turns them on and updates are set up).
             let uh = app.handle().clone();

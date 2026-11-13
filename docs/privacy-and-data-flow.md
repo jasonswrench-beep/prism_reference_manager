@@ -31,6 +31,8 @@ switch per kind) and logged in Tools › Network activity with what was sent.
 | arXiv | export.arxiv.org | The identifier |
 | ISBN | openlibrary.org | The ISBN |
 | Web page metadata | The site the person entered | A request for that page |
+| Free full text (when asked) | api.openalex.org | The DOI |
+| Download of a free copy that was found | The repository or publisher hosting it | A request for that file |
 | Update check (not set up in this version; see `docs/updates.md`) | The update feed | The program's version and Windows architecture |
 
 PDF contents, notes, annotations and quotations are never sent anywhere. A project can block all

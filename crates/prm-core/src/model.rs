@@ -766,6 +766,15 @@ pub struct Attachment {
     /// Set on a version that a newer one replaced; retained, not deleted.
     #[serde(default)]
     pub superseded: bool,
+    /// Where a downloaded copy came from (for example an open-access repository).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_url: String,
+    /// Licence stated by the source for a downloaded copy.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub license: String,
+    /// Version stated by the source: published, accepted or submitted manuscript.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_version: String,
     /// ok, missing, protected, malformed, large, image-only, placeholder
     #[serde(default)]
     pub state: String,

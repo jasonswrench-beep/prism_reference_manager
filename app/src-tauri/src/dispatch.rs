@@ -17,7 +17,7 @@ pub fn err(e: prm_core::Error) -> CallError {
     CallError { message: e.to_string(), detail }
 }
 
-fn user(msg: &str) -> CallError {
+pub fn user(msg: &str) -> CallError {
     CallError { message: msg.into(), detail: String::new() }
 }
 
@@ -160,11 +160,77 @@ pub fn scope_of(method: &str) -> &'static str {
     }
 }
 
+/// Find and attach a free, legal copy of one source. Network requests run without the lock.
+fn find_open_access(shared: &Shared, id: &str, project_id: &str) -> Result<Value, CallError> {
+    let (doi, title, has_pdf) = {
+        let st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+        network_allowed(&st, "openaccess", project_id)?;
+        let l = st.lib.as_ref().ok_or(user("Open or create a library first."))?;
+        let r = l.store.must::<Reference>(id).map_err(err)?;
+        let has_pdf = l.store.by::<prm_core::model::Attachment>("ref_id", id).map_err(err)?.iter().any(|a| a.mime == "application/pdf" && !a.superseded);
+        (r.f("doi").to_string(), r.title().to_string(), has_pdf)
+    };
+    let base = json!({"ref_id": id, "title": title, "publisher_url": if doi.is_empty() { String::new() } else { format!("https://doi.org/{doi}") }});
+    let with = |mut v: Value, extra: Value| { if let (Some(o), Some(e)) = (v.as_object_mut(), extra.as_object()) { for (k, x) in e { o.insert(k.clone(), x.clone()); } } v };
+    if has_pdf {
+        return Ok(with(base, json!({"status": "has_pdf", "message": "This source already has a PDF."})));
+    }
+    if doi.trim().is_empty() {
+        return Ok(with(base, json!({"status": "no_doi", "message": "This source has no DOI, so a free copy cannot be looked up. Add the DOI, or attach a file."})));
+    }
+    let mut log: Vec<(String, String, String, bool, String)> = vec![];
+    let res = prm_core::lookup::open_access(&doi, &mut |k, h, sent, okk, d| log.push((k.into(), h.into(), sent.into(), okk, d.into())));
+    let flush = |log: &[(String, String, String, bool, String)]| {
+        if let Ok(st) = shared.lock() {
+            if let Some(l) = st.lib.as_ref() {
+                for (k, h, sent, okk, d) in log {
+                    l.store.log_network(k, h, "Find a free copy", sent, *okk, d);
+                }
+            }
+        }
+    };
+    let oa = match res {
+        Ok(oa) => oa,
+        Err(e) => {
+            flush(&log);
+            return Ok(with(base, json!({"status": "error", "message": e.to_string()})));
+        }
+    };
+    if oa.pdf_url.is_empty() {
+        flush(&log);
+        let msg = if oa.landing_url.is_empty() { "No free copy is known for this DOI." } else { "A free copy is listed, but only as a web page, not a PDF file." };
+        return Ok(with(base, json!({"status": "not_found", "message": msg, "landing_url": oa.landing_url, "license": oa.license, "version": oa.version, "host": oa.host})));
+    }
+    let downloading_ok = { shared.lock().map(|st| network_allowed(&st, "openaccess-download", project_id).is_ok()).unwrap_or(false) };
+    if !downloading_ok {
+        flush(&log);
+        return Ok(with(base, json!({"status": "blocked", "message": "Downloading free copies is turned off in Settings › Network.", "landing_url": oa.landing_url, "pdf_url": oa.pdf_url, "license": oa.license, "version": oa.version, "host": oa.host})));
+    }
+    let tmp = std::env::temp_dir().join(format!("prm-oa-{}.pdf", prm_core::util::new_id()));
+    let dl = prm_core::lookup::download_pdf(&oa.pdf_url, &tmp, &mut |k, h, sent, okk, d| log.push((k.into(), h.into(), sent.into(), okk, d.into())));
+    flush(&log);
+    if let Err(e) = dl {
+        let _ = std::fs::remove_file(&tmp);
+        return Ok(with(base, json!({"status": "download_failed", "message": e.to_string(), "landing_url": oa.landing_url, "pdf_url": oa.pdf_url, "license": oa.license, "version": oa.version, "host": oa.host})));
+    }
+    let mut st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+    let l = lib_mut(&mut st)?;
+    let attached = l.attach_file(id, &tmp, "managed", "full-text");
+    let _ = std::fs::remove_file(&tmp);
+    let mut a = attached.map_err(err)?;
+    a.source_url = oa.pdf_url.clone();
+    a.license = oa.license.clone();
+    a.source_version = oa.version.clone();
+    a.original_name = format!("{} (open access).pdf", title.chars().take(80).collect::<String>().trim());
+    l.store.write("Record free copy source", |tx| tx.put(&a)).map_err(err)?;
+    Ok(with(base, json!({"status": "attached", "message": format!("Attached a free copy from {}.", oa.host), "landing_url": oa.landing_url, "pdf_url": oa.pdf_url, "license": oa.license, "version": oa.version, "host": oa.host})))
+}
+
 fn lib_mut<'a>(st: &'a mut crate::AppState) -> Result<&'a mut Library, CallError> {
     st.lib.as_mut().ok_or(user("Open or create a library first."))
 }
 
-fn network_allowed(st: &crate::AppState, kind: &str, project_id: &str) -> Result<(), CallError> {
+pub fn network_allowed(st: &crate::AppState, kind: &str, project_id: &str) -> Result<(), CallError> {
     if !st.settings.network_enabled {
         return Err(user("Network use is turned off in Settings. Local work is unaffected."));
     }
@@ -219,6 +285,71 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             open_with_shell(&url);
             return ok(true);
         }
+        // Bringing in files: inspection and lookups run without holding the state lock.
+        "import.pick_pdfs" | "import.folder" if client.is_none() => {
+            let pid = s(&a, "project_id");
+            let (paths, root, truncated) = if method == "import.pick_pdfs" {
+                (pick_files(app, "pdf", "Choose PDF files to import"), None, false)
+            } else {
+                let Some(dir) = pick_folder(app, "Choose a folder of PDF files") else { return ok(json!({"cancelled": true})) };
+                let (v, t) = crate::pdfimport::walk(&dir);
+                for p in &v {
+                    remember(p);
+                }
+                (v, Some(dir), t)
+            };
+            if paths.is_empty() {
+                return if root.is_some() { Err(user("No PDF files were found in that folder or its subfolders.")) } else { ok(json!({"cancelled": true})) };
+            }
+            let name = root.as_ref().and_then(|r| r.file_name()).map(|n| format!("Folder: {}", n.to_string_lossy())).unwrap_or_else(|| "PDF files".into());
+            let mut b = crate::pdfimport::import_paths(app, shared, &paths, root.as_deref(), &pid, &name, if root.is_some() { "folder" } else { "pdf" }, opt(&a, "mirror"))?;
+            if truncated {
+                b.file_name = format!("{name} (first {} PDFs)", crate::pdfimport::MAX_FILES);
+            }
+            return ok(b);
+        }
+        "watch.add" if client.is_none() => {
+            let Some(dir) = pick_folder(app, "Choose a folder to watch for new PDFs") else { return ok(json!({"cancelled": true})) };
+            let mut st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+            let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).ok_or_else(|| user("Open or create a library first."))?;
+            if dir.starts_with(&lib_root) {
+                return Err(user("Choose a folder outside the library folder."));
+            }
+            let path = dir.to_string_lossy().to_string();
+            st.settings.watched_folders.retain(|w| !(w.path == path && w.library == lib_root));
+            st.settings.watched_folders.push(settings::WatchedFolder { path: path.clone(), library: lib_root, project_id: s(&a, "project_id"), mirror: opt(&a, "mirror") });
+            let _ = settings::save(&st.config_dir, &st.settings);
+            return ok(json!({"path": path}));
+        }
+        "watch.scan" if client.is_none() => return ok(crate::pdfimport::scan_watched(app, shared)?),
+        // Debug builds only: the same pipelines without the folder picker, for end-to-end tests.
+        #[cfg(debug_assertions)]
+        "debug.import_folder" => {
+            let dir = PathBuf::from(s(&a, "path"));
+            let (v, _) = crate::pdfimport::walk(&dir);
+            for p in &v {
+                remember(p);
+            }
+            return ok(crate::pdfimport::import_paths(app, shared, &v, Some(&dir), &s(&a, "project_id"), "Folder", "folder", opt(&a, "mirror"))?);
+        }
+        #[cfg(debug_assertions)]
+        "debug.watch_add" => {
+            let mut st = shared.lock().map_err(|_| user("busy"))?;
+            let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).unwrap_or_default();
+            st.settings.watched_folders.push(settings::WatchedFolder { path: s(&a, "path"), library: lib_root, project_id: String::new(), mirror: opt(&a, "mirror") });
+            return ok(true);
+        }
+        "files.find_oa" | "files.find_oa_many" if client.is_none() => {
+            let ids: Vec<String> = if method == "files.find_oa" { vec![s(&a, "ref_id")] } else { opt(&a, "ids") };
+            let pid = s(&a, "project_id");
+            let mut results = vec![];
+            for (i, id) in ids.iter().enumerate() {
+                let _ = app.emit("oa-progress", json!({"done": i, "total": ids.len()}));
+                results.push(find_open_access(shared, id, &pid));
+            }
+            let _ = app.emit("oa-progress", json!({"done": ids.len(), "total": ids.len()}));
+            return if method == "files.find_oa" { results.into_iter().next().unwrap_or_else(|| Err(user("Choose a source."))).and_then(ok) } else { ok(results.into_iter().map(|r| r.unwrap_or_else(|e| json!({"error": e.message}))).collect::<Vec<_>>()) };
+        }
         // Network work for updates runs without holding the state lock. Never for API clients.
         "update.check" | "update.install" if client.is_none() => {
             let r = if method == "update.check" { crate::updates::check(app, shared) } else { crate::updates::install(app, shared) };
@@ -270,7 +401,6 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         "files.relink_pick" => pre_path = pick_file(app, "any", "Find the moved file"),
         "files.replace_pick" => pre_path = pick_file(app, "any", "Choose the new version"),
         "import.pick" => pre_path = pick_file(app, "bib", "Choose a bibliographic file"),
-        "import.pick_pdfs" => pre_paths = pick_files(app, "pdf", "Choose PDF files to import"),
         "library.choose" => pre_path = pick_folder(app, "Choose a library folder"),
         "diagnostics.save" => pre_path = needs_save("zip", "prism-diagnostics.zip", "Save diagnostic bundle"),
         _ => {}
@@ -279,7 +409,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
     if dialog_methods.contains(&method) && pre_path.is_none() {
         return ok(json!({"cancelled": true}));
     }
-    if matches!(method, "files.attach_pick" | "import.pick_pdfs") && pre_paths.is_empty() {
+    if matches!(method, "files.attach_pick") && pre_paths.is_empty() {
         return ok(json!({"cancelled": true}));
     }
     if matches!(method, "backup.restore" | "package.import") && pre_paths.is_empty() {
@@ -784,72 +914,28 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let report = l.commit_import(&id).map_err(err)?;
             // Attach PDFs (chosen in a dialog, or captured into the inbox), labels and notes.
             let b = l.store.must::<ImportBatch>(&id).map_err(err)?;
-            let attached = crate::capture::after_commit(l, &b, &|p: &Path| picked_paths().lock().unwrap().contains(p))?;
-            ok(json!({"report": report, "attached": attached}))
+            let lib_root = l.root.to_string_lossy().to_string();
+            let watched: Vec<PathBuf> = st.settings.watched_folders.iter().filter(|w| w.library == lib_root).map(|w| PathBuf::from(&w.path)).collect();
+            let l = lib_mut(st)?;
+            let attached = crate::capture::after_commit(l, &b, &|p: &Path| picked_paths().lock().unwrap().contains(p) || watched.iter().any(|w| p.starts_with(w)))?;
+            let placed = crate::pdfimport::mirror_folders(l, &b)?;
+            ok(json!({"report": report, "attached": attached, "collected": placed}))
         }
         "import.cancel" => ok(lib_mut(st)?.cancel_import(&s(a, "id")).map_err(err)?),
+        "watch.list" => {
+            let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).unwrap_or_default();
+            ok(st.settings.watched_folders.iter().filter(|w| w.library == lib_root).cloned().collect::<Vec<_>>())
+        }
+        "watch.remove" => {
+            let path = s(a, "path");
+            let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).unwrap_or_default();
+            st.settings.watched_folders.retain(|w| !(w.path == path && w.library == lib_root));
+            let _ = settings::save(&st.config_dir, &st.settings);
+            ok(true)
+        }
         "import.undo_preview" => ok(lib_mut(st)?.undo_import_preview(&s(a, "id")).map_err(err)?),
         "import.undo" => ok(lib_mut(st)?.undo_import(&s(a, "id"), opt(a, "include_dependent")).map_err(err)?),
         "import.scan" => ok(lib_mut(st)?.migration_scan(&s(a, "name"), &s(a, "text")).map_err(err)?),
-        "import.pick_pdfs" => {
-            // Each PDF becomes a staged candidate from its embedded metadata and any DOI found;
-            // lookups happen only when network use is allowed.
-            let net_ok = network_allowed(st, "doi", &s(a, "project_id")).is_ok();
-            let mut items = Vec::new();
-            for p in &paths {
-                let info = prm_core::pdf::inspect(p);
-                let mut cand: Option<Reference> = None;
-                let mut notes = vec![];
-                if let (true, Some(doi)) = (net_ok, info.dois.first()) {
-                    let l = lib_mut(st)?;
-                    let store = &l.store;
-                    let res = prm_core::lookup::resolve("doi", doi, &mut |k, h, sent, okk, d| store.log_network(k, h, "PDF import lookup", sent, okk, d));
-                    if let Some(c) = res.candidate {
-                        let t = c.title().to_lowercase();
-                        if !info.title.is_empty() && prm_core::strsim_ratio(&t, &info.title) < 0.6 {
-                            notes.push(format!("The DOI found in the file resolves to “{}”, which may not be this PDF. Review it.", c.title()));
-                        }
-                        cand = Some(c);
-                    }
-                    notes.extend(res.conflicts);
-                }
-                let mut r = cand.unwrap_or_else(|| {
-                    let mut r = Reference { rtype: "article-journal".into(), ..Default::default() };
-                    let title = if info.title.trim().is_empty() { p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default() } else { info.title.clone() };
-                    r.fields.insert("title".into(), title);
-                    if !info.author.is_empty() {
-                        for n in prm_core::formats::split_names(&info.author) {
-                            r.creators.push(prm_core::formats::person("author", &n));
-                        }
-                    }
-                    if let Some(d) = info.dois.first() {
-                        r.fields.insert("doi".into(), d.clone());
-                    }
-                    r
-                });
-                r.overflow.insert("pdf:path".into(), p.to_string_lossy().to_string());
-                r.overflow.insert("pdf:state".into(), info.state.clone());
-                if !notes.is_empty() {
-                    r.overflow.insert("pdf:review".into(), notes.join(" "));
-                }
-                items.push(prm_core::formats::csljson::to_csl(&r));
-            }
-            let text = serde_json::to_string(&items).unwrap_or_default();
-            let l = lib_mut(st)?;
-            let mut b = l.stage_import("PDF files", &text, "csljson", "pdf", &s(a, "project_id"), "", None).map_err(err)?;
-            // Uncertain results are flagged for review rather than guessed.
-            for (i, r) in b.records.iter_mut().enumerate() {
-                if let Some(p) = paths.get(i) {
-                    r.record.overflow.insert("pdf:path".into(), p.to_string_lossy().to_string());
-                }
-                if r.record.overflow.contains_key("pdf:review") || !r.record.has("doi") {
-                    r.status = if r.status == "new" { "unresolved".into() } else { r.status.clone() };
-                    r.issues.push(r.record.overflow.get("pdf:review").cloned().unwrap_or_else(|| "No identifier was found; metadata comes from the file and needs review.".into()));
-                }
-            }
-            l.save_staged(&b).map_err(err)?;
-            ok(b)
-        }
         "lookup.resolve" => {
             let kind = s(a, "kind");
             let inv_kind = match kind.as_str() { "pmid" | "pmcid" => "pubmed", "url" => "webpage", k => k }.to_string();

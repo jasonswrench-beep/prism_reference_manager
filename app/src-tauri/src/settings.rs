@@ -21,6 +21,18 @@ impl Default for ApiClient {
     }
 }
 
+/// A folder whose new PDFs are staged for review in one library.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct WatchedFolder {
+    pub path: String,
+    /// Root folder of the library the files go to.
+    pub library: String,
+    pub project_id: String,
+    /// Turn subfolders into collections.
+    pub mirror: bool,
+}
+
 /// A BibTeX or biblatex file kept up to date for writing tools.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -73,6 +85,7 @@ pub struct Settings {
     /// Check for a newer version once a day. Off by default.
     pub update_check: bool,
     pub update_last_check: String,
+    pub watched_folders: Vec<WatchedFolder>,
 }
 
 impl Default for Settings {
@@ -112,6 +125,7 @@ impl Default for Settings {
             bib_exports: vec![],
             update_check: false,
             update_last_check: String::new(),
+            watched_folders: vec![],
         }
     }
 }

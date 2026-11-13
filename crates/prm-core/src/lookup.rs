@@ -20,6 +20,8 @@ pub const NETWORK_INVENTORY: &[(&str, &str, &str)] = &[
     ("isbn", "openlibrary.org", "Resolve ISBNs for books. Sends the ISBN."),
     ("webpage", "(the page's own site)", "Read embedded citation metadata from a web page you entered. Sends a request for that URL."),
     ("retraction", "api.crossref.org", "Check for retraction and correction notices. Sends DOIs."),
+    ("openaccess", "api.openalex.org", "Find a free, legal copy of an article. Sends the DOI."),
+    ("openaccess-download", "(the repository or publisher hosting the free copy)", "Download a free copy that was found. Sends a request for that file."),
     ("update", "(the update feed, once set up)", "Check for a newer version of this program when you ask, or once a day if you turn that on. Sends the program's version and Windows architecture."),
 ];
 
@@ -80,6 +82,102 @@ fn from_csl(text: &str) -> Option<Reference> {
 
 fn html_unescape(s: &str) -> String {
     s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&#x27;", "'")
+}
+
+/// Where a free, legal copy of a work can be found.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct OpenAccess {
+    pub pdf_url: String,
+    pub landing_url: String,
+    pub license: String,
+    /// publishedVersion, acceptedVersion, submittedVersion
+    pub version: String,
+    pub host: String,
+    pub is_oa: bool,
+}
+
+/// Ask the open scholarly index for the best open-access location of a DOI.
+pub fn open_access(doi: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> Result<OpenAccess> {
+    let d = crate::util::normalize_doi(doi).ok_or_else(|| Error::user("This source has no valid DOI."))?;
+    let url = format!("https://api.openalex.org/works/doi:{}?select=open_access,best_oa_location,locations", urlencode_path(&d));
+    let res = get(&url, "application/json");
+    log("openaccess", "api.openalex.org", &d, res.is_ok(), res.as_ref().err().map(|e| e.to_string()).unwrap_or_default().as_str());
+    let v: serde_json::Value = serde_json::from_str(&res?)?;
+    let best = &v["best_oa_location"];
+    let s = |x: &serde_json::Value| x.as_str().unwrap_or("").to_string();
+    let mut oa = OpenAccess {
+        pdf_url: s(&best["pdf_url"]),
+        landing_url: s(&best["landing_page_url"]),
+        license: s(&best["license"]),
+        version: s(&best["version"]),
+        host: String::new(),
+        is_oa: v["open_access"]["is_oa"].as_bool().unwrap_or(false),
+    };
+    if oa.landing_url.is_empty() {
+        oa.landing_url = s(&v["open_access"]["oa_url"]);
+    }
+    // The best location may list only a web page; take a PDF from another open location,
+    // preferring the published version, then the accepted manuscript, then the submitted one.
+    if oa.pdf_url.is_empty() {
+        let rank = |ver: &str| match ver { "publishedVersion" => 0, "acceptedVersion" => 1, "submittedVersion" => 2, _ => 3 };
+        let mut best: Option<&serde_json::Value> = None;
+        for l in v["locations"].as_array().map(|a| a.as_slice()).unwrap_or(&[]) {
+            if l["is_oa"].as_bool() != Some(true) || l["pdf_url"].as_str().unwrap_or("").is_empty() {
+                continue;
+            }
+            if best.map_or(true, |b| rank(l["version"].as_str().unwrap_or("")) < rank(b["version"].as_str().unwrap_or(""))) {
+                best = Some(l);
+            }
+        }
+        if let Some(l) = best {
+            oa.pdf_url = s(&l["pdf_url"]);
+            oa.license = s(&l["license"]);
+            oa.version = s(&l["version"]);
+            if !s(&l["landing_page_url"]).is_empty() {
+                oa.landing_url = s(&l["landing_page_url"]);
+            }
+        }
+    }
+    oa.host = url_host(if oa.pdf_url.is_empty() { &oa.landing_url } else { &oa.pdf_url });
+    Ok(oa)
+}
+
+/// Download a PDF to `dest`, refusing anything that is not a PDF or is larger than 200 MB.
+pub fn download_pdf(url: &str, dest: &std::path::Path, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> Result<u64> {
+    use std::io::Read;
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err(Error::user("The free copy's address is not a web address."));
+    }
+    let host = url_host(url);
+    let r = agent().get(url).set("Accept", "application/pdf").call();
+    let resp = match r {
+        Ok(r) => r,
+        Err(e) => {
+            log("openaccess-download", &host, url, false, &e.to_string());
+            return Err(Error::Network(format!("The free copy could not be downloaded from {host}.")));
+        }
+    };
+    let mut buf = Vec::new();
+    resp.into_reader().take(200 * 1024 * 1024 + 1).read_to_end(&mut buf).map_err(|e| Error::Network(e.to_string()))?;
+    if buf.len() > 200 * 1024 * 1024 {
+        log("openaccess-download", &host, url, false, "larger than 200 MB");
+        return Err(Error::user("The free copy is larger than 200 MB and was not downloaded."));
+    }
+    if !buf.starts_with(b"%PDF") {
+        log("openaccess-download", &host, url, false, "not a PDF");
+        return Err(Error::user(&format!("{host} returned a web page rather than a PDF. Open the free copy's page instead.")));
+    }
+    std::fs::write(dest, &buf)?;
+    log("openaccess-download", &host, url, true, &format!("{} bytes", buf.len()));
+    Ok(buf.len() as u64)
+}
+
+fn url_host(u: &str) -> String {
+    u.split("://").nth(1).and_then(|r| r.split('/').next()).unwrap_or("").to_string()
+}
+
+fn urlencode_path(s: &str) -> String {
+    s.chars().map(|c| if c.is_ascii_alphanumeric() || "-._~/:".contains(c) { c.to_string() } else { c.to_string().bytes().map(|b| format!("%{b:02X}")).collect() }).collect()
 }
 
 /// Resolve one identifier. `kind`: doi, pmid, pmcid, arxiv, isbn, url.

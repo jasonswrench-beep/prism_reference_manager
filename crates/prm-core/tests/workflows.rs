@@ -416,3 +416,29 @@ fn quick_filters_combine_invert_and_count() {
     assert_eq!(p.total, 1);
     assert_eq!(p.rows[0].id, b.id);
 }
+
+#[test]
+fn pdf_identifiers_found_in_compressed_first_page_text() {
+    use lopdf::{dictionary, Document, Object, Stream};
+    let mut doc = Document::with_version("1.5");
+    let pages_id = doc.new_object_id();
+    let font = doc.add_object(dictionary! { "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica" });
+    let resources = doc.add_object(dictionary! { "Font" => dictionary! { "F1" => font } });
+    let body = " 0 -14 Td (Faculty learning benefits from structured opportunities to reflect.) Tj".repeat(30);
+    let text = format!("BT /F1 10 Tf 72 700 Td (arXiv:2401.01234v2 [cs.CL] 9 Jan 2024) Tj 0 -14 Td (https://doi.org/10.5555/jtp.2024.77) Tj{body} ET");
+    let mut stream = Stream::new(dictionary! {}, text.as_bytes().to_vec());
+    stream.compress().unwrap();
+    let content = doc.add_object(stream);
+    let page = doc.add_object(dictionary! { "Type" => "Page", "Parent" => pages_id, "Contents" => content, "Resources" => resources, "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()] });
+    doc.objects.insert(pages_id, Object::Dictionary(dictionary! { "Type" => "Pages", "Kids" => vec![Object::Reference(page)], "Count" => 1 }));
+    let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+    doc.trailer.set("Root", catalog);
+    let mut out = Vec::new();
+    doc.save_to(&mut out).unwrap();
+    assert!(!String::from_utf8_lossy(&out).contains("arXiv:2401"), "the text must be compressed for this test");
+    let p = tmp("ids").join("paper.pdf");
+    std::fs::write(&p, out).unwrap();
+    let info = prm_core::pdf::inspect(&p);
+    assert_eq!(info.arxiv, vec!["2401.01234v2".to_string()]);
+    assert!(info.dois.contains(&"10.5555/jtp.2024.77".to_string()), "{:?}", info.dois);
+}

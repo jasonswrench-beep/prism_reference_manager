@@ -21,6 +21,9 @@ pub struct PdfInfo {
     pub subject: String,
     pub keywords: String,
     pub dois: Vec<String>,
+    /// arXiv identifiers printed on the first pages (for example 2401.01234v2).
+    #[serde(default)]
+    pub arxiv: Vec<String>,
     pub message: String,
 }
 
@@ -125,6 +128,46 @@ fn page_labels(doc: &Document, count: usize) -> Vec<String> {
 }
 
 /// Inspect a PDF: state, page count, labels, document information and DOIs in metadata.
+/// Text of the given pages with line and word breaks kept (each text-showing operator is a word
+/// group; positioning operators start a new line), so identifiers are not glued to the next word.
+fn page_text(doc: &Document, pages: &std::collections::BTreeMap<u32, ObjectId>, numbers: &[u32]) -> Option<String> {
+    let mut out = String::new();
+    for n in numbers {
+        let id = pages.get(n)?;
+        let Ok(bytes) = doc.get_page_content(*id) else { continue };
+        let Ok(content) = lopdf::content::Content::decode(&bytes) else { continue };
+        for op in content.operations {
+            match op.operator.as_str() {
+                "Tj" | "'" | "\"" => {
+                    for o in &op.operands {
+                        if let Object::String(b, _) = o {
+                            out.push_str(&decode_pdf_string(b));
+                        }
+                    }
+                    out.push(' ');
+                }
+                "TJ" => {
+                    if let Some(Object::Array(items)) = op.operands.first() {
+                        for it in items {
+                            match it {
+                                Object::String(b, _) => out.push_str(&decode_pdf_string(b)),
+                                Object::Integer(k) if *k < -200 => out.push(' '),
+                                Object::Real(k) if *k < -200.0 => out.push(' '),
+                                _ => {}
+                            }
+                        }
+                    }
+                    out.push(' ');
+                }
+                "Td" | "TD" | "T*" | "Tm" | "ET" => out.push('\n'),
+                _ => {}
+            }
+        }
+        out.push('\n');
+    }
+    if out.trim().is_empty() { None } else { Some(out) }
+}
+
 pub fn inspect(path: &Path) -> PdfInfo {
     let mut info = PdfInfo { state: "ok".into(), ..Default::default() };
     let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
@@ -170,6 +213,23 @@ pub fn inspect(path: &Path) -> PdfInfo {
     }
     let pages = doc.get_pages();
     info.page_count = pages.len() as u32;
+    // First-page text: DOIs and arXiv identifiers are usually printed there, inside compressed
+    // content streams the raw scan above cannot see.
+    let first: Vec<u32> = pages.keys().copied().take(2).collect();
+    if let Some(text) = page_text(&doc, &pages, &first) {
+        for c in re!(r"(?i)\b(10\.\d{4,9}/[^\s<>\]\)\(\x22]+)").captures_iter(&text) {
+            let d = c[1].trim_end_matches(['.', ',', ';']).to_lowercase();
+            if !info.dois.contains(&d) && d.len() < 100 {
+                info.dois.push(d);
+            }
+        }
+        for c in re!(r"(?i)arXiv:\s*(\d{4}\.\d{4,5}(?:v\d+)?|[a-z\-]+(?:\.[A-Z]{2})?/\d{7}(?:v\d+)?)").captures_iter(&text) {
+            let a = c[1].to_string();
+            if !info.arxiv.contains(&a) {
+                info.arxiv.push(a);
+            }
+        }
+    }
     info.page_labels = page_labels(&doc, pages.len());
     if let Ok(Object::Reference(r)) = doc.trailer.get(b"Info") {
         if let Ok(d) = doc.get_dictionary(*r) {

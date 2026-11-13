@@ -217,6 +217,7 @@ function registerCommands() {
   command("source.paste", "Paste a bibliography to review…", () => dialogs.pasteBibliography(), "", "File");
   command("import.file", "Import a bibliographic file…", () => dialogs.importFile(), "Ctrl+O", "File");
   command("import.pdfs", "Import PDF files…", () => dialogs.importPdfs(), "", "File");
+  command("import.folder", "Import a folder of PDFs…", () => dialogs.importFolder(), "", "File");
   command("export.refs", "Export references…", () => dialogs.exportRefs(), "", "File");
   command("export.package", "Export complete library package…", () => dialogs.exportPackage(), "", "File");
   command("backup.now", "Back up now…", () => dialogs.backupNow(), "", "File");
@@ -403,6 +404,7 @@ export async function start() {
   on("job", (j) => { S.jobs.push(j); toast(j.message, j.ok ? "success" : "error"); renderStatus(); });
   on("api-pair", (p) => dialogs.pairRequest(p));
   on("update-available", (u) => toast(`Version ${u.version} is available.`, "info", { sticky: true, action: { label: "Review", run: () => go("settings", { tab: "about" }) } }));
+  on("watch", (w) => toast(`${w.count} new PDF${w.count === 1 ? "" : "s"} found in a watched folder. They wait for your review.`, "info", { sticky: true, action: { label: "Review", run: async () => dialogs.importReview(await call("import.get", { id: w.batch_id })) } }));
   on("capture", (c) => {
     const what = c.count === 1 ? `“${(c.title || "a source").slice(0, 80)}”` : `${c.count} sources`;
     toast(`Saved from your browser: ${what}. It waits for your review before joining the library.`, "info", { sticky: true, action: { label: "Review", run: async () => dialogs.importReview(await call("import.get", { id: c.batch_id })) } });

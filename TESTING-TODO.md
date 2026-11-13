@@ -60,6 +60,17 @@ already pass are listed at the end for reference.
 - [ ] Keyboard only: reach each divider and column edge with Tab and resize it with the arrow
       keys (Shift for bigger steps); move through cards with the arrow keys.
 
+## 2b. Bringing in files
+
+- [ ] Import a real folder of PDFs (Library › Add source › Import a folder of PDFs) with
+      subfolders. Check the identifiers found, the collections created, and that files already in
+      the library are marked to skip.
+- [ ] Watch your downloads folder (Settings › Library and backup › Watched folders), download a
+      paper, and confirm it appears for review within about a minute and is not added on its own.
+- [ ] Find free full texts for a handful of real sources with DOIs (select them, Find free full
+      texts). Check that each attached file is the right paper and that the version and licence
+      shown are plausible; the open index's version labels are reported as given.
+
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
 For each host, record the exact build, OS and paste mode, and whether italics, punctuation,
@@ -204,7 +215,7 @@ work that could not be verified here or an owner decision.
   bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other
   programs (EXT-013); scheduled export presets (EXP-006); a spreadsheet (.xlsx) export (CSV works).
-- Watched folders (CAP-009); tasks interface (KNW-012; the data model exists).
+- Text recognition (OCR) for scanned PDFs (FIL-010); tasks interface (KNW-012; the data model exists).
 
 ## Automated checks that pass in this build
 
