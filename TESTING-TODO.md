@@ -85,6 +85,9 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 ## 6. Installation and recovery (release gate G10, G12, G13)
 
 - [ ] Install with the per-user installer on a clean Windows account without administrator rights.
+      (Automated: `tools	est-installer.ps1` passed on the development machine — silent install
+      into a chosen folder, per-user registration, uninstall removes only the program folder and
+      its settings, neighbouring folders and the library folder untouched.)
 - [ ] Silent install `Prism-Reference-Manager-0.1.0-setup.exe /S` and uninstall `/S` from a script.
 - [ ] Uninstall: confirm `%LOCALAPPDATA%\Prism Reference Manager`,
       `%APPDATA%\org.prism.referencemanager` and `%LOCALAPPDATA%\org.prism.referencemanager` are
@@ -116,7 +119,20 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 
 - [ ] Record the reference machine (4 cores, 16 GB, SSD, OS build, power plan) and rerun
       `cargo test -p prm-core --release --test robustness benchmark_100k_references -- --ignored --nocapture`.
-      Measured on the development machine (see below); the targets still need a reference machine.
+      Measured on the development machine, 100,000 references, release build:
+
+      | Measure | Result | Target | Status |
+      |---|---|---|---|
+      | Insert 100,000 records (one batch) | 27.6 s | — | |
+      | Text mirror catch-up after that batch | 523 s (runs in the background) | — | slow but nonblocking |
+      | Metadata search | median 328 ms, p95 919 ms | p95 ≤ 250 ms | **missed** |
+      | List and sort a page | 1.0 s | ≤ 500 ms | **missed** |
+      | Citation render, 200-source context | 42 ms | ≤ 500 ms | met |
+      | Duplicate scan | 116 s | ≤ 60 s | **missed** |
+
+      At 20,000 references search p95 was 229 ms and list 189 ms, both within target. The misses
+      at 100,000 need work before release: paging the list in SQL instead of in memory, a
+      lighter search result path, and finer blocking in the duplicate scan.
 - [ ] Open a 500-page PDF and time the first page (target 2 seconds).
 - [ ] Index 20,000 PDFs (Settings › Library › Index all PDFs) and time it.
 - [ ] Warm start with a 100,000-reference library (target 3 seconds); idle memory (target 500 MB).
