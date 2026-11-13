@@ -65,6 +65,7 @@ const P = {
   chevronRight: "M9 6l6 6-6 6",
   chevronUp: "M6 15l6-6 6 6",
   search: "M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM16 16l5 5",
+  filter: "M3 5h18l-7 8v6l-4 2v-8z",
   doc: "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6",
   pdf: "M7 3h7l5 5v13H7zM14 3v5h5M9.5 15.5h1.5a1.5 1.5 0 0 0 0-3H9.5v5",
   book: "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM6 19h13v2H6",

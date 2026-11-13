@@ -365,3 +365,24 @@ details.support pre { white-space: pre-wrap; font-size: 12px; background: var(--
   .reader { grid-template-columns: 1fr; }
   .welcome .options { grid-template-columns: 1fr; }
 }
+
+/* Library: resizable panes, column grips, list and card layouts, filters, popovers. */
+.panes.resizable { gap: 0; }
+.panes.resizable > .splitter { width: 6px; align-self: stretch; border-radius: 3px; }
+.splitter.h { width: auto; height: 6px; cursor: row-resize; flex: none; border-radius: 3px; }
+.splitter:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
+.table.fixed { table-layout: fixed; width: 100%; }
+.table.fixed td, .table.fixed th { overflow: hidden; }
+.col-grip { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
+.seg [role="radio"] { border: 0; background: none; padding: 5px 12px; font-size: 13px; color: var(--text); }
+.seg [role="radio"][aria-checked="true"] { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.ref-list { display: flex; flex-direction: column; }
+.ref-item { padding: 8px 12px; border-bottom: 1px solid var(--divider); cursor: default; }
+.ref-item[aria-selected="true"], .ref-card[aria-selected="true"] { background: var(--primary-soft); }
+.ref-item:focus-visible, .ref-card:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; padding: 10px; }
+.ref-card { border: 1px solid var(--divider); border-radius: 8px; padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; cursor: default; }
+.popover { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius); box-shadow: var(--shadow); padding: 4px; }
+.menu-item { background: none; border: 0; padding: 7px 10px; border-radius: 4px; text-align: left; color: var(--text); }
+.menu-item:hover, .menu-item:focus { background: var(--primary-soft); outline: none; }
+.popover hr { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; }

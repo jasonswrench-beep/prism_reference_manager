@@ -390,3 +390,29 @@ fn kept_bib_file_honors_excluded_fields() {
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(text.contains("Reflective practice") && !text.to_lowercase().contains("abstract"), "{text}");
 }
+
+#[test]
+fn quick_filters_combine_invert_and_count() {
+    use prm_core::library::{ListQuery, QuickFilter};
+    let (mut lib, _root) = open("facets");
+    let a = lib.add_reference(article("Alpha", 2020, &[("Adams", "A")]), None).unwrap();
+    let b = lib.add_reference(article("Beta", 2021, &[("Brown", "B")]), None).unwrap();
+    let mut book = article("Gamma", 2020, &[("Cole", "C")]);
+    book.rtype = "book".into();
+    let c = lib.add_reference(book, None).unwrap();
+    lib.set_labels(&[a.id.clone(), c.id.clone()], "Theory", true).unwrap();
+    let q = |filters: Vec<QuickFilter>| ListQuery { filters, facets: true, limit: 50, ..Default::default() };
+    let f = |field: &str, value: &str, negate: bool| QuickFilter { field: field.into(), value: value.into(), negate };
+    let all = lib.list_references(&q(vec![])).unwrap();
+    let facets = all.facets.unwrap();
+    let count = |k: &str, v: &str| facets[k].iter().find(|x| x.value == v).map(|x| x.count).unwrap_or(0);
+    assert_eq!(count("type", "article-journal"), 2);
+    assert_eq!(count("year", "2020"), 2);
+    assert_eq!(count("label", "Theory"), 2);
+    assert_eq!(count("pdf", "no"), 3);
+    let p = lib.list_references(&q(vec![f("year", "2020", false), f("type", "book", true)])).unwrap();
+    assert_eq!(p.rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec![a.id.clone()], "2020 and not a book");
+    let p = lib.list_references(&q(vec![f("label", "Theory", true)])).unwrap();
+    assert_eq!(p.total, 1);
+    assert_eq!(p.rows[0].id, b.id);
+}

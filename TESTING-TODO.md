@@ -50,6 +50,16 @@ already pass are listed at the end for reference.
 - [ ] Check the citation language with a CSL style in a language you can read (for example
       German "und", French "et", month names).
 
+## 2a. Library screen
+
+- [ ] In Library, try the Table, List and Cards layouts; choose columns (Columns…), drag a
+      column edge, and drag the dividers beside the collections and details panes and above the
+      abstract pane. Restart the program and confirm the layout comes back.
+- [ ] Open Filters, add a Type, Year, Label, PDF and (in a project) Reading filter, switch one to
+      "not", and save the result under Views. Confirm the counts look right on a real library.
+- [ ] Keyboard only: reach each divider and column edge with Tab and resize it with the arrow
+      keys (Shift for bigger steps); move through cards with the arrow keys.
+
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
 For each host, record the exact build, OS and paste mode, and whether italics, punctuation,
@@ -189,8 +199,7 @@ work that could not be verified here or an owner decision.
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).
 - Side-by-side reading of two documents (part of RDR-001); configurable colour-to-type scheme
   (RDR-003); annotation filters by colour and author (RDR-007).
-- Resizable and saved pane layouts, list and card views, customizable shortcuts (UIX-001,
-  LIB-009, UIX-012). Navigation can be collapsed (Ctrl+B).
+- Customizable keyboard shortcuts (UIX-012). Navigation can be collapsed (Ctrl+B).
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other

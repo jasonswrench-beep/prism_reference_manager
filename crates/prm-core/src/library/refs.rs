@@ -53,6 +53,29 @@ pub struct ListQuery {
     pub offset: usize,
     #[serde(default)]
     pub limit: usize,
+    /// Quick filters, combined with AND. Each can be inverted.
+    #[serde(default)]
+    pub filters: Vec<QuickFilter>,
+    /// Also count the values of each quick-filter field over the filtered result.
+    #[serde(default)]
+    pub facets: bool,
+}
+
+/// One quick filter: `field` is type, year, label, pdf or reading; `value` is the value to match.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct QuickFilter {
+    pub field: String,
+    pub value: String,
+    #[serde(default)]
+    pub negate: bool,
+}
+
+/// A value of a quick-filter field and how many sources in the current result have it.
+#[derive(Debug, Clone, Serialize)]
+pub struct FacetValue {
+    pub value: String,
+    pub label: String,
+    pub count: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -61,6 +84,9 @@ pub struct RefPage {
     pub rows: Vec<RefRow>,
     pub pending_index: i64,
     pub search_hits: Vec<crate::search::Hit>,
+    /// field -> values with counts, when requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facets: Option<BTreeMap<String, Vec<FacetValue>>>,
 }
 
 pub fn author_short(r: &Reference) -> String {
@@ -188,6 +214,36 @@ impl Library {
             }
             _ => {}
         }
+        // Quick filters.
+        const PDF_SQL: &str = "SELECT ref_id FROM attachments WHERE json_extract(data,'$.mime')='application/pdf' AND COALESCE(json_extract(data,'$.superseded'),0)=0";
+        for f in &q.filters {
+            let clause = match f.field.as_str() {
+                "type" => {
+                    let p = bind(&f.value, &mut args);
+                    format!("x.rtype={p}")
+                }
+                "year" => {
+                    if f.value == "none" {
+                        "x.year_key NOT GLOB '[0-9]*'".to_string()
+                    } else {
+                        let p = bind(&f.value, &mut args);
+                        format!("CAST(x.year_key AS INTEGER)=CAST({p} AS INTEGER) AND x.year_key GLOB '[0-9]*'")
+                    }
+                }
+                "label" => {
+                    let p = bind(&f.value, &mut args);
+                    format!("x.id IN (SELECT refs.id FROM refs, json_each(refs.data,'$.labels') j WHERE j.value={p})")
+                }
+                "pdf" => format!("x.id {} ({PDF_SQL})", if f.value == "yes" { "IN" } else { "NOT IN" }),
+                "reading" if !q.project_id.is_empty() => {
+                    let pr = bind(&q.project_id, &mut args);
+                    let p = bind(&f.value, &mut args);
+                    format!("x.id IN (SELECT ref_id FROM project_sources WHERE project_id={pr} AND COALESCE(json_extract(data,'$.reading'),'unread')={p})")
+                }
+                _ => continue,
+            };
+            wh.push(if f.negate { format!("NOT ({clause})") } else { clause });
+        }
         // Collections and searches narrow the list to an explicit set held in a temporary table.
         let mut id_set: Option<BTreeSet<String>> = None;
         if !q.collection_id.is_empty() {
@@ -246,6 +302,7 @@ impl Library {
         let order = if col == "x.title_key" { format!("x.title_key {dir}, x.id {dir}") } else { format!("{col} {dir}, x.title_key {dir}, x.id {dir}") };
         let w = wh.join(" AND ");
         let total: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM ref_index x WHERE {w}"), rusqlite::params_from_iter(args.iter()), |r| r.get(0))?;
+        let facets = if q.facets { Some(self.facets(&w, &args, &q.project_id)?) } else { None };
         let limit = if q.limit == 0 { 500 } else { q.limit.min(1_000_000) };
         let page_ids: Vec<String> = {
             let mut st = conn.prepare(&format!("SELECT x.id FROM ref_index x WHERE {w} ORDER BY {order} LIMIT {limit} OFFSET {}", q.offset))?;
@@ -283,7 +340,32 @@ impl Library {
         if !q.search.trim().is_empty() {
             hits = crate::search::hits_for(conn, &q.search, &page_ids, None)?;
         }
-        Ok(RefPage { total: total as usize, rows, pending_index: crate::search::pending_index_count(conn)?, search_hits: hits })
+        Ok(RefPage { total: total as usize, rows, pending_index: crate::search::pending_index_count(conn)?, search_hits: hits, facets })
+    }
+
+    /// Counts of each quick-filter value over the rows matching `w`.
+    fn facets(&self, w: &str, args: &[String], project_id: &str) -> Result<BTreeMap<String, Vec<FacetValue>>> {
+        let conn = &self.store.conn;
+        let mut out = BTreeMap::new();
+        let run = |sql: &str| -> Result<Vec<(String, i64)>> {
+            let mut st = conn.prepare(sql)?;
+            let v = st.query_map(rusqlite::params_from_iter(args.iter()), |r| Ok((r.get::<_, Option<String>>(0)?.unwrap_or_default(), r.get::<_, i64>(1)?)))?.filter_map(|r| r.ok()).collect();
+            Ok(v)
+        };
+        let types = run(&format!("SELECT x.rtype, COUNT(*) FROM ref_index x WHERE {w} GROUP BY x.rtype ORDER BY COUNT(*) DESC"))?;
+        out.insert("type".to_string(), types.into_iter().map(|(v, c)| FacetValue { label: crate::types::label(&v).to_string(), value: v, count: c }).collect());
+        let years = run(&format!("SELECT CASE WHEN x.year_key GLOB '[0-9]*' THEN CAST(CAST(x.year_key AS INTEGER) AS TEXT) ELSE 'none' END AS y, COUNT(*) FROM ref_index x WHERE {w} GROUP BY y ORDER BY y DESC"))?;
+        out.insert("year".to_string(), years.into_iter().map(|(v, c)| FacetValue { label: if v == "none" { "No year".into() } else { v.clone() }, value: v, count: c }).collect());
+        let labels = run(&format!("SELECT j.value, COUNT(*) FROM refs, json_each(refs.data,'$.labels') j WHERE refs.id IN (SELECT x.id FROM ref_index x WHERE {w}) GROUP BY j.value ORDER BY COUNT(*) DESC, j.value"))?;
+        out.insert("label".to_string(), labels.into_iter().map(|(v, c)| FacetValue { label: v.clone(), value: v, count: c }).collect());
+        let pdf = run(&format!("SELECT CASE WHEN x.id IN (SELECT ref_id FROM attachments WHERE json_extract(data,'$.mime')='application/pdf' AND COALESCE(json_extract(data,'$.superseded'),0)=0) THEN 'yes' ELSE 'no' END AS p, COUNT(*) FROM ref_index x WHERE {w} GROUP BY p ORDER BY p DESC"))?;
+        out.insert("pdf".to_string(), pdf.into_iter().map(|(v, c)| FacetValue { label: if v == "yes" { "Has a PDF".into() } else { "No PDF".into() }, value: v, count: c }).collect());
+        if !project_id.is_empty() {
+            let pid = project_id.replace('\'', "''");
+            let reading = run(&format!("SELECT COALESCE((SELECT json_extract(ps.data,'$.reading') FROM project_sources ps WHERE ps.project_id='{pid}' AND ps.ref_id=x.id),'unread') AS rd, COUNT(*) FROM ref_index x WHERE {w} GROUP BY rd ORDER BY rd"))?;
+            out.insert("reading".to_string(), reading.into_iter().map(|(v, c)| FacetValue { label: match v.as_str() { "read" => "Read".into(), "reading" => "Reading".into(), "unread" | "" => "Not read".into(), o => o.to_string() }, value: if v.is_empty() { "unread".into() } else { v }, count: c }).collect());
+        }
+        Ok(out)
     }
 
     fn taken_keys(&self) -> Result<BTreeSet<String>> {

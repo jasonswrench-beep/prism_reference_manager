@@ -6,7 +6,84 @@ import { S, registerView, go, refresh, manuscript } from "../app.js";
 import * as dialogs from "../dialogs.js";
 import { sourceEditor, fieldLabel } from "../editor.js";
 
-const st = { scope: "project", view: "all", collection: "", label: "", search: "", sort: "authors", desc: false, selected: new Set(), focus: null, inspectorTab: "details", bottomTab: "abstract", layout: "table", offset: 0 };
+const st = { scope: "project", view: "all", collection: "", label: "", search: "", sort: "authors", desc: false, selected: new Set(), focus: null, inspectorTab: "details", bottomTab: "abstract", layout: null, offset: 0, filters: [], showFilters: false };
+
+// Columns the table can show. `sort` names the list sort key; `w` is the default width in pixels
+// (the title column takes the remaining space).
+const COLS = {
+  authors: { label: "Author", sort: "authors", w: 190 },
+  year: { label: "Year", sort: "year", w: 64 },
+  title: { label: "Title", sort: "title", w: 0 },
+  container: { label: "Published in", sort: "container", w: 190 },
+  type: { label: "Type", sort: "type", w: 130 },
+  citekey: { label: "Citation key", sort: "citekey", w: 150 },
+  rating: { label: "Rating", sort: "rating", w: 84 },
+  labels: { label: "Labels", w: 150 },
+  created: { label: "Added", sort: "created", w: 104 },
+  modified: { label: "Modified", sort: "modified", w: 104 },
+  reading: { label: "Read", w: 52 },
+  pdf: { label: "PDF", w: 52 },
+};
+const DEFAULT_COLS = ["authors", "year", "title", "reading", "pdf"];
+const FILTER_FIELDS = [["type", "Type"], ["year", "Year"], ["label", "Label"], ["pdf", "PDF"], ["reading", "Reading"]];
+
+// Library layout preferences live in settings.layout.library; named views in settings.layouts.library.
+const prefs = () => S.settings.layout?.library || {};
+let prefTimer = null;
+function savePrefs(patch, now = false) {
+  const lib = { ...prefs(), ...patch };
+  S.settings.layout = { ...(S.settings.layout || {}), library: lib };
+  clearTimeout(prefTimer);
+  const go2 = () => call("settings.set", { settings: { layout: S.settings.layout } }).then((x) => { S.settings = x; }).catch(() => {});
+  if (now) go2(); else prefTimer = setTimeout(go2, 400);
+}
+const savedViews = () => S.settings.layouts?.library || [];
+async function saveViews(list) {
+  S.settings = await call("settings.set", { settings: { layouts: { ...(S.settings.layouts || {}), library: list } } });
+}
+const colList = () => (prefs().columns?.length ? prefs().columns : DEFAULT_COLS.map((k) => ({ key: k }))).filter((c) => COLS[c.key]);
+const colWidth = (c) => c.width || COLS[c.key].w;
+
+/** A small anchored panel that closes on Escape or a click outside. */
+function popover(anchor, content) {
+  document.querySelector(".popover")?.remove();
+  const r = anchor.getBoundingClientRect();
+  const pop = h("div.popover", { role: "dialog", style: { position: "fixed", top: `${Math.round(r.bottom + 4)}px`, left: `${Math.round(Math.min(r.left, window.innerWidth - 300))}px`, zIndex: 50 } }, content);
+  const close = () => { pop.remove(); document.removeEventListener("mousedown", outside, true); anchor.focus(); };
+  const outside = (e) => { if (!pop.contains(e.target) && e.target !== anchor) close(); };
+  pop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); close(); } });
+  document.addEventListener("mousedown", outside, true);
+  document.body.append(pop);
+  pop.querySelector("button, input")?.focus();
+  return close;
+}
+
+/** A draggable, keyboard-adjustable divider. `get`/`set` work in pixels. */
+function splitter(label, orientation, get, set, min, max, done) {
+  const el = h("div.splitter" + (orientation === "horizontal" ? ".h" : ""), { role: "separator", tabindex: "0", "aria-label": label, "aria-orientation": orientation === "horizontal" ? "horizontal" : "vertical", "aria-valuemin": String(min), "aria-valuemax": String(max) });
+  const sync = () => el.setAttribute("aria-valuenow", String(Math.round(get())));
+  sync();
+  const apply = (v) => { set(Math.max(min, Math.min(max, v))); sync(); };
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    const start = orientation === "horizontal" ? e.clientY : e.clientX;
+    const base = get();
+    const sign = el.dataset.invert ? -1 : 1;
+    const move = (ev) => apply(base + sign * ((orientation === "horizontal" ? ev.clientY : ev.clientX) - start));
+    const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); done(); };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+  });
+  el.addEventListener("keydown", (e) => {
+    const sign = el.dataset.invert ? -1 : 1;
+    const step = e.shiftKey ? 64 : 16;
+    const back = orientation === "horizontal" ? "ArrowUp" : "ArrowLeft", fwd = orientation === "horizontal" ? "ArrowDown" : "ArrowRight";
+    if (e.key === back) { apply(get() - sign * step); done(); e.preventDefault(); }
+    if (e.key === fwd) { apply(get() + sign * step); done(); e.preventDefault(); }
+  });
+  return el;
+}
 
 function anchorReadingIcon(r) {
   return r.reading === "read" ? icon("check", 18, "Read") : r.reading === "reading" ? icon("reader", 18, "Reading") : icon("reader", 18, "Not read");
@@ -20,7 +97,15 @@ registerView("library", {
     const tree = h("div.pane", { style: { padding: "6px" } });
     const listPane = h("div", { style: { display: "flex", flexDirection: "column", gap: "10px", minWidth: 0, minHeight: 0 } });
     const inspector = h("div.pane", { style: { padding: "0" } });
-    const grid = h("div.panes", { style: { gridTemplateColumns: "230px minmax(0, 1fr) 380px" } }, tree, listPane, inspector);
+    const pane = { tree: prefs().panes?.tree || 230, inspector: prefs().panes?.inspector || 380, bottom: prefs().panes?.bottom || 230 };
+    const grid = h("div.panes.resizable");
+    const layoutGrid = () => { grid.style.gridTemplateColumns = `${pane.tree}px 6px minmax(0, 1fr) 6px ${pane.inspector}px`; };
+    const savePanes = () => savePrefs({ panes: { ...pane } });
+    const treeSplit = splitter("Resize collections pane", "vertical", () => pane.tree, (v) => { pane.tree = v; layoutGrid(); }, 160, 480, savePanes);
+    const inspSplit = splitter("Resize details pane", "vertical", () => pane.inspector, (v) => { pane.inspector = v; layoutGrid(); }, 260, 720, savePanes);
+    inspSplit.dataset.invert = "1";
+    layoutGrid();
+    grid.append(tree, treeSplit, listPane, inspSplit, inspector);
     el.append(grid);
     const [collections, labels, saved] = await Promise.all([call("collections.list"), call("labels.list"), call("searches.list")]);
 
@@ -100,15 +185,99 @@ registerView("library", {
       void v;
     } });
     const toolbar = h("div.row", h("div.grow", { style: { position: "relative" } }, searchBox), searchHelp, addMenuBtn, btn("Import", { icon: "download", onClick: () => dialogs.importFile() }));
+    if (!st.layout) st.layout = prefs().view || "table";
+    const viewSwitch = h("div.seg", { role: "radiogroup", "aria-label": "List layout" }, [["table", "Table"], ["list", "List"], ["cards", "Cards"]].map(([k, l]) =>
+      h("button", { type: "button", role: "radio", "aria-checked": String(st.layout === k), on: { click: () => { st.layout = k; savePrefs({ view: k }); for (const b of viewSwitch.children) b.setAttribute("aria-checked", String(b.textContent === l)); drawList(); } } }, l)));
+    const filtersBtn = btn("Filters", { small: true, icon: "filter", onClick: () => { st.showFilters = !st.showFilters; filtersBtn.setAttribute("aria-pressed", String(st.showFilters)); loadList(); } });
+    filtersBtn.setAttribute("aria-pressed", String(st.showFilters));
+    const viewsBtn = btn("Views", { small: true, onClick: () => viewsMenu(viewsBtn) });
+    const colsBtn = btn("Columns…", { small: true, onClick: () => columnsDialog() });
+    const toolbar2 = h("div.row.small", viewSwitch, colsBtn, filtersBtn, viewsBtn);
+    const filterBar = h("div", { "aria-live": "polite" });
     const bulk = h("div.row.small", { style: { minHeight: "34px" } });
     const listBox = h("div.pane", { style: { flex: "1" } });
-    const bottom = h("div.pane", { style: { height: "230px", flex: "none" } });
-    listPane.append(toolbar, bulk, listBox, bottom);
+    const bottom = h("div.pane", { style: { height: pane.bottom + "px", flex: "none" } });
+    const bottomSplit = splitter("Resize abstract and notes pane", "horizontal", () => pane.bottom, (v) => { pane.bottom = v; bottom.style.height = v + "px"; }, 90, 600, savePanes);
+    bottomSplit.dataset.invert = "1";
+    listPane.append(toolbar, toolbar2, filterBar, bulk, listBox, bottomSplit, bottom);
+
+    // ---- columns, saved views, filters -----------------------------------------------------------
+    const columnsDialog = async () => {
+      let list = colList().map((c) => ({ ...c }));
+      const box = h("div");
+      const draw = () => {
+        clear(box);
+        const shown = new Set(list.map((c) => c.key));
+        const order = [...list.map((c) => c.key), ...Object.keys(COLS).filter((k) => !shown.has(k))];
+        order.forEach((k) => {
+          const on = shown.has(k);
+          const idx = list.findIndex((c) => c.key === k);
+          const cb = h("input", { type: "checkbox", id: "col-" + k, checked: on, disabled: k === "title", on: { change: (e) => { if (e.target.checked) list.push({ key: k }); else list = list.filter((c) => c.key !== k); draw(); } } });
+          box.append(h("div.row", { style: { padding: "4px 0" } }, cb, h("label.grow", { for: "col-" + k }, COLS[k].label),
+            on ? iconBtn("chevronUp", `Move ${COLS[k].label} left`, () => { if (idx > 0) { [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]; draw(); box.querySelector(`[aria-label="Move ${COLS[k].label} left"]`)?.focus(); } }) : null,
+            on ? iconBtn("chevronDown", `Move ${COLS[k].label} right`, () => { if (idx < list.length - 1) { [list[idx + 1], list[idx]] = [list[idx], list[idx + 1]]; draw(); box.querySelector(`[aria-label="Move ${COLS[k].label} right"]`)?.focus(); } }) : null));
+        });
+      };
+      draw();
+      const r = await modal("Columns", h("div", h("p.small.muted", "Choose and order the table columns. Drag a column edge in the table to change its width."), box), { size: "narrow", buttons: [
+        { label: "Reset", value: "reset" }, { label: "Cancel" }, { label: "Apply", kind: "primary", value: "apply" }] }).done;
+      if (r === "reset") savePrefs({ columns: null }, true);
+      else if (r === "apply") savePrefs({ columns: list }, true);
+      if (r) drawList();
+    };
+    const viewsMenu = (anchor) => {
+      const list = savedViews();
+      const current = () => ({ view: st.layout, columns: colList(), sort: st.sort, desc: st.desc, filters: st.filters });
+      let close;
+      const content = h("div", { role: "menu", "aria-label": "Saved views", style: { minWidth: "240px" } },
+        list.length ? list.map((v, i) => h("div.row", h("button.menu-item.grow", { type: "button", role: "menuitem", on: { click: () => {
+          st.layout = v.view || "table"; st.sort = v.sort || "authors"; st.desc = !!v.desc; st.filters = v.filters || []; st.showFilters = st.filters.length > 0; st.offset = 0;
+          savePrefs({ view: st.layout, columns: v.columns || null }, true); close(); go("library");
+        } } }, v.name), iconBtn("trash", `Delete view ${v.name}`, async () => { list.splice(i, 1); await saveViews(list); close(); toast("View deleted", "success"); }))) : h("p.small.muted", { style: { padding: "6px 10px" } }, "No saved views yet."),
+        h("hr"),
+        h("button.menu-item", { type: "button", role: "menuitem", on: { click: async () => {
+          close();
+          const n = await promptDialog("Save view", "Name", "", { help: "Saves the layout, columns, sort order and quick filters. Collections and searches are not part of a view." });
+          if (!n) return;
+          await saveViews([...savedViews().filter((v) => v.name !== n), { name: n, ...current() }]);
+          toast(`View “${n}” saved`, "success");
+        } } }, "Save current view…"));
+      close = popover(anchor, content);
+    };
+    const drawFilters = () => {
+      clear(filterBar);
+      if (!st.showFilters && !st.filters.length) return;
+      const facets = page?.facets || {};
+      const chips = st.filters.map((f, i) => {
+        const fl = FILTER_FIELDS.find((x) => x[0] === f.field)?.[1] || f.field;
+        const lab = f.label || (facets[f.field] || []).find((x) => x.value === f.value)?.label || f.value;
+        return h("span.chip", { style: f.negate ? { background: "var(--danger-soft)" } : null },
+          h("button", { type: "button", title: f.negate ? "Excluding: click to include instead" : "Including: click to exclude instead", "aria-label": `${f.negate ? "Excluding" : "Including"} ${fl} ${lab}; switch`, on: { click: () => { f.negate = !f.negate; st.offset = 0; loadList(); } } }, f.negate ? "not " : "", `${fl}: ${lab}`),
+          h("button", { type: "button", "aria-label": `Remove filter ${fl} ${lab}`, on: { click: () => { st.filters.splice(i, 1); st.offset = 0; loadList(); } } }, icon("x", 14)));
+      });
+      const adders = st.showFilters ? FILTER_FIELDS.filter(([k]) => k !== "reading" || st.scope === "project").map(([k, l]) => {
+        const b = h("button.btn.small", { type: "button", "aria-haspopup": "menu" }, l, icon("chevronDown", 14));
+        b.addEventListener("click", () => {
+          const vals = (facets[k] || []).slice(0, 60);
+          let close;
+          close = popover(b, h("div", { role: "menu", "aria-label": `${l} values`, style: { maxHeight: "320px", overflow: "auto", minWidth: "220px" } },
+            vals.length ? vals.map((v) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "flex", gap: "8px", width: "100%" }, on: { click: () => {
+              st.filters = st.filters.filter((x) => !(x.field === k && x.value === v.value));
+              st.filters.push({ field: k, value: v.value, label: v.label, negate: false }); st.offset = 0; close(); loadList();
+            } } }, h("span.grow", { style: { textAlign: "left" } }, v.label), h("span.muted", String(v.count)))) : h("p.small.muted", { style: { padding: "6px 10px" } }, "No values in the current list.")));
+        });
+        return b;
+      }) : [];
+      filterBar.append(h("div.row.small", { style: { flexWrap: "wrap", gap: "6px", padding: "2px 0" } }, ...chips, ...adders,
+        st.filters.length ? btn("Clear filters", { small: true, kind: "ghost", onClick: () => { st.filters = []; st.offset = 0; loadList(); } }) : null,
+        st.showFilters ? h("span.small.muted", "Counts are for the list as currently filtered. Click a filter to switch between including and excluding.") : null));
+    };
     let page = null;
 
     const loadList = async () => {
       try {
-        page = await call("refs.list", { query: { project_id: st.scope === "project" && st.view !== "trash" ? S.project?.project.id || "" : "", collection_id: st.collection, view: st.view, search: st.search, sort: st.sort, desc: st.desc, label: st.label, offset: st.offset, limit: 400 } });
+        page = await call("refs.list", { query: { project_id: st.scope === "project" && st.view !== "trash" ? S.project?.project.id || "" : "", collection_id: st.collection, view: st.view, search: st.search, sort: st.sort, desc: st.desc, label: st.label, offset: st.offset, limit: 400, filters: st.filters, facets: st.showFilters } });
+        drawFilters();
         drawList();
       } catch (e) { clear(listBox); showError(e, listBox); }
     };
@@ -153,42 +322,96 @@ registerView("library", {
         drawInspector();
         return;
       }
-      const table = h("table.table", { role: "grid", "aria-label": "Sources", "aria-rowcount": String(page.total + 1), "aria-multiselectable": "true" });
-      const head = h("tr", { role: "row" }, cols.map(([k, l]) => {
-        const sortable = !["reading", "pdf"].includes(k);
-        return h("th", { role: "columnheader", "aria-sort": st.sort === k ? (st.desc ? "descending" : "ascending") : null, style: k === "year" ? { width: "64px" } : k === "reading" || k === "pdf" ? { width: "48px", textAlign: "center" } : k === "authors" ? { width: "22%" } : null },
-          sortable ? h("button", { type: "button", on: { click: () => { if (st.sort === k) st.desc = !st.desc; else { st.sort = k; st.desc = false; } loadList(); } } }, l, st.sort === k ? icon(st.desc ? "chevronDown" : "chevronUp", 14) : null) : l);
+      if (st.layout === "list" || st.layout === "cards") { drawItems(); return; }
+      const shown = colList();
+      const table = h("table.table.fixed", { role: "grid", "aria-label": "Sources", "aria-rowcount": String(page.total + 1), "aria-multiselectable": "true" });
+      const colgroup = h("colgroup", shown.map((c) => h("col", { style: colWidth(c) ? { width: colWidth(c) + "px" } : null })));
+      const head = h("tr", { role: "row" }, shown.map((c, ci) => {
+        const k = c.key, def = COLS[k];
+        const th = h("th", { role: "columnheader", "aria-sort": st.sort === def.sort ? (st.desc ? "descending" : "ascending") : null, style: { position: "relative", textAlign: k === "reading" || k === "pdf" ? "center" : null } },
+          def.sort ? h("button", { type: "button", on: { click: () => { if (st.sort === def.sort) st.desc = !st.desc; else { st.sort = def.sort; st.desc = false; } loadList(); } } }, def.label, st.sort === def.sort ? icon(st.desc ? "chevronDown" : "chevronUp", 14) : null) : def.label);
+        if (def.w) {
+          const colEl = colgroup.children[ci];
+          const grip = splitter(`Resize ${def.label} column`, "vertical", () => colWidth(c), (v) => { c.width = v; colEl.style.width = v + "px"; }, 44, 600, () => savePrefs({ columns: shown }));
+          grip.classList.add("col-grip");
+          th.append(grip);
+        }
+        return th;
       }));
       const body = h("tbody");
       page.rows.forEach((r, i) => {
         const tr = h("tr", { role: "row", tabindex: r.id === (st.focus || page.rows[0].id) ? "0" : "-1", "aria-selected": String(st.selected.has(r.id)), "aria-rowindex": String(st.offset + i + 2), "data-id": r.id },
-          h("td", h("span.row", icon(r.rtype.startsWith("article") ? "doc" : r.rtype.includes("book") || r.rtype === "chapter" ? "book" : "doc", 16), h("span.ellipsis", r.authors || "—"))),
-          h("td", r.year || "n.d."),
-          h("td", h("div.ellipsis", { title: r.title }, r.title || h("em.muted", "No title")),
-            ...(page.search_hits || []).filter((x) => x.ref_id === r.id && x.field !== "title").slice(0, 2).map((x) => h("div.hit", h("b", { page: "PDF text", fulltext: "PDF text", annotation: "Annotation", comment: "Annotation comment", note: "Note", quotation: "Quotation", author: "Author", journal: "Published in", abstract: "Abstract", tag: "Tag", keywords: "Keyword", doi: "DOI", citekey: "Citation key", publisher: "Publisher" }[x.field] || x.field), x.page >= 0 && (x.field === "fulltext" || x.entity === "annotation") ? ` (PDF page ${x.page + 1})` : "", ": ", x.snippet,
-              x.field === "fulltext" ? h("button.btn.ghost.small", { type: "button", on: { click: (e) => { e.stopPropagation(); go("reader", { ref: r.id, att: x.entity_id, page: x.page + 1 }); } } }, "Open at page") : null)),
-            r.notices ? h("span.badge.danger.small", { title: "Retraction or correction notice" }, icon("warn", 13), "Notice") : null,
-            r.issues ? h("span.small.status-review", " ", icon("warn", 13), " review") : null,
-            r.origin === "ai" || r.origin === "agent" ? h("span.badge.neutral.small", "machine-created") : null),
-          h("td", { style: { textAlign: "center" } }, st.scope === "project" ? anchorReadingIcon(r) : ""),
-          h("td", { style: { textAlign: "center" } }, r.has_pdf ? h("button.icon-btn", { type: "button", "aria-label": "Open PDF", title: "Open in Reader", on: { click: (e) => { e.stopPropagation(); go("reader", { ref: r.id }); } } }, icon("pdf", 18)) : ""));
+          shown.map((c) => cell(c.key, r)));
         tr.addEventListener("click", (e) => selectRow(r.id, i, e));
         tr.addEventListener("dblclick", () => (r.has_pdf ? go("reader", { ref: r.id }) : editSelected()));
         tr.addEventListener("keydown", (e) => rowKey(e, i));
         body.append(tr);
       });
+      table.prepend(colgroup);
       table.append(h("thead", head), body);
       listBox.append(table);
+      pager();
+      // Stable selection: keep the focused row visible after sorting and refreshes.
+      const f = listBox.querySelector(`tr[data-id="${st.focus}"]`);
+      if (f) f.scrollIntoView({ block: "nearest" });
+      drawInspector();
+    };
+    const typeIcon = (r) => icon(r.rtype.startsWith("article") ? "doc" : r.rtype.includes("book") || r.rtype === "chapter" ? "book" : "doc", 16);
+    const hitsFor = (r) => (page.search_hits || []).filter((x) => x.ref_id === r.id && x.field !== "title").slice(0, 2).map((x) => h("div.hit", h("b", { page: "PDF text", fulltext: "PDF text", annotation: "Annotation", comment: "Annotation comment", note: "Note", quotation: "Quotation", author: "Author", journal: "Published in", abstract: "Abstract", tag: "Tag", keywords: "Keyword", doi: "DOI", citekey: "Citation key", publisher: "Publisher" }[x.field] || x.field), x.page >= 0 && (x.field === "fulltext" || x.entity === "annotation") ? ` (PDF page ${x.page + 1})` : "", ": ", x.snippet,
+      x.field === "fulltext" ? h("button.btn.ghost.small", { type: "button", on: { click: (e) => { e.stopPropagation(); go("reader", { ref: r.id, att: x.entity_id, page: x.page + 1 }); } } }, "Open at page") : null));
+    const flags = (r) => [
+      r.notices ? h("span.badge.danger.small", { title: "Retraction or correction notice" }, icon("warn", 13), "Notice") : null,
+      r.issues ? h("span.small.status-review", " ", icon("warn", 13), " review") : null,
+      r.origin === "ai" || r.origin === "agent" ? h("span.badge.neutral.small", "machine-created") : null];
+    const pdfBtn = (r) => r.has_pdf ? h("button.icon-btn", { type: "button", "aria-label": "Open PDF", title: "Open in Reader", on: { click: (e) => { e.stopPropagation(); go("reader", { ref: r.id }); } } }, icon("pdf", 18)) : "";
+    const stars = (n) => n ? h("span", { "aria-label": `${n} of 5` }, "★".repeat(n)) : "";
+    const cell = (k, r) => {
+      switch (k) {
+        case "authors": return h("td", h("span.row", typeIcon(r), h("span.ellipsis", r.authors || "—")));
+        case "year": return h("td", r.year || "n.d.");
+        case "title": return h("td", h("div.ellipsis", { title: r.title }, r.title || h("em.muted", "No title")), ...hitsFor(r), ...flags(r));
+        case "container": return h("td", h("div.ellipsis", { title: r.container }, r.container));
+        case "type": return h("td", h("div.ellipsis", r.type_label));
+        case "citekey": return h("td.mono.small", h("div.ellipsis", r.citekey));
+        case "rating": return h("td", stars(r.rating));
+        case "labels": return h("td", h("div.ellipsis", { title: r.labels.join(", ") }, r.labels.join(", ")));
+        case "created": return h("td.small", fmtDate(r.created));
+        case "modified": return h("td.small", fmtDate(r.modified));
+        case "reading": return h("td", { style: { textAlign: "center" } }, st.scope === "project" ? anchorReadingIcon(r) : "");
+        case "pdf": return h("td", { style: { textAlign: "center" } }, pdfBtn(r));
+        default: return h("td");
+      }
+    };
+    // List and card layouts: the same rows as options in a listbox.
+    const drawItems = () => {
+      const cards = st.layout === "cards";
+      const box = h("div" + (cards ? ".card-grid" : ".ref-list"), { role: "listbox", "aria-label": "Sources", "aria-multiselectable": "true" });
+      page.rows.forEach((r, i) => {
+        const meta = [r.authors || "No author", r.year || "n.d.", r.container].filter(Boolean).join(" • ");
+        const item = h("div" + (cards ? ".ref-card" : ".ref-item"), { role: "option", tabindex: r.id === (st.focus || page.rows[0].id) ? "0" : "-1", "aria-selected": String(st.selected.has(r.id)), "data-id": r.id },
+          h("div.row", typeIcon(r), h("strong.grow" + (cards ? "" : ".ellipsis"), { title: r.title }, r.title || "No title"), st.scope === "project" ? anchorReadingIcon(r) : null, pdfBtn(r)),
+          h("div.small.muted" + (cards ? "" : ".ellipsis"), meta),
+          cards ? h("div.small", r.type_label, r.rating ? " • " : "", stars(r.rating)) : null,
+          r.labels.length ? h("div.row.small", { style: { flexWrap: "wrap", gap: "4px", marginTop: "4px" } }, r.labels.map((l) => h("span.chip", l))) : null,
+          ...hitsFor(r), ...flags(r));
+        item.addEventListener("click", (e) => selectRow(r.id, i, e));
+        item.addEventListener("dblclick", () => (r.has_pdf ? go("reader", { ref: r.id }) : editSelected()));
+        item.addEventListener("keydown", (e) => rowKey(e, i));
+        box.append(item);
+      });
+      listBox.append(box);
+      pager();
+      const f = listBox.querySelector(`[data-id="${st.focus}"]`);
+      if (f) f.scrollIntoView({ block: "nearest" });
+      drawInspector();
+    };
+    const pager = () => {
       if (page.total > st.offset + page.rows.length || st.offset > 0) {
         listBox.append(h("div.btn-row", { style: { padding: "8px" } },
           st.offset > 0 ? btn("Previous 400", { small: true, onClick: () => { st.offset = Math.max(0, st.offset - 400); loadList(); } }) : null,
           h("span.small.muted", `Showing ${st.offset + 1}–${st.offset + page.rows.length} of ${page.total}`),
           page.total > st.offset + page.rows.length ? btn("Next 400", { small: true, onClick: () => { st.offset += 400; loadList(); } }) : null));
       }
-      // Stable selection: keep the focused row visible after sorting and refreshes.
-      const f = listBox.querySelector(`tr[data-id="${st.focus}"]`);
-      if (f) f.scrollIntoView({ block: "nearest" });
-      drawInspector();
     };
     let anchor = null;
     const selectRow = (id, i, e) => {
@@ -197,15 +420,19 @@ registerView("library", {
       else { st.selected = new Set([id]); anchor = i; }
       st.focus = id;
       S.params.selected = id;
-      for (const tr of listBox.querySelectorAll("tbody tr")) { tr.setAttribute("aria-selected", String(st.selected.has(tr.dataset.id))); tr.tabIndex = tr.dataset.id === id ? 0 : -1; }
+      for (const tr of listBox.querySelectorAll("[data-id]")) { tr.setAttribute("aria-selected", String(st.selected.has(tr.dataset.id))); tr.tabIndex = tr.dataset.id === id ? 0 : -1; }
       drawBulk();
       drawInspector();
     };
     const rowKey = (e, i) => {
-      const rows = [...listBox.querySelectorAll("tbody tr")];
+      const rows = [...listBox.querySelectorAll("[data-id]")];
       let j = null;
-      if (e.key === "ArrowDown") j = Math.min(rows.length - 1, i + 1);
-      if (e.key === "ArrowUp") j = Math.max(0, i - 1);
+      // In cards, left and right move by one card and up and down by a row of cards.
+      const across = st.layout === "cards" ? Math.max(1, Math.round(listBox.clientWidth / 260)) : 1;
+      if (e.key === "ArrowDown") j = Math.min(rows.length - 1, i + across);
+      if (e.key === "ArrowUp") j = Math.max(0, i - across);
+      if (st.layout === "cards" && e.key === "ArrowRight") j = Math.min(rows.length - 1, i + 1);
+      if (st.layout === "cards" && e.key === "ArrowLeft") j = Math.max(0, i - 1);
       if (e.key === "Home") j = 0;
       if (e.key === "End") j = rows.length - 1;
       if (e.key === "PageDown") j = Math.min(rows.length - 1, i + 15);
