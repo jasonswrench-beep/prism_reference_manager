@@ -107,6 +107,7 @@ const P = {
   keyboard: "M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M7 14h10",
   eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z",
   archive: "M3 5h18v4H3zM5 9v10h14V9M10 13h4",
+  columns: "M4 4h7v16H4zM13 4h7v16h-7z",
 };
 
 export function icon(name, size = 18, label) {

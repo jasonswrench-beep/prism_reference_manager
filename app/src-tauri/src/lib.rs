@@ -10,6 +10,7 @@ mod capture;
 mod clipboard;
 mod dispatch;
 mod links;
+mod quickcopy;
 mod ocr;
 mod settings;
 
@@ -113,6 +114,15 @@ pub fn run() {
                 let _ = app.emit("open-link", l);
             }
         }))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        quickcopy::show(app);
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![call, read_attachment, read_picked])
@@ -230,6 +240,8 @@ pub fn run() {
 
             // Optional local API.
             api::start(app.handle().clone(), state.clone());
+            // Optional system-wide quick-copy shortcut.
+            quickcopy::start(app.handle(), &state);
 
             let icon = app.default_window_icon().cloned();
             let win = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
@@ -255,7 +267,19 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // The quick-copy window hides instead of closing, so it opens instantly next time.
+            if window.label() == quickcopy::LABEL {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                return;
+            }
             if let tauri::WindowEvent::Destroyed = event {
+                // Closing the main window ends the program, including a hidden quick-copy window.
+                if let Some(q) = window.app_handle().get_webview_window(quickcopy::LABEL) {
+                    let _ = q.destroy();
+                }
                 if let Some(state) = window.try_state::<Shared>() {
                     if let Ok(st) = state.lock() {
                         if let Some(lib) = st.lib.as_ref() {

@@ -87,6 +87,71 @@ function toViewport(rect, viewport) {
   return { left: Math.min(a, c), top: Math.min(b, d), width: Math.abs(c - a), height: Math.abs(d - b) };
 }
 
+/** A second document beside the first, for reading two side by side. It scrolls, zooms and
+ *  jumps to pages on its own and shows its marks; marking stays in the main pane. */
+async function secondPane(pane, d2, project, { onSwap, onClose, onPick, others }) {
+  const state = { scale: 0, pdf: null };
+  const pagesEl = h("div.pages");
+  const body = h("div.doc.reader-theme-" + (S.settings.reader_theme || "light"), { tabindex: "0", "aria-label": `Pages of ${d2.title}` }, pagesEl);
+  const pageNo = h("input", { type: "number", min: "1", value: "1", "aria-label": "Go to page", style: { width: "64px" } });
+  const total = h("span.small.muted", "");
+  const zoomSel = select([["0", "Fit width"], ["0.75", "75%"], ["1", "100%"], ["1.5", "150%"]], "0", { "aria-label": "Zoom of the second document", style: { width: "100px" }, on: { change: (e) => { state.scale = +e.target.value; draw(); } } });
+  const pick = others.length > 1 ? select(others.map((o) => [o.att.id, o.title]), d2.att.id, { "aria-label": "Second document", style: { maxWidth: "200px" }, on: { change: (e) => onPick(e.target.value) } }) : h("strong.ellipsis", { style: { maxWidth: "220px" } }, d2.title);
+  const head = h("div.toolbar.second-head", { role: "toolbar", "aria-label": "Second document" }, icon("columns", 16), pick, h("span.sep"), pageNo, total, zoomSel,
+    btn("Swap", { small: true, title: "Make this the main document (for marking)", onClick: onSwap }), iconBtn("x", "Close the second document", onClose));
+  clear(pane, head, body);
+  let anns = [];
+  try {
+    state.pdf = await pdfjsLib.getDocument({ data: await readAttachment(d2.att.id), isEvalSupported: false, enableXfa: false, cMapUrl: "vendor/pdfjs/cmaps/", cMapPacked: true, standardFontDataUrl: "vendor/pdfjs/standard_fonts/" }).promise;
+    anns = await call("ann.list", { attachment_id: d2.att.id, project_id: project }).catch(() => []);
+  } catch (e) { clear(body, h("div.empty", h("h3", "This PDF could not be opened"), h("p", e.message))); return; }
+  total.textContent = `of ${state.pdf.numPages}`;
+  let observer = null;
+  async function draw() {
+    observer?.disconnect();
+    clear(pagesEl);
+    const first = await state.pdf.getPage(1);
+    const base = first.getViewport({ scale: 1 });
+    const scale = state.scale || Math.max(0.3, (body.clientWidth - 40) / base.width);
+    const slots = [];
+    for (let n = 1; n <= state.pdf.numPages; n++) {
+      const slot = h("div.page-wrap", { "data-page": n, role: "region", "aria-label": `Page ${n} of ${state.pdf.numPages}`, style: { width: base.width * scale + "px", height: base.height * scale + "px" } });
+      slot.dataset.pending = "1";
+      pagesEl.append(slot); slots.push(slot);
+    }
+    observer = new IntersectionObserver(async (entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting || en.target.dataset.pending !== "1") continue;
+        const slot = en.target; slot.dataset.pending = "";
+        const n = +slot.dataset.page;
+        const page = await state.pdf.getPage(n);
+        const vp = page.getViewport({ scale });
+        const c = h("canvas", { width: Math.floor(vp.width * devicePixelRatio), height: Math.floor(vp.height * devicePixelRatio), style: { width: vp.width + "px", height: vp.height + "px" } });
+        await page.render({ canvasContext: c.getContext("2d"), viewport: vp, transform: devicePixelRatio !== 1 ? [devicePixelRatio, 0, 0, devicePixelRatio, 0, 0] : null }).promise;
+        slot.append(c);
+        for (const a of anns.filter((x) => x.page_index === n - 1)) {
+          for (const r of a.rects || []) {
+            const b = toViewport(r, vp);
+            slot.append(h("div.second-mark", { title: (a.comment || a.text || a.kind).slice(0, 200), style: { left: b.left + "px", top: b.top + "px", width: b.width + "px", height: b.height + "px", background: a.kind === "highlight" ? a.color + "55" : "transparent", borderColor: a.color } }));
+          }
+        }
+      }
+    }, { root: body, rootMargin: "400px 0px" });
+    slots.forEach((s) => observer.observe(s));
+  }
+  body.addEventListener("scroll", () => {
+    const top = body.scrollTop + 40;
+    const slot = [...pagesEl.children].find((s) => s.offsetTop + s.offsetHeight > top);
+    if (slot && document.activeElement !== pageNo) pageNo.value = slot.dataset.page;
+  });
+  pageNo.addEventListener("change", () => { const s = pagesEl.querySelector(`[data-page="${pageNo.value}"]`); if (s) body.scrollTop = s.offsetTop - 10; });
+  body.addEventListener("keydown", (e) => {
+    if (e.key === "PageDown" || e.key === "PageUp") { e.preventDefault(); body.scrollBy({ top: (e.key === "PageDown" ? 1 : -1) * body.clientHeight * 0.9 }); }
+  });
+  await draw();
+  pane.secondState = state;
+}
+
 function pointRel(e, pageEl, viewport) {
   const box = pageEl.getBoundingClientRect();
   const [x, y] = viewport.convertToPdfPoint(e.clientX - box.left, e.clientY - box.top);
@@ -293,7 +358,13 @@ registerView("reader", {
     const toolbar = h("div.toolbar", { role: "toolbar", "aria-label": "Reader tools" }, ...toolBtns, colorSel, schemeBtn, h("span.sep"), search,
       iconBtn("chevronUp", "Previous match", () => nextHit(-1)), iconBtn("chevronDown", "Next match", () => nextHit(1)), h("span.sep"),
       iconBtn("minus", "Zoom out (Ctrl+-)", () => zoom(-1)), zoomSel, iconBtn("plus", "Zoom in (Ctrl+=)", () => zoom(1)), modeSel, themeSel,
-      iconBtn("eye", "Distraction-free reading", () => { R.distraction = !R.distraction; layout.classList.toggle("no-thumbs", R.distraction); side.hidden = R.distraction; }, R.distraction));
+      iconBtn("eye", "Distraction-free reading", () => { R.distraction = !R.distraction; layout.classList.toggle("no-thumbs", R.distraction); side.hidden = R.distraction; }, R.distraction),
+      iconBtn("columns", "Read side by side with another open document", () => {
+        if (R.split) { R.split = null; go("reader"); return; }
+        const other = R.docs.find((x) => x.att.id !== d.att.id);
+        if (!other) { toast("Open a second PDF first (from the Library or Reading queue), then choose Side by side.", "info"); return; }
+        R.split = other.att.id; go("reader");
+      }, !!R.split));
     el.append(toolbar);
     const thumbs = h("div.thumbs", { role: "navigation", "aria-label": "Pages" });
     const docEl = h("div.doc.reader-theme-" + (S.settings.reader_theme || "light"), { tabindex: "0", "aria-label": "Document pages" });
@@ -301,7 +372,20 @@ registerView("reader", {
     docEl.append(pagesEl);
     const side = h("div.pane", { style: { padding: 0, display: "flex", flexDirection: "column" } });
     side.hidden = R.distraction;
-    const layout = h("div.reader" + (R.distraction ? ".no-thumbs" : ""), thumbs, docEl, side);
+    // The second document, when reading side by side.
+    if (R.split && (R.split === d.att.id || !R.docs.some((x) => x.att.id === R.split))) R.split = null;
+    const second = R.split ? h("div.second-pane") : null;
+    const layout = h("div.reader" + (R.distraction ? ".no-thumbs" : "") + (second ? ".split" : ""), thumbs, docEl, ...(second ? [second] : []), side);
+    if (second) {
+      const d2 = R.docs.find((x) => x.att.id === R.split);
+      const others = R.docs.filter((x) => x.att.id !== d.att.id);
+      setTimeout(() => secondPane(second, d2, project, {
+        others,
+        onPick: (id) => { R.split = id; go("reader"); },
+        onClose: () => { R.split = null; go("reader"); },
+        onSwap: () => { const main = d.att.id; R.active = R.docs.findIndex((x) => x.att.id === R.split); R.split = main; R.page = 1; R.pdfKey = ""; go("reader"); },
+      }), 0);
+    }
     el.append(layout);
 
     let pdf;

@@ -120,6 +120,11 @@ already pass are listed at the end for reference.
       library, Ctrl+Shift+L; Files › Copy to another library).
 - [ ] Once releases are published: return to the previous version from Settings › About on a test
       computer, with a library this version had upgraded.
+- [ ] Quick copy from another program: choose a system-wide shortcut (Settings › Appearance ›
+      Quick copy from any program), press it in Word, find a source, press Enter and paste. Try a
+      combination another program already uses and check the message. Check with a screen reader.
+- [ ] Side by side: open two PDFs, choose the two-column button in the Reader toolbar, read and
+      scroll both, Swap, and check the layout on a small laptop screen.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder
@@ -340,8 +345,6 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 These are specified for the first release but not implemented in this build. Each needs either
 work that could not be verified here or an owner decision.
 
-- Global quick-copy launcher with a system-wide shortcut (WRT-019).
-- Side-by-side reading of two documents (part of RDR-001).
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.
 

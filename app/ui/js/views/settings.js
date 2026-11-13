@@ -56,6 +56,37 @@ async function rollbackFlow(u, out) {
   } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); }
 }
 
+/** The optional system-wide quick-copy shortcut. */
+function quickCopyCard(card) {
+  const cur = S.settings.quick_copy_shortcut || "";
+  const shown = h("span", cur ? h("span.kbd-key", cur) : h("span.muted", "Off"));
+  const msg = h("div", { role: "status", "aria-live": "polite" });
+  const set = async (sc) => {
+    try { await call("quickcopy.set", { shortcut: sc }); S.settings.quick_copy_shortcut = sc; clear(shown, sc ? h("span.kbd-key", sc) : h("span.muted", "Off")); clear(msg, h("p.small", sc ? `Press ${sc} in any program to open Quick copy.` : "Quick copy is off.")); }
+    catch (e) { clear(msg, h("div.notice.warn", icon("warn"), e.message)); }
+  };
+  const choose = btn("Choose a shortcut…", { small: true, onClick: async () => {
+    const { comboOf } = await import("../quick.js");
+    choose.textContent = "Press the keys…";
+    const onKey = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === "Escape") { document.removeEventListener("keydown", onKey, true); choose.textContent = "Choose a shortcut…"; return; }
+      const k = comboOf(e);
+      if (!k) return;
+      document.removeEventListener("keydown", onKey, true);
+      choose.textContent = "Choose a shortcut…";
+      if (!/^(Ctrl|Alt)\+/.test(k) || !/(Ctrl|Alt).*\+.*\+/.test(k) && !/^Ctrl\+Alt\+/.test(k)) { clear(msg, h("div.notice.warn", icon("warn"), `${k} is too easy to press by accident in other programs. Use two modifiers, for example Ctrl+Alt+C.`)); return; }
+      set(k);
+    };
+    document.addEventListener("keydown", onKey, true);
+  } });
+  return card("Quick copy from any program",
+    h("p", "An optional system-wide shortcut opens a small search box over whatever program you are writing in: find a source, choose parenthetical, narrative or the full reference, press Enter, then paste. The citation is put on the clipboard; nothing is typed into the other program."),
+    h("div.row", h("span", "Shortcut: "), shown),
+    h("div.btn-row", choose, cur ? btn("Turn off", { small: true, onClick: () => set("") }) : null, btn("Open Quick copy now", { small: true, onClick: () => call("quickcopy.show") })),
+    msg);
+}
+
 registerView("settings", {
   async render(el, params) {
     const tab = params.tab || "appearance";
@@ -76,6 +107,7 @@ registerView("settings", {
           field("Text size", select([12, 13, 14, 15, 16, 18, 20, 22, 24, 28].map((n) => [String(n), n + " px" + (n === 14 ? " (default)" : "")]), String(s.font_size), { on: { change: (e) => saveSettings({ font_size: +e.target.value }) } }), "Windows text scaling also applies."),
           field("Motion", select([["no", "Use Windows setting"], ["yes", "Reduce motion"]], s.reduce_motion ? "yes" : "no", { on: { change: (e) => saveSettings({ reduce_motion: e.target.value === "yes" }) } }))),
         h("p.small.muted", "Colour is never the only cue: states also use text and icons. Windows contrast themes are respected.")),
+        quickCopyCard(card),
         card("Keyboard", h("p", "Every action is in the command palette (Ctrl+K) and the menus. Shortcuts can be changed, and the list can be printed."),
           h("div.btn-row", btn("Show keyboard shortcuts", { onClick: () => dialogs.shortcuts() }), btn("Change shortcuts…", { onClick: async () => { const { editShortcuts } = await import("../quick.js"); await editShortcuts(); go("settings"); } }),
             btn("Take the getting-started tour", { onClick: async () => { const { tour } = await import("../quick.js"); tour(); } }))));

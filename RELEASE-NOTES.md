@@ -103,6 +103,12 @@ switches library; selected sources can be copied or moved to another library wit
 marks, notes and labels, never as duplicates. Once releases are published, the previous version
 can be reinstalled from Settings.
 
+**Side by side and quick copy.** Two open PDFs can be read side by side (the second scrolls and
+zooms on its own and shows its marks; Swap makes it the one you mark). An optional system-wide
+shortcut opens a small Quick copy box over any program: find a source, choose parenthetical,
+narrative or the full reference, press Enter and paste. It uses the clipboard; nothing is typed
+into the other program.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

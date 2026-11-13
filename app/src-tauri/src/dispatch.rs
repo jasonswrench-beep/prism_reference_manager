@@ -443,6 +443,26 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             let r = if method == "update.check" { crate::updates::check(app, shared) } else { crate::updates::install(app, shared) };
             return r.map_err(|m| user(&m));
         }
+        // The quick-copy launcher: never for local API clients.
+        "quickcopy.set" if client.is_none() => {
+            let sc = s(&a, "shortcut");
+            crate::quickcopy::apply(app, &sc).map_err(|m| user(&m))?;
+            let mut st = shared.lock().map_err(|_| user("The program is busy."))?;
+            if st.policy.locked.contains_key("quick_copy_shortcut") {
+                return Err(user("The quick-copy shortcut is set by your administrator."));
+            }
+            st.settings.quick_copy_shortcut = sc;
+            let _ = settings::save(&st.config_dir, &st.settings);
+            return ok(true);
+        }
+        "quickcopy.show" if client.is_none() => {
+            crate::quickcopy::show(app);
+            return ok(true);
+        }
+        "quickcopy.hide" if client.is_none() => {
+            crate::quickcopy::hide(app);
+            return ok(true);
+        }
         "update.rollback_check" | "update.rollback" if client.is_none() => {
             return crate::updates::rollback(app, shared, method == "update.rollback").map_err(|m| user(&m));
         }

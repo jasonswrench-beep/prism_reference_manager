@@ -101,6 +101,8 @@ pub struct Settings {
     pub ocr_lang: String,
     /// Name pattern for files copied into the library; empty keeps the original name.
     pub file_name_pattern: String,
+    /// System-wide shortcut for the quick-copy launcher; empty keeps it off.
+    pub quick_copy_shortcut: String,
 }
 
 impl Default for Settings {
@@ -148,6 +150,7 @@ impl Default for Settings {
             linked_bases: Default::default(),
             ocr_lang: String::new(),
             file_name_pattern: String::new(),
+            quick_copy_shortcut: String::new(),
         }
     }
 }

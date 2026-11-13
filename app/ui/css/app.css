@@ -213,6 +213,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); outlin
 .seg { display: inline-flex; border: 1px solid var(--divider); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .seg [role="tab"] { border: 0; background: none; padding: 9px 22px; font-size: 15px; color: var(--text); }
 .seg [role="tab"][aria-selected="true"] { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.seg [role="radio"] { border: 0; background: none; padding: 7px 14px; font-size: 14px; color: var(--text); }
+.seg [role="radio"][aria-checked="true"] { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
 
 /* panes */
 .panes { display: grid; gap: 12px; height: calc(100vh - 176px); min-height: 400px; }
@@ -411,3 +413,21 @@ details.support pre { white-space: pre-wrap; font-size: 12px; background: var(--
 .ti.drop-over { outline: 2px dashed var(--primary); outline-offset: -2px; background: var(--primary-soft); }
 .job-bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin: 6px 0 4px; }
 .job-bar span { display: block; height: 100%; background: var(--primary); transition: width 0.3s; }
+/* Side-by-side reading */
+.reader.split { grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr) 340px; }
+.reader.split.no-thumbs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
+.second-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; gap: 6px; }
+.second-pane .doc { flex: 1; overflow: auto; background: var(--surface-3); border-radius: 8px; }
+.second-pane .second-head { flex-wrap: wrap; }
+.second-pane .page-wrap { position: relative; background: #fff; box-shadow: var(--shadow); }
+.second-mark { position: absolute; border: 2px solid; border-radius: 2px; pointer-events: auto; mix-blend-mode: multiply; }
+@media (max-width: 1100px) { .reader.split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .reader.split .thumbs, .reader.split > .pane { display: none; } }
+/* Quick-copy launcher window */
+.quickcopy-body { margin: 0; background: var(--surface); }
+.qc { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.qc input[type="search"] { font-size: 16px; padding: 10px 12px; }
+.qc-list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; border: 1px solid var(--divider); border-radius: 6px; }
+.qc-list:empty { display: none; }
+.qc-list li { padding: 7px 10px; cursor: pointer; }
+.qc-list li[aria-selected="true"] { background: var(--primary-soft); }
+.qc-status { min-height: 18px; }
