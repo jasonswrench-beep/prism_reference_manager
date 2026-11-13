@@ -157,6 +157,22 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
       if (big) fl.style.gridColumn = "1 / -1";
       grid.append(fl);
     }
+    // English translation of a non-English title (shown in brackets after the title).
+    const tr = h("input", { value: r.translations?.title?.en || "", placeholder: "Only for titles not in English" });
+    tr.addEventListener("input", () => {
+      r.translations = r.translations || {};
+      const v = tr.value.trim();
+      if (v) r.translations.title = { ...(r.translations.title || {}), en: v };
+      else if (r.translations.title) { delete r.translations.title.en; if (!Object.keys(r.translations.title).length) delete r.translations.title; }
+    });
+    const trField = field("English translation of the title", tr, "APA places it in square brackets after the original title.");
+    trField.style.gridColumn = "1 / -1";
+    grid.append(trField);
+    // Retrieval date: only for content designed to change that is not archived.
+    const cid = "chg-" + Math.random().toString(36).slice(2, 6);
+    const chg = h("input", { type: "checkbox", id: cid, checked: ["yes", "true", "1"].includes(String(r.fields.changes_over_time || "").toLowerCase()), on: { change: (e) => { if (e.target.checked) r.fields.changes_over_time = "yes"; else delete r.fields.changes_over_time; } } });
+    const chgRow = h("div.field", { style: { gridColumn: "1 / -1" } }, h("label.row", { for: cid }, chg, "Content is designed to change and is not archived"), h("div.help", "Only then does APA include a retrieval date (for example a page that is updated in place). Add the access date under More dates."));
+    grid.append(chgRow);
     fieldsBox.append(grid);
   };
   typeSel.addEventListener("change", () => {

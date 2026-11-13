@@ -30,15 +30,13 @@ already pass are listed at the end for reference.
 
 ## 2. Citation correctness (release gate G01, G02)
 
-- [ ] **Review the 58 APA golden cases** in `crates/prm-core/tests/fixtures/apa/fixtures.json`
-      against the APA Publication Manual (7th ed.). For each correct case put the reviewer's
-      name in `reviewed_by`. Correct any expected text that is wrong, rerun
-      `cargo test -p prm-core`, and fix the composer if a case then fails. Until every case is
-      reviewed, the program shows APA as *Limited testing* rather than *Verified profile*.
-      Cases worth a careful look: preprint italics and the absence of a `[Preprint]` label;
-      20 and 21+ author lists; `(n.d.-a)` forms; four-author et al. ambiguity (the program spells
-      out every name when only one would be replaced by et al.); retrieval dates for web pages;
-      thesis with and without an archive.
+- [x] **Review the APA golden cases.** Reviewed by Jason Wrench on 2026-11-13 (Word review with
+      tracked changes). Corrections applied: roman comma between periodical title and volume,
+      bracketed English title translation, restored italics; 51 of 59 cases carry the reviewer's
+      name. Records were made explicit for the flagged cases (retrieval-date condition, paper
+      presentation subtype, author as publisher, unpaginated version, web page vs blog).
+- [ ] **Confirm the 8 follow-up cases** in `APA-7-golden-cases-follow-up.docx` (the 7 flags and
+      new case quote-narrative). APA shows *Limited testing* until they are confirmed.
 - [ ] Have an academic editor or librarian review output for every source type in Cite ›
       Style checks › Preview using real records.
 - [ ] **Other styles (CSL).** About 75 bundled styles are marked *Untested*. Spot-check the

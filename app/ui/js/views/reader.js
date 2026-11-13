@@ -521,6 +521,7 @@ registerView("reader", {
       tagsIn.addEventListener("change", () => update({ tags: tagsIn.value.split(";").map((s) => s.trim()).filter(Boolean) }));
       card.append(h("div.body", field("Type", meaningSel), field("My interpretation", comment), field("Labels", tagsIn),
         h("div.btn-row",
+          a.text ? btn("Copy with narrative citation", { small: true, disabled: !a.locator_confirmed, title: "Authors and year before the quotation, page after it", onClick: () => copyQuote(a, "narrative_quote") }) : null,
           a.text ? btn("Copy quote with citation", { kind: "primary", icon: "copy", disabled: !a.locator_confirmed, title: a.locator_confirmed ? "" : "Confirm the citation page first", onClick: () => copyQuote(a) }) : null,
           btn("Add to outline", { icon: "list", onClick: () => addToOutline(a) }),
           iconBtn("trash", "Delete mark", async () => { await call("ann.delete", { id: a.id }); R.anns = R.anns.filter((x) => x.id !== a.id); R.selectedAnn = null; paintAnnotations(a.page_index + 1); drawPanel(); toast("Mark deleted", "info", { action: { label: "Undo", run: async () => { await call("undo"); R.anns = await call("ann.list", { attachment_id: d.att.id, project_id: project }); paintAnnotations(a.page_index + 1); drawPanel(); } } }); })),
@@ -546,10 +547,10 @@ registerView("reader", {
       toast("Page mapping saved for this file version.", "success");
     }
 
-    async function copyQuote(a) {
+    async function copyQuote(a, mode = "quote_with_citation") {
       const m = manuscript();
       try {
-        const r = await call("cite.copy", { request: { manuscript_id: m?.id || "", items: [{ ref_id: d.ref.id, locator_label: "page", locator: a.locator }], mode: "quote_with_citation", quote: a.text } });
+        const r = await call("cite.copy", { request: { manuscript_id: m?.id || "", items: [{ ref_id: d.ref.id, locator_label: "page", locator: a.locator }], mode, quote: a.text } });
         toast("Copied: " + r.output.text.slice(0, 140), "success");
         if (r.output.block_quote) toast("This quotation has 40 or more words: format it as a block quotation in your document.", "info");
       } catch (e) { showError(e); }

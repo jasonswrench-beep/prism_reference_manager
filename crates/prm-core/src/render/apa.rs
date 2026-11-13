@@ -548,6 +548,25 @@ pub fn quote_with_citation(quote: &str, cite: &Rendered) -> (Out, bool) {
     (out, false)
 }
 
+/// A short quotation introduced by a narrative citation: `Chen and Patel (2024) “…” (p. 121).`
+/// `narr` is the narrative citation rendered without a locator.
+pub fn narrative_quote(quote: &str, narr: &Rendered, locator: &str) -> Out {
+    let q = quote.trim();
+    let body = q.trim_end_matches(['.', ',']).trim_matches(['"', '“', '”']);
+    let mut out = Out::default();
+    for r in &narr.runs {
+        out.push_run(r.clone());
+    }
+    out.t(&format!(" “{body}”"));
+    if !locator.is_empty() {
+        out.t(&format!(" ({locator})"));
+    }
+    if !q.ends_with(['?', '!']) {
+        out.t(".");
+    }
+    out
+}
+
 // ---- reference list ----------------------------------------------------------------------------
 
 fn ref_date(r: &Reference, d: &Disambig, full: bool) -> String {
@@ -715,10 +734,32 @@ fn publisher_text(r: &Reference) -> String {
     }
     // Omit the publisher when it is the same as the group author.
     let (names, _) = author_position(r);
+    let same = |n: &&Name| match n.kind {
+        NameKind::Person => {
+            let direct = format!("{} {}", n.given, n.surname());
+            let inverted = format!("{}, {}", n.surname(), n.given);
+            [direct, inverted].iter().any(|x| sort_key(x) == sort_key(&p))
+        }
+        _ => sort_key(&n.literal) == sort_key(&p),
+    };
+    if names.len() == 1 && names.iter().any(same) {
+        return String::new();
+    }
     if names.iter().any(|n| n.kind == NameKind::Organization && sort_key(&n.literal) == sort_key(&p)) {
         return String::new();
     }
     p
+}
+
+/// The English translation of a non-English title, when the record has one.
+fn title_translation(r: &Reference) -> Option<String> {
+    r.translations.get("title").and_then(|m| m.get("en").or_else(|| m.get("en-US"))).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+/// True when the record states that the content is designed to change and is not archived,
+/// the only case in which APA 7 includes a retrieval date.
+pub fn changes_over_time(r: &Reference) -> bool {
+    matches!(r.f("changes_over_time").trim().to_lowercase().as_str(), "yes" | "true" | "1")
 }
 
 fn doi_url(r: &Reference, out: &mut Out) {
@@ -729,7 +770,7 @@ fn doi_url(r: &Reference, out: &mut Out) {
     } else if r.has("url") {
         out.t(" ");
         if let Some(acc) = &r.accessed {
-            if acc.year.is_some() {
+            if acc.year.is_some() && changes_over_time(r) {
                 out.t(&format!("Retrieved {}, from ", long_date(acc)));
             }
         }
@@ -750,6 +791,9 @@ fn title_element(r: &Reference, out: &mut Out, italic: bool, parens: &str) {
         out.i(&t);
     } else {
         out.t(&t);
+    }
+    if let Some(tr) = title_translation(r) {
+        out.t(&format!(" [{tr}]"));
     }
     if !parens.is_empty() {
         out.t(parens);
@@ -792,7 +836,8 @@ pub fn entry(r: &Reference, d: &Disambig) -> Out {
                 out.t(" ");
                 out.i(j);
                 if r.has("volume") {
-                    out.i(", ");
+                    // Title and volume italic; the separating comma in regular type (APA 7, 6.22).
+                    out.t(", ");
                     out.i(&dash(r.f("volume")));
                     if r.has("issue") {
                         out.t(&format!("({})", dash(r.f("issue"))));
@@ -903,6 +948,9 @@ fn collect_warnings(r: &Reference, w: &mut Vec<Warning>, intext: bool) {
     if r.issued.is_none() && !r.absent("issued") {
         push(w, "info", "no-date", "No date is recorded; “n.d.” is used. Confirm the work has no date, or add it.".into());
     }
+    if r.accessed.as_ref().is_some_and(|a| a.year.is_some()) && r.has("url") && !r.has("doi") && !changes_over_time(r) {
+        push(w, "info", "retrieval-omitted", "An access date is recorded but the retrieval date is left out. APA includes it only for content designed to change that is not archived; mark the source that way if it applies.".into());
+    }
     if author_position(r).0.is_empty() && !r.absent("author") && !intext {
         push(w, "info", "no-author", "No author is recorded; the title moves to the author position.".into());
     }
@@ -983,6 +1031,12 @@ pub struct Fixture {
     pub expected_italic: Vec<String>,
     #[serde(default)]
     pub reviewed_by: String,
+    /// The reviewer's note, kept with the case for traceability.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub review_note: String,
+    /// A question the reviewer raised that must be settled before the case counts as reviewed.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub review_flag: String,
 }
 
 #[derive(serde::Serialize, Debug, Clone)]
@@ -1016,6 +1070,16 @@ pub fn run_fixture(f: &Fixture) -> FixtureResult {
             let (o, _) = quote_with_citation(&f.quote, &c);
             Rendered { text: o.text(), runs: o.runs, ..Default::default() }
         }
+        "quote-narrative" => {
+            let mut items = f.cite.clone();
+            let loc = items.first().map(|i| locator_text(&i.locator_label, &i.locator)).unwrap_or_default();
+            for it in &mut items {
+                it.locator.clear();
+            }
+            let n = cite(&items, true, &refs, &ctx);
+            let o = narrative_quote(&f.quote, &n, &loc);
+            Rendered { text: o.text(), runs: o.runs, ..Default::default() }
+        }
         _ => bibliography(&refs, &ctx),
     };
     let text_ok = rendered.text == f.expected_text;
@@ -1030,7 +1094,7 @@ pub fn run_fixture(f: &Fixture) -> FixtureResult {
         format_ok,
         expected: f.expected_text.clone(),
         actual: rendered.text,
-        reviewed: !f.reviewed_by.is_empty(),
+        reviewed: !f.reviewed_by.is_empty() && f.review_flag.is_empty(),
         reason: f.reason.clone(),
     }
 }

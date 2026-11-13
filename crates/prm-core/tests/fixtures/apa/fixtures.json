@@ -2,7 +2,7 @@
  {
   "id": "ref-journal-two-authors",
   "category": "journal article",
-  "reason": "Two authors joined with a comma and ampersand; journal and volume italic with the comma between them; issue in roman parentheses; page range with an en dash.",
+  "reason": "Two authors joined with a comma and ampersand; journal title and volume italic, with the separating comma in regular type; issue in regular-type parentheses; page range with an en dash.",
   "references": [
    {
     "id": "cp",
@@ -41,9 +41,11 @@
   "quote": "",
   "expected_text": "Chen, L., & Patel, M. (2024). Teaching with generative AI. Journal of Teaching Practice, 12(2), 115–132.",
   "expected_italic": [
-   "Journal of Teaching Practice, 12"
+   "Journal of Teaching Practice",
+   "12"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "I changed the comma after the journal title to regular type and clarified the test description. The journal title and volume remain italic; the issue and pages remain in regular type."
  },
  {
   "id": "ref-journal-article-number-doi",
@@ -81,9 +83,11 @@
   "quote": "",
   "expected_text": "Garcia, R. (2022). Faculty development in the age of AI. Journal of Higher Education Practice, 8(1), Article e1042. https://doi.org/10.5555/jhep.2022.1042",
   "expected_italic": [
-   "Journal of Higher Education Practice, 8"
+   "Journal of Higher Education Practice",
+   "8"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Change the comma after the journal title to regular type. Article e1042 and the DOI format are correct; keep the journal title and volume italic."
  },
  {
   "id": "ref-journal-three-authors",
@@ -135,9 +139,11 @@
   "quote": "",
   "expected_text": "Kim, S.-J., Ortiz, L., & Baker, T. (2024). Assessment practices for AI-era learning. Assessment Review, 31(4), 201–219. https://doi.org/10.5555/ar.2024.31.4.201",
   "expected_italic": [
-   "Assessment Review, 31"
+   "Assessment Review",
+   "31"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Change the comma after the journal title to regular type. All three authors are correctly listed, including the hyphenated initials S.-J."
  },
  {
   "id": "ref-twenty-authors",
@@ -307,9 +313,11 @@
   "quote": "",
   "expected_text": "Abbott, A., Bell, B., Cruz, C., Diaz, D., Evans, E., Ford, F., Gray, G., Hughes, H., Ibarra, I., James, J., Khan, K., Lowe, L., Mendez, M., Nash, N., Okafor, O., Price, P., Quinn, Q., Ross, R., Shah, S., & Tran, T. (2021). A large collaboration. Team Science, 1(1), 1–2.",
   "expected_italic": [
-   "Team Science, 1"
+   "Team Science",
+   "1"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Change the comma after the journal title to regular type. All 20 authors are correctly listed, with an ampersand before the last author."
  },
  {
   "id": "ref-twenty-one-authors",
@@ -486,9 +494,11 @@
   "quote": "",
   "expected_text": "Abbott, A., Bell, B., Cruz, C., Diaz, D., Evans, E., Ford, F., Gray, G., Hughes, H., Ibarra, I., James, J., Khan, K., Lowe, L., Mendez, M., Nash, N., Okafor, O., Price, P., Quinn, Q., Ross, R., Shah, S., . . . Underwood, U. (2021). A larger collaboration. Team Science, 1(1), 3–4.",
   "expected_italic": [
-   "Team Science, 1"
+   "Team Science",
+   "1"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Change the comma after the journal title to regular type. The first 19 authors, spaced ellipsis, and final author are correct; no ampersand belongs before the final name."
  },
  {
   "id": "ref-group-author-same-publisher",
@@ -526,7 +536,8 @@
   "expected_italic": [
    "Publication manual of the American Psychological Association"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "I would retain this entry. The group author, 7th-edition statement, omitted duplicate publisher, italic title, and DOI are correct."
  },
  {
   "id": "ref-no-author-book",
@@ -555,12 +566,13 @@
   "expected_italic": [
    "Northfield's collegiate dictionary"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The title and its edition statement correctly move together ahead of the date. Keep the title italic and the edition in roman type."
  },
  {
   "id": "ref-no-date-webpage-retrieval",
   "category": "missing date",
-  "reason": "No date is written as (n.d.); site name omitted when it matches the group author; a retrieval date is given for a page designed to change.",
+  "reason": "Undated web page whose content is designed to change and is not archived (stated in the record): n.d. plus a retrieval date. Without that statement the retrieval date is left out.",
   "references": [
    {
     "id": "cte",
@@ -577,7 +589,8 @@
     "fields": {
      "title": "Designing reflective assignments",
      "container_title": "Center for Teaching Excellence",
-     "url": "https://example.edu/reflect"
+     "url": "https://example.edu/reflect",
+     "changes_over_time": "yes"
     },
     "accessed": {
      "year": 2024,
@@ -594,7 +607,9 @@
   "expected_italic": [
    "Designing reflective assignments"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "The format is correct only for an unarchived page designed to change. I need the record to establish both conditions before approving the retrieval date. A missing date or an access date alone is insufficient.",
+  "review_flag": "Resolved for confirmation: the record now states the page is designed to change and is not archived."
  },
  {
   "id": "ref-book-edition",
@@ -631,7 +646,8 @@
   "expected_italic": [
    "Developing AI communication competencies"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The book title is in italic sentence case, with the 2nd-edition statement in roman parentheses. The publisher is correctly supplied without a location."
  },
  {
   "id": "ref-edited-book",
@@ -674,7 +690,8 @@
   "expected_italic": [
    "Mentoring faculty to use AI in teaching"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Both editors are in the author position, with (Eds.) before the date. The book title is correctly italicized."
  },
  {
   "id": "ref-chapter-two-editors",
@@ -727,7 +744,8 @@
   "expected_italic": [
    "Teaching in transition"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The chapter title, editor-name order, italic book title, page range, publisher, and chapter DOI are correct. Two editors are joined by an ampersand without a preceding comma."
  },
  {
   "id": "ref-chapter-edition-volume",
@@ -774,7 +792,8 @@
   "expected_italic": [
    "Handbook of pedagogy"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The edition, volume, and pages correctly share one set of regular-type parentheses, in that order. This format fits the supplied volume without a separate volume title."
  },
  {
   "id": "ref-report-number",
@@ -812,7 +831,8 @@
   "expected_italic": [
    "Faculty use of AI tools"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The italic report title, roman report number, omitted duplicate publisher, and terminal URL are correct."
  },
  {
   "id": "ref-thesis-published",
@@ -851,7 +871,8 @@
   "expected_italic": [
    "AI literacy for university educators"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "This is correct for an openly available dissertation in a repository. The degree and awarding institution belong in brackets; the repository and public URL follow."
  },
  {
   "id": "ref-thesis-unpublished",
@@ -888,12 +909,13 @@
   "expected_italic": [
    "Peer feedback in large lectures"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The italic thesis title, nonitalic [Unpublished master's thesis], and degree-granting institution are correct. No repository is listed for this unpublished work."
  },
  {
   "id": "ref-presentation-date-range",
   "category": "conference paper",
-  "reason": "Presentation: full date range, bracketed description, event and location.",
+  "reason": "Paper presentation (subtype stated in the record) at a conference held April 12–14, 2023: the full conference date range with an en dash, the bracketed description, the conference name and location.",
   "references": [
    {
     "id": "pres",
@@ -917,7 +939,8 @@
     "fields": {
      "title": "Communication pedagogy and generative tools",
      "event": "Annual Meeting of the Eastern Communication Association",
-     "event_place": "Boston, MA, United States"
+     "event_place": "Boston, MA, United States",
+     "genre": "Paper presentation"
     },
     "issued": {
      "year": 2023,
@@ -938,7 +961,9 @@
   "expected_italic": [
    "Communication pedagogy and generative tools"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "The format is correct for a paper presentation. Identify that subtype explicitly in the source record and establish that April 12–14 is the full conference date range before approving the test.",
+  "review_flag": "Resolved for confirmation: the record now states the paper-presentation subtype; the dates are the full conference range."
  },
  {
   "id": "ref-dataset-version",
@@ -976,12 +1001,13 @@
   "expected_italic": [
    "Instructor AI survey responses"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The title is italic; (Version 2.1) and [Data set] are nonitalic. The publisher and DOI are in the correct positions."
  },
  {
   "id": "ref-software-version",
   "category": "software",
-  "reason": "Software: version and [Computer software]; URL with no publisher.",
+  "reason": "Software: version and [Computer software]; URL with no publisher. The record names the author as publisher, so the duplicate publisher is left out.",
   "references": [
    {
     "id": "software",
@@ -998,7 +1024,8 @@
     "fields": {
      "title": "CiteCheck",
      "version": "1.4",
-     "url": "https://example.org/citecheck"
+     "url": "https://example.org/citecheck",
+     "publisher": "Lucia Ortiz"
     },
     "issued": {
      "year": 2022
@@ -1013,7 +1040,9 @@
   "expected_italic": [
    "CiteCheck"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "I need the publisher status. The existing output is correct if Ortiz is also the publisher. If there is a different publisher, add it before the URL. The title, version, and software description are correct.",
+  "review_flag": "Resolved for confirmation: the record now names the author as publisher, so the publisher is left out."
  },
  {
   "id": "ref-preprint",
@@ -1057,7 +1086,8 @@
   "expected_italic": [
    "Prompting practices in writing courses"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "This matches APA's preprint format: italic title, archive name, and DOI. A [Preprint] label is not required by the official example."
  },
  {
   "id": "ref-magazine-dated",
@@ -1096,9 +1126,11 @@
   "quote": "",
   "expected_text": "Reed, A. (2021, March 2). Why teachers reflect. Education Monthly, 44(3), 22–25.",
   "expected_italic": [
-   "Education Monthly, 44"
+   "Education Monthly",
+   "44"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Change the comma after Education Monthly to regular type. Keep the magazine title and volume italic. The full date, issue, and page range correctly follow the supplied record."
  },
  {
   "id": "ref-newspaper-online",
@@ -1137,7 +1169,8 @@
   "expected_italic": [
    "The Daily Courier"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The article title is nonitalic, the newspaper title is italic, and the full date and article URL are correctly placed. No final period follows the URL."
  },
  {
   "id": "ref-translation-original-date",
@@ -1183,7 +1216,8 @@
   "expected_italic": [
    "Lessons on teaching"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The translator follows the italic book title in nonitalic parentheses. The original publication year appears at the end; no extra period follows that final parenthesis."
  },
  {
   "id": "ref-particle-and-suffix",
@@ -1229,9 +1263,11 @@
   "quote": "",
   "expected_text": "van der Berg, J., & Jones, M., Jr. (2020). Names in scholarly metadata. Metadata Quarterly, 3(2), 9–18.",
   "expected_italic": [
-   "Metadata Quarterly, 3"
+   "Metadata Quarterly",
+   "3"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Change the comma after Metadata Quarterly to regular type. The surname particle, author initials, and Jr. suffix placement are correct."
  },
  {
   "id": "ref-mononym",
@@ -1267,12 +1303,13 @@
   "expected_italic": [
    "An autobiography"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Retain Sukarno as a single author name. Do not invent a surname or initial. The book title is correctly italicized."
  },
  {
   "id": "ref-unicode-names",
   "category": "multilingual",
-  "reason": "Diacritics and non-English titles are preserved exactly.",
+  "reason": "Diacritics and the original non-English title are preserved; an English translation follows the article title in regular-type square brackets.",
   "references": [
    {
     "id": "uni",
@@ -1302,6 +1339,11 @@
     },
     "issued": {
      "year": 2022
+    },
+    "translations": {
+     "title": {
+      "en": "Learning and reflection"
+     }
     }
    }
   ],
@@ -1309,11 +1351,13 @@
   "cite": [],
   "mode": "reference",
   "quote": "",
-  "expected_text": "Müller, Ä., & Øberg, S. (2022). Lärande och reflektion. Nordisk Pedagogik, 5(1), 1–10.",
+  "expected_text": "Müller, Ä., & Øberg, S. (2022). Lärande och reflektion [Learning and reflection]. Nordisk Pedagogik, 5(1), 1–10.",
   "expected_italic": [
-   "Nordisk Pedagogik, 5"
+   "Nordisk Pedagogik",
+   "5"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Add [Learning and reflection] after the original article title, before its period, in regular type. Preserve the original names and diacritics. Change the comma after Nordisk Pedagogik to regular type."
  },
  {
   "id": "ref-in-press",
@@ -1349,7 +1393,9 @@
   "expected_italic": [
    "Journal of Higher Education Practice"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "The output is correct for an accepted but unpublished article. Add explicit in-press status to the source record; a blank Date field cannot establish acceptance for publication.",
+  "review_flag": "Resolved for confirmation: the record already carried an explicit in-press status; the review document failed to display it."
  },
  {
   "id": "bib-same-author-same-year",
@@ -1423,10 +1469,13 @@
   "quote": "",
   "expected_text": "Chen, L., & Patel, M. (2024a). Faculty reflection in practice. Journal of Teaching Practice, 12(1), 1–14.\nChen, L., & Patel, M. (2024b). Teaching with generative AI. Journal of Teaching Practice, 12(2), 115–132.",
   "expected_italic": [
-   "Journal of Teaching Practice, 12",
-   "Journal of Teaching Practice, 12"
+   "Journal of Teaching Practice",
+   "12",
+   "Journal of Teaching Practice",
+   "12"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The order and 2024a/2024b assignments are correct. Make the journal-title comma regular in the first entry. In the second, italicize Journal of Teaching Practice and 12 separately, with a regular-type comma between them."
  },
  {
   "id": "bib-sort-nothing-before-something",
@@ -1511,7 +1560,8 @@
    "Discussion methods",
    "Lecture craft"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "I approve the order: the single-author Brown entry precedes the coauthored Brown entry, and Brown precedes Browning. The three book titles are correctly italicized."
  },
  {
   "id": "bib-nd-before-dated",
@@ -1554,7 +1604,7 @@
     ],
     "fields": {
      "title": "Notes on course design",
-     "container_title": "Ava Smith's Teaching Blog",
+     "container_title": "Ava Smith Teaching Resources",
      "url": "https://example.net/notes"
     }
    }
@@ -1563,12 +1613,15 @@
   "cite": [],
   "mode": "bibliography",
   "quote": "",
-  "expected_text": "Smith, A. (n.d.). Notes on course design. Ava Smith's Teaching Blog. https://example.net/notes\nSmith, A. (2020). Course design. Teaching Today, 2, 5–9.",
+  "expected_text": "Smith, A. (n.d.). Notes on course design. Ava Smith Teaching Resources. https://example.net/notes\nSmith, A. (2020). Course design. Teaching Today, 2, 5–9.",
   "expected_italic": [
    "Notes on course design",
-   "Teaching Today, 2"
+   "Teaching Today",
+   "2"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "Keep the undated entry first and make the comma after Teaching Today regular. SOURCE FLAG: Confirm whether the first source is a webpage or blog post; that determines which title is italic. See my source-record comment.",
+  "review_flag": "Resolved for confirmation: the undated source is an ordinary web page on a site renamed Ava Smith Teaching Resources."
  },
  {
   "id": "bib-personal-communication-excluded",
@@ -1626,7 +1679,8 @@
   "expected_italic": [
    "Developing AI communication competencies"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "I approve exclusion of the nonrecoverable email from the reference list. The remaining book entry and edition placement are correct."
  },
  {
   "id": "paren-two-authors",
@@ -1674,7 +1728,8 @@
   "quote": "",
   "expected_text": "(Chen & Patel, 2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Both surnames and the ampersand are correct for this parenthetical citation."
  },
  {
   "id": "narr-two-authors",
@@ -1722,7 +1777,8 @@
   "quote": "",
   "expected_text": "Chen and Patel (2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Both surnames joined by and are correct in narrative text."
  },
  {
   "id": "paren-page-locator",
@@ -1772,12 +1828,13 @@
   "quote": "",
   "expected_text": "(Chen & Patel, 2024, p. 121)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The single-page locator correctly uses p. and follows the year after a comma."
  },
  {
   "id": "narr-page-locator",
   "category": "locators",
-  "reason": "Narrative form with the locator inside the year parentheses.",
+  "reason": "Narrative citation with a page locator inside the parentheses, the form used when the quoted words come before the attribution (for example: “…,” according to Chen and Patel (2024, p. 121)). When the narrative citation introduces the quotation, see quote-narrative.",
   "references": [
    {
     "id": "cp",
@@ -1822,7 +1879,9 @@
   "quote": "",
   "expected_text": "Chen and Patel (2024, p. 121)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "I need the sentence context before approving a general rule. The displayed form is valid after a quotation; when the authors introduce a quotation, the page locator normally follows the quoted words. Add a full-sentence test.",
+  "review_flag": "Resolved for confirmation: this form is limited to quoted words before the attribution; the full-sentence narrative quotation is new case quote-narrative."
  },
  {
   "id": "paren-page-range",
@@ -1872,12 +1931,13 @@
   "quote": "",
   "expected_text": "(Chen & Patel, 2024, pp. 121–123)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The plural pp. and the en dash in the consecutive page range are correct."
  },
  {
   "id": "paren-paragraph",
   "category": "locators",
-  "reason": "Paragraph locator for unpaginated works.",
+  "reason": "Paragraph number for a version without page numbers (stated in the record: has no pages, confirmed): para. abbreviation.",
   "references": [
    {
     "id": "garcia",
@@ -1901,7 +1961,10 @@
     },
     "issued": {
      "year": 2022
-    }
+    },
+    "confirmed_absent": [
+     "page"
+    ]
    }
   ],
   "context": [],
@@ -1916,7 +1979,9 @@
   "quote": "",
   "expected_text": "(Garcia, 2022, para. 4)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "",
+  "review_note": "The paragraph-locator syntax is correct for an unpaginated version. Make that condition explicit in the source record. An article number alone does not establish that the cited version lacks page numbers.",
+  "review_flag": "Resolved for confirmation: the record now marks the cited version as having no pages (confirmed)."
  },
  {
   "id": "paren-three-authors",
@@ -1972,7 +2037,8 @@
   "quote": "",
   "expected_text": "(Kim et al., 2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The first surname plus et al. is correct from the first citation for these three authors, with et al. in roman type."
  },
  {
   "id": "narr-three-authors",
@@ -2028,7 +2094,8 @@
   "quote": "",
   "expected_text": "Kim et al. (2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The narrative et al. form and punctuation are correct; et al. remains roman."
  },
  {
   "id": "paren-group-author",
@@ -2068,7 +2135,8 @@
   "quote": "",
   "expected_text": "(American Psychological Association, 2020)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The full group name is correct. An abbreviation is optional and is not needed for this isolated citation."
  },
  {
   "id": "paren-no-author-article",
@@ -2101,7 +2169,8 @@
   "quote": "",
   "expected_text": "(“Study Finds Reflection Helps New Instructors,” 2021)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The authorless newspaper title is correctly in title case and quotation marks; the comma belongs inside the closing quotation mark."
  },
  {
   "id": "narr-no-author-article",
@@ -2134,7 +2203,8 @@
   "quote": "",
   "expected_text": "“Study Finds Reflection Helps New Instructors” (2021)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The authorless article title is correctly quoted and capitalized for a narrative citation. The year follows in parentheses."
  },
  {
   "id": "paren-no-author-book",
@@ -2167,7 +2237,8 @@
   "expected_italic": [
    "Northfield's Collegiate Dictionary"
   ],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The authorless book title is correctly italicized and in title case. The edition is not repeated in the in-text citation."
  },
  {
   "id": "paren-no-date",
@@ -2208,7 +2279,8 @@
   "quote": "",
   "expected_text": "(Center for Teaching Excellence, n.d.)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The undated group-author citation correctly uses n.d. and the full organization name."
  },
  {
   "id": "paren-nd-suffix",
@@ -2267,7 +2339,8 @@
   "quote": "",
   "expected_text": "(Center for Teaching Excellence, n.d.-b)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Designing precedes Peer, so Peer observation of teaching is n.d.-b. Preserve the hyphen between n.d. and b."
  },
  {
   "id": "paren-year-suffix-context",
@@ -2346,7 +2419,8 @@
   "quote": "",
   "expected_text": "(Chen & Patel, 2024b)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Teaching follows Faculty alphabetically, so the cited work is 2024b in this manuscript context."
  },
  {
   "id": "paren-group-ordering",
@@ -2461,7 +2535,8 @@
   "quote": "",
   "expected_text": "(Baker, 2023; Chen & Patel, 2024; Kim et al., 2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The citations are correctly alphabetized by first author and separated by semicolons."
  },
  {
   "id": "paren-same-authors-years",
@@ -2542,7 +2617,8 @@
   "quote": "",
   "expected_text": "(Chen & Patel, 2022, 2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The authors appear once, followed by both years in chronological order and separated by a comma."
  },
  {
   "id": "paren-etal-ambiguity-three",
@@ -2633,7 +2709,8 @@
   "quote": "",
   "expected_text": "(Kapoor, Bloom, & Zucker, 2017)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Write all three surnames because only the final author distinguishes these works; et al. cannot replace only one author."
  },
  {
   "id": "paren-etal-ambiguity-five",
@@ -2752,7 +2829,8 @@
   "quote": "",
   "expected_text": "(Kapoor, Bloom, Montez, et al., 2017)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The third surname distinguishes these five-author works. Two authors remain after Montez, so et al. is appropriate."
  },
  {
   "id": "paren-first-author-initials",
@@ -2815,7 +2893,8 @@
   "quote": "",
   "expected_text": "(J. Smith, 2020)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "John Smith and Ava Smith share a surname but have different initials. Include J. in every in-text citation to John's work."
  },
  {
   "id": "narr-multiple",
@@ -2889,7 +2968,8 @@
   "quote": "",
   "expected_text": "Baker (2023) and Chen and Patel (2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Both narrative citations are correct. The repeated and is grammatical; no APA correction or reordering is required."
  },
  {
   "id": "paren-prefix-suffix",
@@ -2939,7 +3019,8 @@
   "quote": "",
   "expected_text": "(see Chen & Patel, 2024, for a review)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The prefix, citation, and suffix are correctly punctuated, with commas around the year."
  },
  {
   "id": "paren-original-date",
@@ -2987,7 +3068,8 @@
   "quote": "",
   "expected_text": "(Dupont, 1952/2015)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The original year precedes the translation year, separated by a slash with no spaces."
  },
  {
   "id": "paren-personal-communication",
@@ -3026,7 +3108,8 @@
   "quote": "",
   "expected_text": "(A. Rivera, personal communication, March 5, 2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The communicator’s initial and surname, personal communication label, and exact date are correct."
  },
  {
   "id": "narr-personal-communication",
@@ -3065,7 +3148,8 @@
   "quote": "",
   "expected_text": "A. Rivera (personal communication, March 5, 2024)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The narrative personal communication format is correct, including the communicator’s initial."
  },
  {
   "id": "quote-short",
@@ -3115,7 +3199,8 @@
   "quote": "Faculty learning benefits from structured opportunities to reflect on teaching practice.",
   "expected_text": "“Faculty learning benefits from structured opportunities to reflect on teaching practice” (Chen & Patel, 2024, p. 121).",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The short quotation, page citation, and sentence-final period are correct. I checked the quoted wording against the supplied sample text."
  },
  {
   "id": "paren-unicode",
@@ -3163,7 +3248,8 @@
   "quote": "",
   "expected_text": "(Müller & Øberg, 2022)",
   "expected_italic": [],
-  "reviewed_by": ""
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "The two surnames retain their diacritics correctly; the ampersand and author–date punctuation are correct."
  },
  {
   "id": "paren-particle",
@@ -3212,6 +3298,57 @@
   "mode": "parenthetical",
   "quote": "",
   "expected_text": "(van der Berg & Jones, 2020)",
+  "expected_italic": [],
+  "reviewed_by": "Jason Wrench, 2026-11-13",
+  "review_note": "Keep van der Berg as the supplied surname, use & in the parenthetical citation, and omit Jr. from the in-text name."
+ },
+ {
+  "id": "quote-narrative",
+  "category": "quotations",
+  "reason": "A narrative citation introduces a short quotation: authors and year before the quotation, the page in parentheses after the closing quotation mark, then the sentence period.",
+  "references": [
+   {
+    "id": "cp",
+    "type": "article-journal",
+    "creators": [
+     {
+      "role": "author",
+      "name": {
+       "family": "Chen",
+       "given": "Li"
+      }
+     },
+     {
+      "role": "author",
+      "name": {
+       "family": "Patel",
+       "given": "Maya"
+      }
+     }
+    ],
+    "fields": {
+     "title": "Teaching with generative AI",
+     "container_title": "Journal of Teaching Practice",
+     "volume": "12",
+     "issue": "2",
+     "page": "115-132"
+    },
+    "issued": {
+     "year": 2024
+    }
+   }
+  ],
+  "context": [],
+  "cite": [
+   {
+    "ref_id": "cp",
+    "locator_label": "page",
+    "locator": "121"
+   }
+  ],
+  "mode": "quote-narrative",
+  "quote": "Faculty learning benefits from structured opportunities to reflect on teaching practice.",
+  "expected_text": "Chen and Patel (2024) “Faculty learning benefits from structured opportunities to reflect on teaching practice” (p. 121).",
   "expected_italic": [],
   "reviewed_by": ""
  }

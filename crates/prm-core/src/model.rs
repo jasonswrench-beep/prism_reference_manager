@@ -569,6 +569,8 @@ pub enum OutputMode {
     Reference,
     Bibliography,
     QuoteWithCitation,
+    /// A short quotation introduced by a narrative citation, page after the quotation.
+    NarrativeQuote,
     AuthorOnly,
     Citekey,
 }

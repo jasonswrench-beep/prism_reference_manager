@@ -222,6 +222,16 @@ impl Library {
                 block_quote = block;
                 Rendered { text: o.text(), runs: o.runs, ..c }
             }
+            OutputMode::NarrativeQuote => {
+                let loc = items.first().map(|i| render::apa::locator_text(&i.locator_label, &i.locator)).unwrap_or_default();
+                let mut its = items.clone();
+                for i in &mut its {
+                    i.locator.clear();
+                }
+                let n = render::cite(&engine, &sinfo, &its, true, &cited_refs, &ctx);
+                let o = render::apa::narrative_quote(&req.quote, &n, &loc);
+                Rendered { text: o.text(), runs: o.runs, ..n }
+            }
             OutputMode::Reference | OutputMode::Bibliography => render::bibliography(&engine, &sinfo, &cited_refs, &ctx),
             OutputMode::Citekey => {
                 let keys: Vec<String> = cited.iter().map(|r| format!("@{}", r.citekey)).collect();
