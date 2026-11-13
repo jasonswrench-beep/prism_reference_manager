@@ -71,6 +71,18 @@ already pass are listed at the end for reference.
       texts). Check that each attached file is the right paper and that the version and licence
       shown are plausible; the open index's version labels are reported as given.
 
+## 2c. Search
+
+- [ ] Search a real library for topics you know: are the most relevant sources near the top?
+      Try a misspelling, a name with an umlaut written both ways (Müller, Mueller), and a
+      Chinese, Japanese or Korean title if you have one.
+- [ ] Use the search builder (the filter button beside the search box) for a date range and a
+      "does not contain" condition, and check the query it writes.
+- [ ] In the command palette (Ctrl+K), type part of an author's or journal's name.
+- [ ] Measure search speed on the reference machine. On this development machine the 100,000-
+      source benchmark gives p95 about 480 ms against the 250 ms target; queries with an
+      exclusion (-word) are the slowest.
+
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
 For each host, record the exact build, OS and paste mode, and whether italics, punctuation,

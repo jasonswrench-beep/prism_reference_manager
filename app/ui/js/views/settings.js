@@ -2,7 +2,7 @@
 
 import { call, on } from "../api.js";
 import { h, clear, icon, btn, toast, select, field, showError, fmtDate, tabs, confirmDialog } from "../dom.js";
-import { S, registerView, go, saveSettings, refresh } from "../app.js";
+import { S, registerView, go, saveSettings, refresh, autoIndex } from "../app.js";
 import * as dialogs from "../dialogs.js";
 
 // Updates: built in but not set up until releases are published. Checks happen only when asked,
@@ -65,6 +65,10 @@ registerView("settings", {
     if (tab === "library") {
       const info = S.info?.library;
       if (info) {
+        const ai = h("input", { type: "checkbox", id: "auto-index", checked: S.settings.auto_index !== false, on: { change: async (e) => { await saveSettings({ auto_index: e.target.checked }); if (e.target.checked) autoIndex(); } } });
+        body.append(card("Full-text search",
+          h("label.row", { for: "auto-index" }, ai, "Read the text of PDFs in the background so full-text search finds them"),
+          h("p.small.muted", "One PDF at a time, with a pause between files. Scanned PDFs without a text layer cannot be read this way. A file can be left out of search from its Files tab.")));
         const watched = await call("watch.list").catch(() => []);
         const mirror = h("input", { type: "checkbox", id: "w-mirror" });
         body.append(card("Watched folders",

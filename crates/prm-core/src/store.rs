@@ -118,7 +118,8 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
          CREATE INDEX IF NOT EXISTS fts_map_entity ON fts_map(entity, entity_id);
          CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
             entity UNINDEXED, entity_id UNINDEXED, scope UNINDEXED, field UNINDEXED, page UNINDEXED,
-            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4');",
+            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4');
+         CREATE VIRTUAL TABLE IF NOT EXISTS fts_vocab USING fts5vocab(fts, row);",
     )?;
     for t in TABLES {
         conn.execute_batch(&format!("CREATE TABLE IF NOT EXISTS {t}(id TEXT PRIMARY KEY, data TEXT NOT NULL);"))?;

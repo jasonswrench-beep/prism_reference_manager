@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::model::*;
 use crate::util::{new_id, now};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RefRow {
@@ -84,6 +84,8 @@ pub struct RefPage {
     pub rows: Vec<RefRow>,
     pub pending_index: i64,
     pub search_hits: Vec<crate::search::Hit>,
+    /// Words that matched nothing and the close spellings searched instead.
+    pub corrections: Vec<crate::search::Correction>,
     /// field -> values with counts, when requested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facets: Option<BTreeMap<String, Vec<FacetValue>>>,
@@ -265,15 +267,19 @@ impl Library {
             id_set = Some(ids);
         }
         let mut hits = Vec::new();
+        let mut corrections = vec![];
+        let mut scores: HashMap<String, f64> = HashMap::new();
         if !q.search.trim().is_empty() {
             let res = crate::search::run(conn, &q.search, None, id_set.as_ref(), usize::MAX)?;
             id_set = Some(res.ref_ids.into_iter().collect());
+            scores = res.scores;
+            corrections = res.corrections;
         }
         if let Some(ids) = &id_set {
-            conn.execute_batch("CREATE TEMP TABLE IF NOT EXISTS list_ids(id TEXT PRIMARY KEY); DELETE FROM list_ids;")?;
-            let mut st = conn.prepare_cached("INSERT OR IGNORE INTO list_ids(id) VALUES(?1)")?;
+            conn.execute_batch("DROP TABLE IF EXISTS temp.list_ids; CREATE TEMP TABLE list_ids(id TEXT PRIMARY KEY, score REAL NOT NULL DEFAULT 0);")?;
+            let mut st = conn.prepare_cached("INSERT OR IGNORE INTO list_ids(id, score) VALUES(?1, ?2)")?;
             for id in ids {
-                st.execute([id])?;
+                st.execute(rusqlite::params![id, scores.get(id).copied().unwrap_or(0.0)])?;
             }
             wh.push("x.id IN (SELECT id FROM list_ids)".into());
         }
@@ -287,6 +293,8 @@ impl Library {
                 project_rating = format!("COALESCE(NULLIF((SELECT CAST(json_extract(ps.data,'$.rating') AS INTEGER) FROM project_sources ps WHERE ps.project_id={p} AND ps.ref_id=x.id), 0), x.rating)");
                 project_rating.as_str()
             }
+            // Relevance applies while searching; without a search it falls back to author order.
+            "relevance" if !q.search.trim().is_empty() => "(SELECT -score FROM list_ids l WHERE l.id=x.id)",
             "year" => "x.year_key",
             "title" => "x.title_key",
             "container" => "x.container_key",
@@ -340,7 +348,7 @@ impl Library {
         if !q.search.trim().is_empty() {
             hits = crate::search::hits_for(conn, &q.search, &page_ids, None)?;
         }
-        Ok(RefPage { total: total as usize, rows, pending_index: crate::search::pending_index_count(conn)?, search_hits: hits, facets })
+        Ok(RefPage { total: total as usize, rows, pending_index: crate::search::pending_index_count(conn)?, search_hits: hits, facets, corrections })
     }
 
     /// Counts of each quick-filter value over the rows matching `w`.

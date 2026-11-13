@@ -653,6 +653,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(json!({"results": res, "labels": labels, "pending_index": prm_core::search::pending_index_count(&l.store.conn).map_err(err)?}))
         }
         "search.check" => ok(prm_core::search::parse(&s(a, "query")).map(|q| format!("{q:?}")).map_err(err)?),
+        "palette.search" => ok(prm_core::search::palette(&lib_mut(st)?.store.conn, &s(a, "query")).map_err(err)?),
 
         // ---- projects and manuscripts ----------------------------------------------------------
         "projects.list" => ok(lib_mut(st)?.projects(opt(a, "include_archived")).map_err(err)?),

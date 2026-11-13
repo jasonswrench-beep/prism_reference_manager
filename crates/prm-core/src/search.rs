@@ -12,6 +12,7 @@
 //! a OR b, (a OR b) AND c         Boolean logic with grouping
 //! title:ai  author:chen  journal:"teaching practice"  doi:10.5555  tag:method
 //! type:book  year:2020..2024  year:>=2021  year:<2000  rating:>=3
+//! date:2021-03..2021-06   added:2024-01..   modified:>=2025-05-01
 //! note:reflection  annotation:quote  fulltext:prompt
 //! re:/gener(ative|al) AI/        regular expression over titles and abstracts (bounded)
 //! ```
@@ -30,11 +31,32 @@ fn ins(conn: &Connection, entity: &str, id: &str, scope: &str, field: &str, page
     }
     conn.execute(
         "INSERT INTO fts(entity,entity_id,scope,field,page,orig,text) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-        params![entity, id, scope, field, page, orig, fold(orig)],
+        params![entity, id, scope, field, page, orig, fold_index(orig)],
     )?;
     let row = conn.last_insert_rowid();
     conn.execute("INSERT INTO fts_map(entity,entity_id,row) VALUES(?1,?2,?3)", params![entity, id, row])?;
     Ok(())
+}
+
+/// Folded text for the index, followed by transliterated forms of words with umlauts
+/// ("Müller" also indexed as "mueller"), so "Mueller" and "Müller" find each other.
+fn fold_index(orig: &str) -> String {
+    let mut out = fold(orig);
+    let mut extra: Vec<String> = vec![];
+    for w in orig.split(|c: char| !c.is_alphanumeric()) {
+        if w.chars().any(|c| matches!(c, 'ä' | 'ö' | 'ü' | 'Ä' | 'Ö' | 'Ü' | 'å' | 'Å')) {
+            let t: String = w.chars().map(|c| match c { 'ä' | 'Ä' => "ae".to_string(), 'ö' | 'Ö' => "oe".to_string(), 'ü' | 'Ü' => "ue".to_string(), 'å' | 'Å' => "aa".to_string(), c => c.to_string() }).collect();
+            let f = fold(&t);
+            if !extra.contains(&f) {
+                extra.push(f);
+            }
+        }
+    }
+    if !extra.is_empty() {
+        out.push(' ');
+        out.push_str(&extra.join(" "));
+    }
+    out
 }
 
 /// Remove an entity's index rows by their row ids (the text columns are not indexed for lookups).
@@ -178,7 +200,7 @@ pub fn rebuild(conn: &Connection) -> Result<()> {
 
 /// Version of the full-text index layout. When it changes, the index (a cache) is rebuilt from
 /// the store and from saved page text, so no PDF needs to be reopened.
-const FTS_VERSION: &str = "2";
+const FTS_VERSION: &str = "3";
 
 pub fn ensure_fts_version(conn: &Connection) -> Result<()> {
     let v: Option<String> = conn.query_row("SELECT value FROM meta WHERE key='fts_version'", [], |r| r.get(0)).ok();
@@ -191,7 +213,8 @@ pub fn ensure_fts_version(conn: &Connection) -> Result<()> {
          DELETE FROM fts_map;
          CREATE VIRTUAL TABLE fts USING fts5(
             entity UNINDEXED, entity_id UNINDEXED, scope UNINDEXED, field UNINDEXED, page UNINDEXED,
-            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4');",
+            orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4');
+         CREATE VIRTUAL TABLE IF NOT EXISTS fts_vocab USING fts5vocab(fts, row);",
     )?;
     rebuild(conn)?;
     let mut st = conn.prepare("SELECT attachment_id, page, text FROM page_text ORDER BY attachment_id, page")?;
@@ -382,6 +405,9 @@ impl P {
                 if matches!(field.as_str(), "year" | "rating") {
                     return parse_range(&field, &v);
                 }
+                if matches!(field.as_str(), "date" | "added" | "modified") {
+                    return parse_date_range(&field, &v);
+                }
                 Ok(Q::Term { field, value: v, phrase: quoted, near })
             }
             Some(other) => {
@@ -409,6 +435,37 @@ fn parse_range(field: &str, v: &str) -> Result<Q> {
         ("<", num(x)?, 0.0)
     } else {
         ("=", num(v)?, 0.0)
+    };
+    Ok(Q::Range { field: field.into(), op: op.into(), a, b })
+}
+
+/// Dates as YYYYMMDD numbers. A partial date covers its whole span: 2021 is 20210000..20219999,
+/// so works with only a year still fall inside a year range.
+fn parse_date_range(field: &str, v: &str) -> Result<Q> {
+    let date = |s: &str, end: bool| -> Result<f64> {
+        let s = s.trim();
+        let parts: Vec<&str> = s.split(['-', '/']).collect();
+        let bad = || Error::user(format!("“{s}” is not a date in {field}: (use 2021, 2021-03 or 2021-03-15)."));
+        let y: u32 = parts.first().and_then(|x| x.parse().ok()).filter(|y| (1000..=9999).contains(y)).ok_or_else(bad)?;
+        let m: Option<u32> = match parts.get(1) { Some(x) => Some(x.parse().ok().filter(|m| (1..=12).contains(m)).ok_or_else(bad)?), None => None };
+        let d: Option<u32> = match parts.get(2) { Some(x) => Some(x.parse().ok().filter(|d| (1..=31).contains(d)).ok_or_else(bad)?), None => None };
+        let fill = if end { 99 } else { 0 };
+        Ok((y * 10000 + m.unwrap_or(fill) * 100 + d.unwrap_or(if m.is_some() { fill } else { fill })) as f64)
+    };
+    let (op, a, b) = if let Some((x, y)) = v.split_once("..") {
+        let a = if x.is_empty() { 0.0 } else { date(x, false)? };
+        let b = if y.is_empty() { 99_999_999.0 } else { date(y, true)? };
+        ("between", a, b)
+    } else if let Some(x) = v.strip_prefix(">=") {
+        (">=", date(x, false)?, 0.0)
+    } else if let Some(x) = v.strip_prefix("<=") {
+        ("<=", date(x, true)?, 0.0)
+    } else if let Some(x) = v.strip_prefix('>') {
+        (">", date(x, true)?, 0.0)
+    } else if let Some(x) = v.strip_prefix('<') {
+        ("<", date(x, false)?, 0.0)
+    } else {
+        ("between", date(v, false)?, date(v, true)?)
     };
     Ok(Q::Range { field: field.into(), op: op.into(), a, b })
 }
@@ -442,9 +499,39 @@ pub struct Hit {
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct Results {
+    /// Matching references, most relevant first.
     pub ref_ids: Vec<String>,
     pub hits: Vec<Hit>,
     pub truncated: bool,
+    /// Relevance by reference (higher is better).
+    #[serde(skip)]
+    pub scores: HashMap<String, f64>,
+    /// Words that matched nothing and the close spellings searched instead.
+    pub corrections: Vec<Correction>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Correction {
+    pub word: String,
+    pub used: Vec<String>,
+}
+
+/// How much a match in each field counts toward relevance.
+fn field_weight(field: &str) -> f64 {
+    match field {
+        "title" => 4.0,
+        "author" => 3.0,
+        "citekey" | "doi" => 3.0,
+        "journal" | "tag" | "keywords" | "publisher" => 1.6,
+        "abstract" => 1.3,
+        "note" | "quotation" | "annotation" | "comment" => 1.0,
+        "fulltext" => 0.5,
+        _ => 1.0,
+    }
+}
+
+fn is_cjk_char(c: char) -> bool {
+    matches!(c as u32, 0x3040..=0x30FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF | 0xAC00..=0xD7AF | 0x1100..=0x11FF | 0x20000..=0x2A6DF)
 }
 
 /// (entity kind, id); the kind is one of a fixed set, so it is never allocated.
@@ -467,11 +554,36 @@ fn fts_expr(value: &str, phrase: bool, near: Option<u32>) -> String {
     if phrase {
         return format!("\"{}\"", words.join(" ").replace('*', ""));
     }
-    words
+    // Consecutive Chinese, Japanese or Korean characters are one word: match them as adjacent
+    // tokens (a phrase), not as separate characters anywhere in the text.
+    let mut groups: Vec<(String, bool)> = vec![];
+    for w in &words {
+        let cjk = w.chars().count() == 1 && w.chars().all(is_cjk_char);
+        match groups.last_mut() {
+            Some((g, true)) if cjk => {
+                g.push(' ');
+                g.push_str(w);
+            }
+            _ => groups.push((w.clone(), cjk)),
+        }
+    }
+    groups
         .iter()
-        .map(|w| {
+        .map(|(w, cjk)| {
+            if *cjk {
+                return format!("\"{w}\"");
+            }
             let bare = w.trim_end_matches('*');
-            if bare.is_empty() { String::new() } else { format!("\"{bare}\"*") }
+            if bare.is_empty() {
+                return String::new();
+            }
+            // "mueller" also finds "Müller" (indexed as "muller"), as an exact word.
+            let contracted = bare.replace("ue", "u").replace("oe", "o").replace("ae", "a");
+            if contracted != bare && bare.chars().count() >= 4 {
+                format!("(\"{bare}\"* OR \"{contracted}\")")
+            } else {
+                format!("\"{bare}\"*")
+            }
         })
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
@@ -504,6 +616,10 @@ struct Eval<'a> {
     /// First index row for each entity matched by a word, read only for returned results.
     rows: HashMap<Key, i64>,
     terms: Vec<String>,
+    /// Relevance by entity, summed over terms; the row kept for each entity is its best match.
+    scores: HashMap<Key, f64>,
+    best_row: HashMap<Key, f64>,
+    corrections: Vec<Correction>,
 }
 
 impl<'a> Eval<'a> {
@@ -554,17 +670,42 @@ impl<'a> Eval<'a> {
             self.terms.push(w.to_string());
         }
         let filter = field_filter(field);
-        let mut sql = String::from("SELECT entity, entity_id, rowid FROM fts WHERE fts MATCH ?1");
+        let out = self.matches(&expr, filter)?;
+        if !out.is_empty() || phrase || near.is_some() {
+            return Ok(out);
+        }
+        // Nothing matched: try close spellings of a single word from the index's own vocabulary.
+        let words: Vec<String> = fold(value).split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(|w| w.to_string()).collect();
+        if words.len() != 1 || words[0].chars().count() < 4 || !words[0].chars().all(|c| c.is_alphabetic()) {
+            return Ok(out);
+        }
+        let used = self.close_words(&words[0])?;
+        if used.is_empty() {
+            return Ok(out);
+        }
+        let expr = used.iter().map(|w| format!("\"{w}\"")).collect::<Vec<_>>().join(" OR ");
+        let out = self.matches(&expr, filter)?;
+        if !out.is_empty() {
+            self.terms.extend(used.iter().cloned());
+            self.corrections.push(Correction { word: value.to_string(), used });
+        }
+        Ok(out)
+    }
+
+    /// Run one full-text expression; record relevance and the best row per entity.
+    fn matches(&mut self, expr: &str, filter: Option<&[&str]>) -> Result<HashSet<Key>> {
+        let mut sql = String::from("SELECT entity, entity_id, rowid, field, bm25(fts) FROM fts WHERE fts MATCH ?1");
         if let Some(fs) = filter {
             sql.push_str(&format!(" AND field IN ({})", fs.iter().map(|f| format!("'{f}'")).collect::<Vec<_>>().join(",")));
         }
         let mut st = self.conn.prepare(&sql)?;
         let rows = st.query_map(params![format!("text : ({expr})")], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, String>(3)?, r.get::<_, f64>(4)?))
         })?;
         let mut out = HashSet::new();
+        let mut best_this_term: HashMap<Key, f64> = HashMap::new();
         for row in rows {
-            let (entity, id, rowid) = row?;
+            let (entity, id, rowid, field, bm) = row?;
             let kind: &'static str = match entity.as_str() {
                 "ref" => "ref",
                 "note" => "note",
@@ -572,16 +713,51 @@ impl<'a> Eval<'a> {
                 _ => "page",
             };
             let key = (kind, id);
-            self.rows.entry(key.clone()).or_insert(rowid);
+            // bm25 is lower for better matches; turn it into a positive, field-weighted score.
+            let score = (-bm).max(0.01) * field_weight(&field);
+            let b = best_this_term.entry(key.clone()).or_insert(0.0);
+            if score > *b {
+                *b = score;
+            }
+            if score > *self.best_row.get(&key).unwrap_or(&-1.0) {
+                self.best_row.insert(key.clone(), score);
+                self.rows.insert(key.clone(), rowid);
+            }
             out.insert(key);
         }
+        for (k, v) in best_this_term {
+            *self.scores.entry(k).or_insert(0.0) += v;
+        }
         Ok(out)
+    }
+
+    /// Up to three indexed words within one edit (two for longer words) of `w`, most common first.
+    fn close_words(&self, w: &str) -> Result<Vec<String>> {
+        let n = w.chars().count();
+        let max = if n <= 5 { 1 } else { 2 };
+        let first: String = w.chars().take(1).collect();
+        let mut upper = first.clone();
+        upper.push(char::MAX);
+        let mut st = self.conn.prepare("SELECT term, doc FROM fts_vocab WHERE term >= ?1 AND term < ?2")?;
+        let mut found: Vec<(String, i64)> = st
+            .query_map(params![first, upper], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+            .filter_map(|r| r.ok())
+            .filter(|(t, _)| {
+                let m = t.chars().count();
+                m + max >= n && m <= n + max && t != w && strsim::levenshtein(t, w) <= max
+            })
+            .collect();
+        found.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        Ok(found.into_iter().take(3).map(|x| x.0).collect())
     }
 
     fn range(&self, field: &str, op: &str, a: f64, b: f64) -> Result<HashSet<Key>> {
         let col = match field {
             "year" => "json_extract(data,'$.issued.year')",
             "rating" => "json_extract(data,'$.rating')",
+            "date" => "(json_extract(data,'$.issued.year')*10000 + COALESCE(json_extract(data,'$.issued.month'),0)*100 + COALESCE(json_extract(data,'$.issued.day'),0))",
+            "added" => "CAST(replace(substr(json_extract(data,'$.created'),1,10),'-','') AS INTEGER)",
+            "modified" => "CAST(replace(substr(json_extract(data,'$.modified'),1,10),'-','') AS INTEGER)",
             _ => return Ok(HashSet::new()),
         };
         let cond = match op {
@@ -679,7 +855,7 @@ impl<'a> Eval<'a> {
 
     /// Map note, annotation and page hits to their references so Boolean logic combines at the
     /// reference level; unattached notes stay as notes.
-    fn lift(&self, s: HashSet<Key>) -> Result<HashSet<Key>> {
+    fn lift(&mut self, s: HashSet<Key>) -> Result<HashSet<Key>> {
         let mut out = HashSet::new();
         for (e, id) in s {
             match e {
@@ -688,11 +864,14 @@ impl<'a> Eval<'a> {
                 }
                 _ => {
                     let refs = owner_refs(self.conn, e, &id)?;
+                    let sc = self.scores.get(&(e, id.clone())).copied().unwrap_or(0.0);
                     if refs.is_empty() {
                         out.insert((e, id));
                     } else {
                         for r in refs {
-                            out.insert(("ref", r));
+                            let k = ("ref", r);
+                            *self.scores.entry(k.clone()).or_insert(0.0) += sc * 0.8;
+                            out.insert(k);
                         }
                     }
                 }
@@ -735,7 +914,7 @@ pub fn snippet(orig: &str, terms: &[String]) -> String {
 /// `scope_refs` restricts to an explicit set (a collection).
 pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_refs: Option<&BTreeSet<String>>, limit: usize) -> Result<Results> {
     let q = parse(query)?;
-    let mut ev = Eval { conn, hits: HashMap::new(), rows: HashMap::new(), terms: Vec::new() };
+    let mut ev = Eval { conn, hits: HashMap::new(), rows: HashMap::new(), terms: Vec::new(), scores: HashMap::new(), best_row: HashMap::new(), corrections: Vec::new() };
     let keys = ev.eval(&q)?;
     let keys = ev.lift(keys)?;
     let project_refs: Option<BTreeSet<String>> = match scope_project {
@@ -763,8 +942,16 @@ pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_re
         }
         ref_ids.push(id.clone());
     }
+    // Most relevant first; ties keep a stable order.
+    ref_ids.sort_by(|a, b| {
+        let sa = ev.scores.get(&("ref", a.clone())).copied().unwrap_or(0.0);
+        let sb = ev.scores.get(&("ref", b.clone())).copied().unwrap_or(0.0);
+        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(b))
+    });
     let truncated = ref_ids.len() > limit;
     ref_ids.truncate(limit);
+    let scores: HashMap<String, f64> = ref_ids.iter().map(|id| (id.clone(), ev.scores.get(&("ref", id.clone())).copied().unwrap_or(0.0))).collect();
+    let corrections = std::mem::take(&mut ev.corrections);
     let keep: HashSet<&String> = ref_ids.iter().collect();
     let terms = ev.terms.clone();
     let mut hits: Vec<Hit> = Vec::new();
@@ -809,7 +996,59 @@ pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_re
         }
         hits.push(h);
     }
-    Ok(Results { ref_ids, hits, truncated })
+    Ok(Results { ref_ids, hits, truncated, scores, corrections })
+}
+
+/// Something the command palette can jump to besides a source.
+#[derive(Debug, Clone, Serialize)]
+pub struct PaletteItem {
+    /// author, journal, label, collection, project
+    pub kind: String,
+    pub label: String,
+    /// What to search or open: a name, or an id for labels, collections and projects.
+    pub value: String,
+    pub count: i64,
+}
+
+/// Authors, journals, labels, collections and projects whose names match `q`.
+pub fn palette(conn: &Connection, q: &str) -> Result<Vec<PaletteItem>> {
+    let words: Vec<String> = fold(q).split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(|w| w.to_string()).collect();
+    if words.is_empty() {
+        return Ok(vec![]);
+    }
+    let matches = |name: &str| {
+        let f = fold(name);
+        let toks: Vec<&str> = f.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+        words.iter().all(|w| toks.iter().any(|t| t.starts_with(w.as_str())))
+    };
+    let mut out = vec![];
+    let expr = fts_expr(q, false, None);
+    for (field, kind) in [("author", "author"), ("journal", "journal")] {
+        if expr.is_empty() {
+            break;
+        }
+        let mut st = conn.prepare(&format!("SELECT orig FROM fts WHERE fts MATCH ?1 AND field='{field}' LIMIT 400"))?;
+        let rows: Vec<String> = st.query_map(params![format!("text : ({expr})")], |r| r.get(0))?.filter_map(|r| r.ok()).collect();
+        let mut counts: HashMap<String, i64> = HashMap::new();
+        for orig in rows {
+            let names: Vec<&str> = if field == "author" { orig.split("; ").collect() } else { vec![orig.as_str()] };
+            for n in names {
+                let n = n.trim();
+                if !n.is_empty() && matches(n) {
+                    *counts.entry(n.to_string()).or_insert(0) += 1;
+                }
+            }
+        }
+        let mut v: Vec<(String, i64)> = counts.into_iter().collect();
+        v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        out.extend(v.into_iter().take(5).map(|(n, c)| PaletteItem { kind: kind.into(), value: n.clone(), label: n, count: c }));
+    }
+    for (table, kind, name_path) in [("labels", "label", "$.name"), ("collections", "collection", "$.name"), ("projects", "project", "$.title")] {
+        let mut st = conn.prepare(&format!("SELECT id, json_extract(data,'{name_path}') FROM {table}"))?;
+        let rows: Vec<(String, Option<String>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(|r| r.ok()).collect();
+        out.extend(rows.into_iter().filter_map(|(id, n)| n.filter(|n| matches(n)).map(|n| PaletteItem { kind: kind.into(), label: n, value: id, count: 0 })).take(5));
+    }
+    Ok(out)
 }
 
 /// Why each of `ref_ids` matched (field, page, snippet), for a page of results.

@@ -86,6 +86,8 @@ pub struct Settings {
     pub update_check: bool,
     pub update_last_check: String,
     pub watched_folders: Vec<WatchedFolder>,
+    /// Read the text of new PDFs in the background so full-text search finds them.
+    pub auto_index: bool,
 }
 
 impl Default for Settings {
@@ -126,6 +128,7 @@ impl Default for Settings {
             update_check: false,
             update_last_check: String::new(),
             watched_folders: vec![],
+            auto_index: true,
         }
     }
 }

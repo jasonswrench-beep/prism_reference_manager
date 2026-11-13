@@ -108,10 +108,12 @@ async function extractText(pdf, onProgress) {
 }
 
 /** Index every attached PDF that is not yet in the full-text index (runs in the reader context). */
-export async function indexAll(onProgress) {
+export async function indexAll(onProgress, { pace = 0, stop } = {}) {
   const list = await call("files.unindexed");
   let done = 0;
   for (const a of list) {
+    if (stop && stop()) break;
+    if (pace) await new Promise((r) => setTimeout(r, pace));
     try {
       const data = await readAttachment(a.id);
       const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, cMapUrl: "vendor/pdfjs/cmaps/", cMapPacked: true }).promise;

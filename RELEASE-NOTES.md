@@ -14,6 +14,12 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Search.** Results are ranked by relevance while searching (title and author matches count
+most). A word that matches nothing is retried with close spellings, and the list says so.
+"Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,
+added and modified ranges, a search builder, and author, journal, label, collection and project
+results in the command palette. PDF text is indexed automatically in the background.
+
 **Citation styles.** Besides the tested APA 7 profile, about 75 Citation Style Language styles
 are bundled and any CSL file can be imported, including dependent styles. A searchable catalog
 previews a style with the manuscript's own sources and sets the citation language. Bundled

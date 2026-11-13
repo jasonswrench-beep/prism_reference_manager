@@ -85,6 +85,68 @@ function splitter(label, orientation, get, set, min, max, done) {
   return el;
 }
 
+// A click-to-build search: rows of field, condition and value, combined with all or any.
+const BUILD_FIELDS = [["", "Anywhere", "text"], ["title", "Title", "text"], ["author", "Author", "text"], ["journal", "Published in", "text"], ["abstract", "Abstract", "text"],
+  ["note", "Notes", "text"], ["annotation", "Annotations", "text"], ["fulltext", "PDF text", "text"], ["tag", "Tag or keyword", "text"], ["doi", "DOI", "text"],
+  ["year", "Year", "number"], ["date", "Date", "date"], ["added", "Added", "date"], ["modified", "Modified", "date"], ["rating", "Rating", "number"],
+  ["type", "Type", "type"], ["label", "Label", "text"], ["collection", "Collection", "text"], ["has", "Has", "has"]];
+function searchBuilder(apply) {
+  const rows = [];
+  const box = h("div");
+  const quote = (v) => (/[\s:()]/.test(v) ? `"${v.replace(/"/g, "")}"` : v);
+  const addRow = () => {
+    const fieldSel = select(BUILD_FIELDS.map(([k, l]) => [k, l]), "", { "aria-label": "Field" });
+    const opSel = h("select", { "aria-label": "Condition" });
+    const v1 = h("input", { "aria-label": "Value", placeholder: "words" });
+    const v2 = h("input", { "aria-label": "Second value", placeholder: "to", hidden: true, style: { width: "110px" } });
+    const valueSel = h("select", { "aria-label": "Value", hidden: true });
+    const sync = () => {
+      const kind = BUILD_FIELDS.find((f) => f[0] === fieldSel.value)[2];
+      const ops = kind === "text" ? [["contains", "contains"], ["phrase", "contains the phrase"], ["not", "does not contain"]]
+        : kind === "number" || kind === "date" ? [["is", "is"], ["between", "is between"], [">=", "is on or after"], ["<=", "is on or before"], ["not", "is not"]]
+        : [["is", "is"], ["not", "is not"]];
+      const keep = opSel.value;
+      clear(opSel, ...ops.map(([k, l]) => h("option", { value: k }, l)));
+      if (ops.some((o) => o[0] === keep)) opSel.value = keep;
+      const choice = kind === "type" || kind === "has";
+      valueSel.hidden = !choice; v1.hidden = choice;
+      if (kind === "type") clear(valueSel, ...S.types.map((t) => h("option", { value: t.id }, t.label)));
+      if (kind === "has") clear(valueSel, ...[["pdf", "a PDF"], ["doi", "a DOI"], ["notes", "notes"], ["conflict", "a metadata conflict"], ["notice", "a retraction or correction notice"]].map(([k, l]) => h("option", { value: k }, l)));
+      v1.placeholder = kind === "date" ? "2021-03 or 2021-03-15" : kind === "number" ? (fieldSel.value === "rating" ? "1 to 5" : "2020") : "words";
+      v2.hidden = opSel.value !== "between";
+    };
+    fieldSel.addEventListener("change", sync); opSel.addEventListener("change", sync);
+    const row = { fieldSel, opSel, v1, v2, valueSel };
+    const el = h("div.row", { style: { gap: "6px", marginBottom: "6px", flexWrap: "wrap" } }, fieldSel, opSel, v1, v2, valueSel, iconBtn("trash", "Remove condition", () => { rows.splice(rows.indexOf(row), 1); el.remove(); }));
+    row.el = el; rows.push(row); box.append(el); sync(); v1.focus();
+  };
+  const toQuery = (r) => {
+    const f = r.fieldSel.value, op = r.opSel.value, kind = BUILD_FIELDS.find((x) => x[0] === f)[2];
+    const val = kind === "type" || kind === "has" ? r.valueSel.value : r.v1.value.trim();
+    if (!val) return "";
+    const pre = f ? f + ":" : "";
+    if (kind === "number" || kind === "date") {
+      const v = op === "between" ? `${val}..${r.v2.value.trim()}` : op === ">=" ? `>=${val}` : op === "<=" ? `<=${val}` : val;
+      return (op === "not" ? "-" : "") + pre + v;
+    }
+    if (op === "phrase") return pre + `"${val.replace(/"/g, "")}"`;
+    if (op === "not") return "-" + pre + quote(val);
+    if (!f) return val;
+    return val.split(/\s+/).map((w) => pre + quote(w)).join(" ");
+  };
+  const match = select([["all", "all of these"], ["any", "any of these"]], "all", { "aria-label": "Combine conditions" });
+  addRow();
+  modal("Build a search", h("div", h("div.row.small", { style: { marginBottom: "8px" } }, "Find sources that match ", match), box,
+    btn("Add condition", { small: true, icon: "plus", onClick: addRow }),
+    h("p.small.muted", "The search is written into the search box, where you can see and edit it. Spelling mistakes in single words are corrected when nothing matches.")),
+    { buttons: [{ label: "Cancel" }, { label: "Search", kind: "primary", run: () => {
+      const parts = rows.map(toQuery).filter(Boolean);
+      if (!parts.length) return;
+      apply(match.value === "any" ? parts.map((p) => (p.includes(" ") && !p.startsWith('"') ? `(${p})` : p)).join(" OR ") : parts.join(" "));
+      return true;
+    } }] });
+}
+
 function anchorReadingIcon(r) {
   return r.reading === "read" ? icon("check", 18, "Read") : r.reading === "reading" ? icon("reader", 18, "Reading") : icon("reader", 18, "Not read");
 }
@@ -93,6 +155,9 @@ registerView("library", {
   async render(el, params) {
     if (params.view) { st.view = params.view; st.scope = params.view === "trash" ? "library" : st.scope; }
     if (params.select) { st.selected = new Set([params.select]); st.focus = params.select; }
+    if (params.search !== undefined) { st.search = params.search; st.collection = ""; st.label = ""; st.view = "all"; st.scope = "library"; st.offset = 0; if (!st.sortChosen) { st.sortBefore = st.sort === "relevance" ? st.sortBefore : st.sort; st.sort = "relevance"; } }
+    if (params.label) { st.label = params.label; st.collection = ""; st.search = ""; st.view = "all"; st.scope = "library"; st.offset = 0; }
+    if (params.collection) { st.collection = params.collection; st.label = ""; st.search = ""; st.view = "all"; st.offset = 0; }
     if (!S.project) st.scope = "library";
     const tree = h("div.pane", { style: { padding: "6px" } });
     const listPane = h("div", { style: { display: "flex", flexDirection: "column", gap: "10px", minWidth: 0, minHeight: 0 } });
@@ -175,7 +240,15 @@ registerView("library", {
       h("table.table", h("tbody", [["reflection teaching", "All words (each word may be the start of a longer word)"], ['"reflective practice"', "Exact phrase"], ['"faculty support"~5', "Words within 5 words of each other"], ["-survey  or  NOT survey", "Exclude"], ["a OR b, (a OR b) c", "Either; grouping"], ["title: author: journal: doi: tag: abstract: note: annotation: fulltext:", "Search one field"], ["year:2020..2024  year:>=2021  rating:>=3", "Ranges"], ["type:book  label:Theory  collection:Methods  has:pdf  has:conflict", "Filters"], ["re:/gener(ative|al) AI/", "Regular expression over titles and abstracts (limited)"]].map(([q, d]) => h("tr", h("td.mono", q), h("td", d))))),
       h("p.small.muted", "Accents and capitals do not matter: “muller” finds “Müller”. Results always show the original spelling.")), { buttons: [{ label: "Close" }] }));
     let t;
-    searchBox.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { st.search = searchBox.value; st.offset = 0; loadList(); }, 220); });
+    searchBox.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => {
+      const was = st.search.trim();
+      st.search = searchBox.value; st.offset = 0;
+      // Searching sorts by relevance until the person picks another order; clearing restores it.
+      if (!was && st.search.trim() && !st.sortChosen) { st.sortBefore = st.sort; st.sort = "relevance"; }
+      if (was && !st.search.trim() && st.sort === "relevance") { st.sort = st.sortBefore || "authors"; st.sortChosen = false; }
+      loadList();
+    }, 220); });
+    const builderBtn = iconBtn("filter", "Build a search", () => searchBuilder((q) => { searchBox.value = q; searchBox.dispatchEvent(new Event("input")); searchBox.focus(); }));
     const addMenuBtn = btn("Add source", { kind: "primary", icon: "plus", onClick: async () => {
       const v = await modal("Add source", h("div.btn-row", { style: { flexDirection: "column", alignItems: "stretch" } },
         btn("By identifier (DOI, PMID, arXiv, ISBN, web page)", { icon: "search", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.lookup(); } }),
@@ -185,7 +258,7 @@ registerView("library", {
         btn("Import a folder of PDFs", { icon: "folder", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.importFolder(); } })), { size: "narrow" }).done;
       void v;
     } });
-    const toolbar = h("div.row", h("div.grow", { style: { position: "relative" } }, searchBox), searchHelp, addMenuBtn, btn("Import", { icon: "download", onClick: () => dialogs.importFile() }));
+    const toolbar = h("div.row", h("div.grow", { style: { position: "relative" } }, searchBox), searchHelp, builderBtn, addMenuBtn, btn("Import", { icon: "download", onClick: () => dialogs.importFile() }));
     if (!st.layout) st.layout = prefs().view || "table";
     const viewSwitch = h("div.seg", { role: "radiogroup", "aria-label": "List layout" }, [["table", "Table"], ["list", "List"], ["cards", "Cards"]].map(([k, l]) =>
       h("button", { type: "button", role: "radio", "aria-checked": String(st.layout === k), on: { click: () => { st.layout = k; savePrefs({ view: k }); for (const b of viewSwitch.children) b.setAttribute("aria-checked", String(b.textContent === l)); drawList(); } } }, l)));
@@ -295,6 +368,8 @@ registerView("library", {
         return;
       }
       bulk.append(h("span", page ? `${page.total} source${page.total === 1 ? "" : "s"}${n ? ` • ${n} selected` : ""}` : ""));
+      if (st.search && st.sort === "relevance") bulk.append(h("span.small.muted", "• most relevant first ", h("button.btn.ghost.small", { type: "button", on: { click: () => { st.sort = "authors"; st.sortChosen = true; loadList(); } } }, "Sort by author")));
+      for (const c of page?.corrections || []) bulk.append(h("span.small.status-review", icon("info", 13), ` No exact match for “${c.word}”; also searched ${c.used.map((u) => `“${u}”`).join(", ")}.`));
       if (page?.pending_index && st.search) bulk.append(h("span.small.status-review", { title: "Full text of some PDFs is not indexed yet; open them in the Reader to index." }, icon("clock", 14), ` ${page.pending_index} PDFs not yet indexed`));
       bulk.append(h("span.grow"));
       if (n) {
@@ -331,7 +406,7 @@ registerView("library", {
       const head = h("tr", { role: "row" }, shown.map((c, ci) => {
         const k = c.key, def = COLS[k];
         const th = h("th", { role: "columnheader", "aria-sort": st.sort === def.sort ? (st.desc ? "descending" : "ascending") : null, style: { position: "relative", textAlign: k === "reading" || k === "pdf" ? "center" : null } },
-          def.sort ? h("button", { type: "button", on: { click: () => { if (st.sort === def.sort) st.desc = !st.desc; else { st.sort = def.sort; st.desc = false; } loadList(); } } }, def.label, st.sort === def.sort ? icon(st.desc ? "chevronDown" : "chevronUp", 14) : null) : def.label);
+          def.sort ? h("button", { type: "button", on: { click: () => { st.sortChosen = true; if (st.sort === def.sort) st.desc = !st.desc; else { st.sort = def.sort; st.desc = false; } loadList(); } } }, def.label, st.sort === def.sort ? icon(st.desc ? "chevronDown" : "chevronUp", 14) : null) : def.label);
         if (def.w) {
           const colEl = colgroup.children[ci];
           const grip = splitter(`Resize ${def.label} column`, "vertical", () => colWidth(c), (v) => { c.width = v; colEl.style.width = v + "px"; }, 44, 600, () => savePrefs({ columns: shown }));
@@ -509,6 +584,7 @@ registerView("library", {
             h("div.row", icon(a.mime === "application/pdf" ? "pdf" : "doc"), h("strong.ellipsis", a.original_name), h("span.grow"), a.superseded ? h("span.badge.neutral", "Earlier version") : null),
             h("div.small.muted", `${a.role} • ${(a.size / 1048576).toFixed(1)} MB • ${a.mode}${a.page_count ? ` • ${a.page_count} pages` : ""} • ${a.indexed ? "text indexed" : a.index_excluded ? "excluded from search" : "not yet indexed"}`),
             state ? h("div.small.status-review", icon("warn", 13), " " + state) : null,
+            a.mime === "application/pdf" ? h("label.row.small", { style: { marginTop: "4px" } }, h("input", { type: "checkbox", checked: !!a.index_excluded, on: { change: async (e) => { await call("files.exclude_index", { id: a.id, excluded: e.target.checked }); toast(e.target.checked ? "Left out of full-text search" : "Included in full-text search", "success"); drawInspector(); } } }), "Leave this file out of full-text search") : null,
             a.source_url ? h("div.small.muted", "Free copy from ", h("span.mono", a.source_url.split("/")[2] || a.source_url), ` • ${({ publishedVersion: "published version", acceptedVersion: "accepted manuscript", submittedVersion: "submitted manuscript" })[a.source_version] || "version not stated"} • licence: ${a.license || "not stated"}`) : null,
             h("div.btn-row", { style: { marginTop: "6px" } },
               a.mime === "application/pdf" ? btn("Read", { small: true, onClick: () => go("reader", { ref: r.id, att: a.id }) }) : null,

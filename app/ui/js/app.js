@@ -48,9 +48,24 @@ export function applyAppearance() {
   document.documentElement.style.setProperty("--fs", (s.font_size || 14) + "px");
 }
 
+// Background full-text indexing: one PDF at a time with a pause between files, so the window
+// stays responsive. Starts when a library opens and when files are added.
+let indexRun = null;
+export function autoIndex() {
+  if (indexRun || !S.info?.library || S.settings?.auto_index === false || S.info.library.read_only) return;
+  indexRun = (async () => {
+    try {
+      const { indexAll } = await import("./views/reader.js");
+      await indexAll((d, n) => { S.indexing = d < n ? { done: d, total: n } : null; renderStatus(); }, { pace: 600, stop: () => S.settings?.auto_index === false || !S.info?.library });
+    } catch (_) {}
+    S.indexing = null; indexRun = null; renderStatus();
+  })();
+}
+
 export async function loadInfo() {
   const info = await call("app.info");
   S.info = info;
+  if (info.library) setTimeout(autoIndex, 3000);
   S.settings = info.settings;
   S.types = info.types;
   S.styles = info.styles;
@@ -170,6 +185,7 @@ function renderStatus() {
     lib ? h("span", { style: { display: "inline-flex", gap: "6px", alignItems: "center" } }, icon("layers", 16), `${lib.counts.references} sources${S.project ? " • " + S.project.project.title : ""}`) : null,
     lib?.sync_folder_warning ? h("span.status-review", { title: "Two computers must never open this library at the same time." }, icon("warn", 16), " Library is in a synced folder") : null,
     h("span.grow"),
+    S.indexing ? h("span.small", { title: "PDF text is read in the background so full-text search finds it. Turn this off in Settings › Library and backup." }, icon("search", 15), ` Indexing PDF text ${S.indexing.done} of ${S.indexing.total}`) : null,
     S.jobs.length ? h("button", { type: "button", on: { click: () => dialogs.jobs() }, title: "Background jobs" }, icon("clock", 15), ` ${S.jobs.length} job${S.jobs.length === 1 ? "" : "s"}`) : null,
     S.undo ? h("button", { type: "button", on: { click: doUndo }, title: "Undo (Ctrl+Z)" }, icon("undo", 15), " Undo: " + S.undo) : null,
     h("span.muted", "Interface concept build • local data"),
@@ -266,11 +282,17 @@ function palette() {
   const box = h("div.palette", { role: "dialog", "aria-label": "Command palette" }, input, list);
   let items = [];
   let sel = 0;
+  let otherHits = [];
   let sourceHits = [];
   function draw() {
     const q = input.value.toLowerCase().trim();
     items = commands.filter((c) => !q || c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)).slice(0, 30);
     const extra = sourceHits.map((s) => ({ label: "Open source: " + s.label, run: () => go("library", { select: s.id }), keys: "" }));
+    const q2 = (v) => (/[\s:]/.test(v) ? `"${v.replace(/"/g, "")}"` : v);
+    const NAMES = { author: "Author", journal: "Published in", label: "Label", collection: "Collection", project: "Project" };
+    extra.push(...otherHits.map((o) => ({ label: `${NAMES[o.kind]}: ${o.label}`, group: o.count ? `${o.count} source${o.count === 1 ? "" : "s"}` : "", keys: "",
+      run: () => o.kind === "author" ? go("library", { search: `author:${q2(o.value)}` }) : o.kind === "journal" ? go("library", { search: `journal:${q2(o.value)}` })
+        : o.kind === "label" ? go("library", { label: o.value }) : o.kind === "collection" ? go("library", { collection: o.value }) : setProject(o.value).then(() => go("projects")) })));
     items = [...items, ...extra];
     clear(list, ...items.map((c, i) => h("li", { role: "option", id: "pal" + i, "aria-selected": String(i === sel), on: { mousedown: (e) => { e.preventDefault(); sel = i; run(); } } }, h("span", c.label), h("span.muted.small", c.keys || c.group || ""))));
     input.setAttribute("aria-activedescendant", "pal" + sel);
@@ -282,12 +304,13 @@ function palette() {
     const q = input.value.trim();
     if (q.length >= 3 && S.info?.library) t = setTimeout(async () => {
       try {
-        const r = await call("search.run", { query: q, limit: 8 });
+        const [r, o] = await Promise.all([call("search.run", { query: q, limit: 8 }), call("palette.search", { query: q }).catch(() => [])]);
         sourceHits = r.results.ref_ids.slice(0, 8).map((id) => ({ id, label: r.labels[id] || id }));
+        otherHits = o;
         draw();
       } catch (_) {}
     }, 200);
-    else sourceHits = [];
+    else { sourceHits = []; otherHits = []; }
   });
   function close() { box.remove(); prev?.focus?.(); }
   function run() { const c = items[sel]; close(); if (c) c.run(); }
@@ -400,7 +423,7 @@ export async function start() {
   clear(root, h("a.skip", { href: "#main" }, "Skip to main content"), menubar, ctxBar, bodyEl, statusEl);
   document.addEventListener("keydown", keys);
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyAppearance);
-  on("changed", (p) => { S.undo = p.undo; S.redo = p.redo; S.saveState = "Saved locally"; renderStatus(); });
+  on("changed", (p) => { S.undo = p.undo; S.redo = p.redo; S.saveState = "Saved locally"; renderStatus(); if (/^(files\.|import\.commit|capture\.)/.test(p.method || "")) setTimeout(autoIndex, 1500); });
   on("job", (j) => { S.jobs.push(j); toast(j.message, j.ok ? "success" : "error"); renderStatus(); });
   on("api-pair", (p) => dialogs.pairRequest(p));
   on("update-available", (u) => toast(`Version ${u.version} is available.`, "info", { sticky: true, action: { label: "Review", run: () => go("settings", { tab: "about" }) } }));
@@ -423,4 +446,5 @@ export async function start() {
   }
   await render();
   window.addEventListener("beforeunload", () => saveWorkspace());
+  setTimeout(autoIndex, 4000);
 }

@@ -442,3 +442,49 @@ fn pdf_identifiers_found_in_compressed_first_page_text() {
     assert_eq!(info.arxiv, vec!["2401.01234v2".to_string()]);
     assert!(info.dois.contains(&"10.5555/jtp.2024.77".to_string()), "{:?}", info.dois);
 }
+
+#[test]
+fn search_relevance_typos_spellings_cjk_and_dates() {
+    use prm_core::library::ListQuery;
+    let (mut lib, _root) = open("search2");
+    let mut r1 = article("Notes on assessment", 2021, &[("Ode", "A")]);
+    r1.fields.insert("abstract".into(), "Some remarks that mention reflection once in passing.".into());
+    let r1 = lib.add_reference(r1, None).unwrap();
+    let r2 = lib.add_reference(article("Reflection in teaching practice", 2020, &[("Lee", "K")]), None).unwrap();
+    fn ids(lib: &Library, q: &str, sort: &str) -> prm_core::library::RefPage {
+        lib.list_references(&ListQuery { search: q.into(), sort: sort.into(), limit: 50, ..Default::default() }).unwrap()
+    }
+    fn found(lib: &Library, q: &str) -> std::collections::BTreeSet<String> {
+        ids(lib, q, "").rows.iter().map(|r| r.id.clone()).collect()
+    }
+    // Relevance: a title match outranks a passing mention in an abstract.
+    let p = ids(&lib, "reflection", "relevance");
+    assert_eq!(p.rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec![r2.id.clone(), r1.id.clone()]);
+    // Typo: no exact match, close spelling used and reported.
+    let p = ids(&lib, "refelction", "relevance");
+    assert_eq!(p.total, 2, "typo should still find both");
+    assert_eq!(p.corrections.len(), 1);
+    assert!(p.corrections[0].used.contains(&"reflection".to_string()), "{:?}", p.corrections);
+    // A correct word is never "corrected".
+    assert!(ids(&lib, "reflection", "").corrections.is_empty());
+    // Spelling equivalents both ways.
+    let m1 = lib.add_reference(article("Lernen", 2019, &[("Müller", "Jan")]), None).unwrap();
+    let m2 = lib.add_reference(article("Lehren", 2019, &[("Mueller", "Eva")]), None).unwrap();
+    assert!(found(&lib, "Mueller").contains(&m1.id), "Mueller finds Müller");
+    assert!(found(&lib, "Müller").contains(&m2.id) || found(&lib, "Müller").contains(&m1.id));
+    assert!(found(&lib, "Mueller").contains(&m2.id));
+    // Chinese words match as words, not scattered characters.
+    let c1 = lib.add_reference(article("在线学习的研究", 2022, &[("Wang", "L")]), None).unwrap();
+    let c2 = lib.add_reference(article("学校与复习", 2022, &[("Li", "M")]), None).unwrap();
+    let f = found(&lib, "学习");
+    assert!(f.contains(&c1.id) && !f.contains(&c2.id), "学习 must match the word, not 学 and 习 apart");
+    // Date ranges.
+    let mut d = article("Dated", 2021, &[("Kim", "S")]);
+    d.issued = Some(PartialDate { year: Some(2021), month: Some(4), day: Some(2), ..Default::default() });
+    let d = lib.add_reference(d, None).unwrap();
+    assert!(found(&lib, "date:2021-03..2021-06").contains(&d.id));
+    assert!(!found(&lib, "date:2021-05..2021-06").contains(&d.id));
+    assert!(found(&lib, "date:2021").contains(&r1.id), "a year-only work falls inside its year");
+    let today = prm_core::util::now()[..10].to_string();
+    assert!(found(&lib, &format!("added:{today}")).contains(&d.id));
+}
