@@ -1,0 +1,35 @@
+:root {
+  --navy: #03042a; --primary: #1554d1; --text: #172033; --muted: #4a5568; --surface: #fff; --surface-2: #f3f6fb;
+  --divider: #d8e0ec; --warn: #a85c00; --warn-soft: #fff1dc; --ok: #267a38; --ok-soft: #e3f4e6; --err: #b42318; --err-soft: #fdeceb;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --primary: #5b8ef5; --text: #e6e9f0; --muted: #b8c0cf; --surface: #161a24; --surface-2: #1d2230; --divider: #333b4f;
+    --warn: #f0a64a; --warn-soft: #3a2a12; --ok: #6cc781; --ok-soft: #16301c; --err: #f28b82; --err-soft: #3a1a18; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; width: 400px; max-height: 600px; font: 14px "Segoe UI", system-ui, sans-serif; color: var(--text); background: var(--surface); }
+header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--navy); color: #fff; font-weight: 600; }
+main { padding: 12px; }
+h1 { font-size: 16px; margin: 0 0 10px; }
+.card { border: 1px solid var(--divider); border-radius: 8px; padding: 10px; margin-bottom: 10px; background: var(--surface-2); }
+details.card summary { cursor: default; font-weight: 600; }
+.row { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
+.row.strong { font-weight: 600; }
+.item { padding: 4px 0; border-top: 1px solid var(--divider); }
+.item .t { display: block; }
+.list { max-height: 220px; overflow: auto; }
+.grid { display: grid; grid-template-columns: 90px 1fr; gap: 6px 8px; align-items: center; margin: 8px 0; }
+textarea, input, select { width: 100%; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--divider); border-radius: 5px; padding: 5px 7px; }
+input[type="checkbox"] { width: auto; margin-top: 3px; }
+textarea { resize: vertical; }
+button { font: inherit; font-weight: 600; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--divider); background: var(--surface); color: var(--text); }
+button.primary { background: var(--primary); border-color: var(--primary); color: #fff; width: 100%; margin-top: 4px; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.fine { font-size: 12px; color: var(--muted); margin: 4px 0; }
+.msg { padding: 8px 10px; border-radius: 6px; background: var(--surface-2); margin: 6px 0; }
+.msg.warn { background: var(--warn-soft); color: var(--warn); }
+.msg.ok { background: var(--ok-soft); color: var(--ok); }
+.msg.error { background: var(--err-soft); color: var(--err); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+ol { padding-left: 20px; }

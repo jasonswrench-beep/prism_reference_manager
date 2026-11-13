@@ -29,10 +29,10 @@ Every call is logged with the client name, method and whether it was allowed.
 
 | Scope | Methods |
 |---|---|
-| `read` | `refs.list`, `refs.get`, `search.run`, `projects.list`, `projects.summary`, `notes.list`, `collections.list`, `labels.list`, `types.list`, `styles.list`, `library.info` |
+| `read` | `capture.options`, `capture.check`, `refs.list`, `refs.get`, `search.run`, `projects.list`, `projects.summary`, `notes.list`, `collections.list`, `labels.list`, `types.list`, `styles.list`, `library.info` |
 | `format` | `cite.render` |
 | `write` | other `refs.*`, `notes.*`, `projects.*`, `manuscripts.*`, `collections.*`, `labels.*`, `outline.*`, `tasks.*` (implies `read`) |
-| `import` | `import.*`, `lookup.*` |
+| `import` | `capture.stage`, `import.stage`, `import.get`, `import.batches`, `lookup.*` — staging only; committing, changing or undoing an import happens in the program's window |
 | `files` | `files.*`, `ann.*` |
 | `export` | `export.*` |
 

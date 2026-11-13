@@ -27,6 +27,7 @@ citations that can be checked before they leave the program.
 | `crates/prm-core/tests` | APA golden fixtures, workflow and robustness tests, scale benchmark |
 | `app/src-tauri` | Desktop shell: window, dispatcher, clipboard, settings, local API, installer hooks |
 | `app/ui` | Interface (HTML, CSS, JavaScript modules; PDF rendering library vendored at build) |
+| `extension` | Browser capture extension (Chromium-based browsers; see `docs/browser-capture.md`) |
 | `assets` | Approved logo and icon artwork, plus the simplified small-size icon |
 | `docs` | Design decisions, data and privacy notes, file formats, local API |
 | `tools` | Release build, icon assembly, third-party notices and SBOM generation |

@@ -25,7 +25,8 @@
     "resources": {
       "../../LICENSE": "LICENSE.txt",
       "../../NOTICE": "NOTICE.txt",
-      "../../THIRD-PARTY.md": "THIRD-PARTY.md"
+      "../../THIRD-PARTY.md": "THIRD-PARTY.md",
+      "../../extension/": "extension/"
     },
     "windows": {
       "nsis": {

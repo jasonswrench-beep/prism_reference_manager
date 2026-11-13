@@ -14,6 +14,12 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Browser capture.** A capture extension for Chromium-based browsers saves the paper on the
+current page (citation metadata, structured data, embedded citation spans, identifier links)
+with its PDF, or several papers from a results page, into the import review with a project,
+collection, labels and a note. It reads a page only when clicked and connects only to the
+program on the same computer after you approve it.
+
 **Reading.** Built-in PDF reader with tabs, thumbnails, outline, search, continuous, single and
 two-page views, light, dark and sepia pages. Highlight, underline, strikeout, comment, text box,
 drawing, area and ellipse marks with confirmed citation pages. Annotated and flattened copies,

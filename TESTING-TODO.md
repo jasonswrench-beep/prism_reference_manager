@@ -115,7 +115,22 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 - [ ] CSV import with column mapping from a spreadsheet saved by a spreadsheet program
       (UTF-8 with BOM, and semicolon-separated).
 
-## 8. Performance (spec PRF-001 to PRF-015)
+## 8. Browser capture extension (spec CAP-001 to CAP-003)
+
+- [ ] Load `extension\` unpacked in two Chromium-based browsers (record names and versions; 116
+      or later) and connect to the program.
+- [ ] Capture from real publisher article pages (several platforms), a preprint server, a
+      PubMed record, a search-results page and a journal's reference list. Check titles,
+      authors, dates, DOIs, and that the PDF arrives for open-access and for licensed articles you
+      can open while signed in.
+- [ ] A PDF open in the browser's own viewer: it is saved and its details are found from the file.
+- [ ] Deny the PDF-site permission once: the record is saved without the PDF and the popup says so.
+- [ ] Revoke the extension in the program's settings: the next save asks to connect again.
+- [ ] Keyboard and screen reader in the popup (Alt+Shift+P opens it).
+- [ ] Decide whether and where to publish the extension in browser extension stores
+      (publishing; needs your approval).
+
+## 9. Performance (spec PRF-001 to PRF-015)
 
 - [ ] Record the reference machine (4 cores, 16 GB, SSD, OS build, power plan) and rerun
       `cargo test -p prm-core --release --test robustness benchmark_100k_references -- --ignored --nocapture`.
@@ -141,19 +156,18 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 - [ ] Index 20,000 PDFs (Settings › Library › Index all PDFs) and time it.
 - [ ] Warm start with a 100,000-reference library (target 3 seconds); idle memory (target 500 MB).
 
-## 9. Usability pilot (spec UIX-016)
+## 10. Usability pilot (spec UIX-016)
 
 - [ ] Observe faculty, graduate and undergraduate users, a librarian and a keyboard or
       screen-reader user: collect a paper, resolve a metadata conflict, mark a PDF, reuse a
       source in another project, copy both citation forms, recover an earlier version. Record
       misunderstood status labels.
 
-## 10. Not built yet (first-release items still open)
+## 11. Not built yet (first-release items still open)
 
 These are specified for the first release but not implemented in this build. Each needs either
 work that could not be verified here or an owner decision.
 
-- Browser capture extension (spec CAP-001 to CAP-003). The local API it would use is built.
 - Optional local OCR for scanned PDFs (FIL-010).
 - Journal abbreviation lists (QLT-009); custom reference types and fields editor (LIB-002, DAT-008).
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).

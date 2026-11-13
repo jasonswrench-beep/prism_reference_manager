@@ -28,6 +28,7 @@ hex.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tiny_http = "0.12"
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5"

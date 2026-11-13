@@ -68,7 +68,8 @@ pub fn start(app: tauri::AppHandle, shared: Shared) {
             let url = req.url().to_string();
             let method = req.method().clone();
             let mut body = String::new();
-            let _ = req.as_reader().take(4 * 1024 * 1024).read_to_string(&mut body);
+            // Captured PDFs arrive base64-encoded, so the body limit allows a 200 MB file.
+            let _ = req.as_reader().take(300 * 1024 * 1024).read_to_string(&mut body);
             let auth = req.headers().iter().find(|h| h.field.equiv("Authorization")).map(|h| h.value.as_str().trim_start_matches("Bearer ").trim().to_string()).unwrap_or_default();
 
             if method == tiny_http::Method::Post && url == "/v1/pair" {

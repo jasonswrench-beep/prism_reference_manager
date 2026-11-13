@@ -4,6 +4,7 @@
 //! operations. The optional local API (loopback only, token scopes) uses the same dispatcher.
 
 mod api;
+mod capture;
 mod clipboard;
 mod dispatch;
 mod settings;

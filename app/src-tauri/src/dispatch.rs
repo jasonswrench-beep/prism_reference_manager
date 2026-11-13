@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 pub fn err(e: prm_core::Error) -> CallError {
@@ -145,8 +145,12 @@ pub fn scope_of(method: &str) -> &'static str {
     match method {
         "refs.list" | "refs.get" | "search.run" | "projects.list" | "projects.summary" | "notes.list" | "collections.list" | "labels.list" | "types.list" | "styles.list" | "library.info" => "read",
         "cite.render" => "format",
+        "capture.options" | "capture.check" => "read",
+        // Connected programs may stage imports for review; committing, changing or undoing an
+        // import stays with the person in the program's window.
+        "capture.stage" | "import.stage" | "import.get" | "import.batches" => "import",
         _ => match ns {
-            "import" | "lookup" => "import",
+            "lookup" => "import",
             "files" | "ann" => "files",
             "export" => "export",
             "refs" | "notes" | "projects" | "manuscripts" | "collections" | "labels" | "outline" | "tasks" => "write",
@@ -763,20 +767,9 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let l = lib_mut(st)?;
             let id = s(a, "id");
             let report = l.commit_import(&id).map_err(err)?;
-            // Attach PDFs that came with an imported batch.
+            // Attach PDFs (chosen in a dialog, or captured into the inbox), labels and notes.
             let b = l.store.must::<ImportBatch>(&id).map_err(err)?;
-            let mut attached = 0;
-            for r in &b.records {
-                if r.committed_id.is_empty() {
-                    continue;
-                }
-                if let Some(p) = r.record.overflow.get("pdf:path") {
-                    let pb = PathBuf::from(p);
-                    if picked_paths().lock().unwrap().contains(&pb) && l.attach_file(&r.committed_id, &pb, "managed", "full-text").is_ok() {
-                        attached += 1;
-                    }
-                }
-            }
+            let attached = crate::capture::after_commit(l, &b, &|p: &Path| picked_paths().lock().unwrap().contains(p))?;
             ok(json!({"report": report, "attached": attached}))
         }
         "import.cancel" => ok(lib_mut(st)?.cancel_import(&s(a, "id")).map_err(err)?),
@@ -858,6 +851,42 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(lib_mut(st)?.stage_import(&s(a, "name"), &serde_json::to_string(&items).unwrap_or_default(), "csljson", &s(a, "service"), &s(a, "project_id"), "", None).map_err(err)?)
         }
         "lookup.identifiers" => ok(prm_core::formats::paste::identifiers(&s(a, "text"))),
+        "capture.options" => {
+            let active = st.settings.active_project.clone();
+            let l = lib_mut(st)?;
+            let projects: Vec<Value> = l.store.all::<Project>().map_err(err)?.into_iter().filter(|p| !p.archived).map(|p| json!({"id": p.id, "title": p.title})).collect();
+            let collections: Vec<Value> = l.store.all::<Collection>().map_err(err)?.into_iter().filter(|c| c.query.is_empty()).map(|c| json!({"id": c.id, "name": c.name, "project_id": c.project_id})).collect();
+            let labels: Vec<String> = l.store.all::<Label>().map_err(err)?.into_iter().map(|x| x.name).collect();
+            ok(json!({"library": l.store.meta("name"), "projects": projects, "active_project": active, "collections": collections, "labels": labels}))
+        }
+        "capture.check" => ok(crate::capture::check(lib_mut(st)?, &s(a, "doi"), &s(a, "title"))?),
+        "capture.stage" => {
+            let req: crate::capture::CaptureRequest = serde_json::from_value(a.clone()).map_err(|e| CallError { message: "The capture request was not valid.".into(), detail: e.to_string() })?;
+            let net = network_allowed(st, "doi", &req.project_id).is_ok();
+            let l = lib_mut(st)?;
+            let b = crate::capture::stage(l, &req, |lib, kind, id| {
+                if !net {
+                    return None;
+                }
+                let store = &lib.store;
+                prm_core::lookup::resolve(kind, id, &mut |k, h, sent, okk, d| store.log_network(k, h, "Browser capture lookup", sent, okk, d)).candidate
+            })?;
+            let first = b.records.first().map(|r| r.record.fields.get("title").cloned().unwrap_or_default()).unwrap_or_default();
+            let _ = app.emit("capture", json!({"batch_id": b.id, "count": b.records.len(), "title": first}));
+            ok(json!({"batch_id": b.id, "count": b.records.len(), "statuses": b.records.iter().map(|r| r.status.clone()).collect::<Vec<_>>()}))
+        }
+        "capture.extension_folder" => {
+            let dir = app.path().resource_dir().map(|d| d.join("extension")).unwrap_or_default();
+            let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("extension");
+            let target = if dir.join("manifest.json").exists() { dir } else { dev };
+            if !target.join("manifest.json").exists() {
+                return Err(user("The browser extension folder was not found in the install folder."));
+            }
+            if s(a, "open") == "1" {
+                open_with_shell(&target.to_string_lossy());
+            }
+            ok(json!({"path": target.to_string_lossy()}))
+        }
         "network.log" => {
             let l = lib_mut(st)?;
             let mut stmt = l.store.conn.prepare("SELECT time,kind,host,purpose,sent,ok,detail FROM network_log ORDER BY seq DESC LIMIT 300").map_err(|e| err(prm_core::Error::Db(e)))?;

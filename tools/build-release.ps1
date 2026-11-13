@@ -32,12 +32,18 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 $setup = Get-ChildItem "target\release\bundle\nsis\*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 Copy-Item $setup.FullName (Join-Path $dist "Prism-Reference-Manager-$version-setup.exe") -Force
 
+Write-Host "== Browser capture extension"
+$extZip = Join-Path $dist "Prism-Reference-Manager-$version-browser-capture.zip"
+if (Test-Path $extZip) { Remove-Item $extZip }
+Compress-Archive -Path "extension\*" -DestinationPath $extZip
+
 Write-Host "== Portable zip"
 $stage = Join-Path $env:TEMP "prm-portable-$version"
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item "target\release\prism-reference-manager.exe" $stage
 Copy-Item LICENSE, NOTICE, THIRD-PARTY.md $stage
+Copy-Item -Recurse extension (Join-Path $stage "extension")
 Set-Content (Join-Path $stage "portable.txt") "This file makes Prism Reference Manager keep its settings and default library in the data folder next to the program. Delete it to use your Windows profile instead." -Encoding utf8
 $zip = Join-Path $dist "Prism-Reference-Manager-$version-portable.zip"
 if (Test-Path $zip) { Remove-Item $zip }
