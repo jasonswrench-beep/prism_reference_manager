@@ -40,6 +40,8 @@ pub struct BibExport {
     pub project_id: String,
     pub path: String,
     pub biblatex: bool,
+    /// bibtex, biblatex, ris, csljson, csv or xlsx; empty means BibTeX or biblatex by `biblatex`.
+    pub format: String,
     /// Fields left out of every rewrite (for example abstract, file, note).
     pub exclude_fields: Vec<String>,
 }

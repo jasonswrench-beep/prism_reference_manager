@@ -55,6 +55,7 @@ fn filters(kind: &str) -> Vec<(&'static str, Vec<&'static str>)> {
         "zip" => vec![("Archives", vec!["zip"])],
         "any" => vec![("All files", vec!["*"])],
         "docx" => vec![("DOCX document", vec!["docx"])],
+        "xlsx" => vec![("Excel workbook", vec!["xlsx"])],
         "rtf" => vec![("Rich Text", vec!["rtf"])],
         "html" => vec![("Web page", vec!["html"])],
         "md" => vec![("Markdown", vec!["md"])],
@@ -461,7 +462,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         "ann.preview_external" => pre_path = pick_file(app, "pdf", "Choose the PDF with annotations made in another reader"),
         "export.refs" => {
             let f = s(&a, "format");
-            let ext = match f.as_str() { "ris" => "ris", "bibtex" | "biblatex" => "bib", "csljson" => "json", "csv" => "csv", "xml" => "xml", _ => "txt" };
+            let ext = match f.as_str() { "ris" => "ris", "bibtex" | "biblatex" => "bib", "csljson" => "json", "csv" => "csv", "xlsx" => "xlsx", "xml" => "xml", _ => "txt" };
             pre_path = needs_save(&f, &format!("references.{ext}"), "Export references");
         }
         "export.package" => pre_path = needs_save("zip", "prism-library-export.zip", "Export complete library package"),
@@ -647,12 +648,17 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "terms.merge" => ok(lib_mut(st)?.merge_terms(&s(a, "kind"), &arg::<Vec<String>>(a, "from")?, &s(a, "to")).map_err(err)?),
         "bib.add_export" => {
             let pid = s(a, "project_id");
-            let Some(p) = save_file(app, "bibtex", "references.bib", "Choose where to keep the BibTeX file") else { return ok(json!({"cancelled": true})) };
             let biblatex: bool = opt(a, "biblatex");
+            let mut format = s(a, "format");
+            if format.is_empty() {
+                format = if biblatex { "biblatex".into() } else { "bibtex".into() };
+            }
+            let (kind, name) = match format.as_str() { "ris" => ("ris", "references.ris"), "csljson" => ("csljson", "references.json"), "csv" => ("csv", "references.csv"), "xlsx" => ("xlsx", "references.xlsx"), _ => ("bibtex", "references.bib") };
+            let Some(p) = save_file(app, kind, name, "Choose where to keep the file") else { return ok(json!({"cancelled": true})) };
             let exclude_fields: Vec<String> = opt(a, "exclude_fields");
-            let n = lib_mut(st)?.write_bib_file(&pid, &p, biblatex, &exclude_fields).map_err(err)?;
+            let n = lib_mut(st)?.write_kept_file(&pid, &p, &format, &exclude_fields).map_err(err)?;
             st.settings.bib_exports.retain(|b| b.path != p.to_string_lossy());
-            st.settings.bib_exports.push(settings::BibExport { project_id: pid, path: p.to_string_lossy().to_string(), biblatex, exclude_fields });
+            st.settings.bib_exports.push(settings::BibExport { project_id: pid, path: p.to_string_lossy().to_string(), biblatex: format == "biblatex", format, exclude_fields });
             let _ = settings::save(&st.config_dir, &st.settings);
             ok(json!({"path": p.to_string_lossy(), "count": n}))
         }
@@ -1137,11 +1143,32 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
                 "csljson" => prm_core::formats::csljson::export(&rr),
                 "csv" => prm_core::formats::csvfmt::export(&rr).map_err(err)?,
                 "xml" => prm_core::formats::xmlrecords::export(&rr),
+                "xlsx" => {
+                    let bytes = prm_core::formats::csvfmt::export_xlsx(&rr).map_err(err)?;
+                    let p = path.unwrap();
+                    write_out(&p, &bytes)?;
+                    return ok(json!({"path": p.to_string_lossy(), "count": refs.len()}));
+                }
                 _ => return Err(user("Choose an export format.")),
             };
             let p = path.unwrap();
             write_out(&p, text.as_bytes())?;
             ok(json!({"path": p.to_string_lossy(), "count": refs.len()}))
+        }
+        "export.copy" => {
+            let l = lib_mut(st)?;
+            let ids: Vec<String> = arg(a, "ids")?;
+            let refs = l.references(&ids).map_err(err)?;
+            let rr: Vec<&Reference> = refs.iter().collect();
+            let text = match s(a, "format").as_str() {
+                "ris" => prm_core::formats::ris::export(&rr),
+                "bibtex" => prm_core::formats::bibtex::export(&rr, false, &[]),
+                "biblatex" => prm_core::formats::bibtex::export(&rr, true, &[]),
+                "csljson" => prm_core::formats::csljson::export(&rr),
+                _ => return Err(user("Choose a format to copy.")),
+            };
+            crate::clipboard::write(&text, None, None).map_err(|e| user(&format!("The clipboard could not be written: {e}")))?;
+            ok(json!({"count": refs.len(), "chars": text.len()}))
         }
         "export.package" => {
             let p = path.unwrap();

@@ -341,6 +341,23 @@ impl Library {
                 }
                 (serialize::html_document(&p.title, &body).into_bytes(), "notes.html".into())
             }
+            "txt" => {
+                let mut t = String::new();
+                for b in &blocks {
+                    match b {
+                        serialize::DocBlock::Heading(l, h) => {
+                            t.push_str(h);
+                            t.push('\n');
+                            t.push_str(&(if *l <= 1 { "=" } else { "-" }).repeat(h.chars().count().min(80)));
+                            t.push_str("\n\n");
+                        }
+                        serialize::DocBlock::Para(r) => t.push_str(&format!("{}\n\n", serialize::plain(r))),
+                        serialize::DocBlock::Quote(r) => t.push_str(&format!("    {}\n\n", serialize::plain(r))),
+                        serialize::DocBlock::RefPara(p) => t.push_str(&format!("{}\n\n", serialize::plain(&p.runs))),
+                    }
+                }
+                (t.into_bytes(), "notes.txt".into())
+            }
             _ => {
                 let mut md = String::new();
                 for b in &blocks {
@@ -373,6 +390,34 @@ impl Library {
         }
         let title = r.title().to_string();
         Ok(match format {
+            "docx" => {
+                let mut blocks = vec![serialize::DocBlock::Heading(1, title.clone())];
+                for (k, t, c, cite) in &lines {
+                    let label = super::super::render::Run { text: format!("{}: ", k), italic: false, ..Default::default() };
+                    if !t.is_empty() {
+                        blocks.push(serialize::DocBlock::Quote(vec![label, super::super::render::Run { text: format!("“{t}” {cite}"), ..Default::default() }]));
+                    } else {
+                        blocks.push(serialize::DocBlock::Para(vec![label, super::super::render::Run { text: cite.clone(), ..Default::default() }]));
+                    }
+                    if !c.is_empty() {
+                        blocks.push(serialize::DocBlock::Para(vec![super::super::render::Run { text: c.clone(), italic: true, ..Default::default() }]));
+                    }
+                }
+                (serialize::docx(&blocks, None)?, "annotations.docx".into())
+            }
+            "json" => {
+                let v = serde_json::json!({
+                    "format": "prism-annotations",
+                    "version": 1,
+                    "source": crate::formats::csljson::to_csl(&r),
+                    "file": { "name": att.original_name, "sha256": att.hash },
+                    "annotations": anns.iter().zip(lines.iter()).map(|(a, (_, _, _, cite))| serde_json::json!({
+                        "id": a.id, "kind": a.kind, "page_index": a.page_index, "page_label": a.locator, "page_confirmed": a.locator_confirmed,
+                        "text": a.text, "comment": a.comment, "tags": a.tags, "color": a.color, "citation": cite,
+                    })).collect::<Vec<_>>(),
+                });
+                (serde_json::to_vec_pretty(&v)?, "annotations.json".into())
+            }
             "html" => {
                 let mut b = format!("<h1>{}</h1>\n<ul>\n", crate::util::html_escape(&title));
                 for (k, t, c, cite) in &lines {

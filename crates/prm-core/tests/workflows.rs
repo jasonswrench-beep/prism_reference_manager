@@ -589,3 +589,26 @@ fn custom_fields_types_validation_exchange_and_sharing() {
     assert!(lib.delete_custom_field(&method.id, false).is_err());
     assert_eq!(lib.delete_custom_field(&method.id, true).unwrap(), 1);
 }
+
+#[test]
+fn group_author_sent_as_name_by_the_doi_registry() {
+    let p = prm_core::formats::csljson::parse(r#"[{"type":"article-journal","title":"T","author":[{"name":"Open Science Collaboration","sequence":"first"}]}]"#);
+    assert_eq!(p.records[0].record.creators[0].name.literal, "Open Science Collaboration");
+}
+
+#[test]
+fn excel_export_is_a_workbook_with_the_csv_columns() {
+    let mut r = article("Teaching with AI", 2024, &[("Chen", "Li")]);
+    r.id = "r1".into();
+    let bytes = prm_core::formats::csvfmt::export_xlsx(&[&r]).unwrap();
+    assert!(bytes.starts_with(b"PK"), "an .xlsx file is a zip package");
+    let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut sheet = String::new();
+    std::io::Read::read_to_string(&mut z.by_name("xl/worksheets/sheet1.xml").unwrap(), &mut sheet).unwrap();
+    let mut shared = String::new();
+    if let Ok(mut f) = z.by_name("xl/sharedStrings.xml") {
+        std::io::Read::read_to_string(&mut f, &mut shared).unwrap();
+    }
+    let all = format!("{sheet}{shared}");
+    assert!(all.contains("Teaching with AI") && all.contains("container_title"), "title and header present");
+}

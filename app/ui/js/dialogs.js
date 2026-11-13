@@ -343,10 +343,29 @@ export async function undoImport(batchId) {
 // ---- exports and backups --------------------------------------------------------------------
 
 export async function exportRefs(ids = []) {
-  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX"], ["biblatex", "biblatex"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xml", "Prism XML records"]], "ris");
+  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX"], ["biblatex", "biblatex"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xlsx", "Excel workbook (.xlsx)"], ["xml", "Prism XML records"]], "ris");
   const scope = select([...(ids.length ? [["selected", `Selected sources (${ids.length})`]] : []), ...(S.project ? [["project", "Active project's sources"]] : []), ["all", "Whole library"]], ids.length ? "selected" : "all");
   const excl = h("input", { placeholder: "abstract, note" });
-  const r = await modal("Export references", h("div", field("Format", fmt), field("Sources", scope), field("Leave out fields (BibTeX)", excl, "Comma separated."),
+  // Named presets remember format, sources and left-out fields.
+  const presets = () => S.settings.layouts?.export_presets || [];
+  const savePresets = async (list) => { S.settings = await call("settings.set", { settings: { layouts: { ...(S.settings.layouts || {}), export_presets: list } } }); };
+  const presetSel = h("select", { "aria-label": "Preset" });
+  const drawPresets = () => clear(presetSel, h("option", { value: "" }, presets().length ? "Choose a preset…" : "No presets yet"), ...presets().map((p, i) => h("option", { value: String(i) }, p.name)));
+  drawPresets();
+  presetSel.addEventListener("change", () => {
+    const p = presets()[+presetSel.value];
+    if (!p) return;
+    fmt.value = p.format;
+    if ([...scope.options].some((o) => o.value === p.scope)) scope.value = p.scope;
+    excl.value = (p.exclude || []).join(", ");
+  });
+  const presetRow = h("div.row", presetSel, btn("Save as preset…", { small: true, onClick: async () => {
+    const name = await promptDialog("Save export preset", "Name", "", { help: "Saves the format, which sources and the left-out fields." });
+    if (!name) return;
+    await savePresets([...presets().filter((p) => p.name !== name), { name, format: fmt.value, scope: scope.value, exclude: excl.value.split(",").map((s) => s.trim()).filter(Boolean) }]);
+    drawPresets(); toast(`Preset “${name}” saved`, "success");
+  } }));
+  const r = await modal("Export references", h("div", field("Preset", presetRow), field("Format", fmt), field("Sources", scope), field("Leave out fields (BibTeX)", excl, "Comma separated."),
     h("div.notice", icon("info"), "An export file is not a complete backup. Use Export complete library package or Back up now to keep everything.")),
     { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Export", kind: "primary", run: async () => {
       let list = ids;

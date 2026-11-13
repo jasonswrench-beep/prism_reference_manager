@@ -380,6 +380,12 @@ registerView("library", {
           btn("Label", { small: true, icon: "tag", onClick: () => labelDialog([...st.selected], labels) }),
           btn("Bulk edit", { small: true, onClick: () => dialogs.bulkEdit([...st.selected]) }),
           btn("Export", { small: true, onClick: () => dialogs.exportRefs([...st.selected]) }),
+          btn("Copy as", { small: true, icon: "chevronDown", onClick: (e) => {
+            const ids = [...st.selected];
+            let close;
+            const item = (label, f) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: async () => { close(); try { const r = await call("export.copy", { ids, format: f }); toast(`${r.count} source${r.count === 1 ? "" : "s"} copied as ${label}`, "success"); } catch (err) { showError(err); } } } }, label);
+            close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Copy as", style: { minWidth: "180px" } }, item("BibTeX", "bibtex"), item("biblatex", "biblatex"), item("RIS", "ris"), item("CSL JSON", "csljson")));
+          } }),
           btn("Clean up", { small: true, icon: "chevronDown", onClick: (e) => {
             const ids = [...st.selected];
             let close;

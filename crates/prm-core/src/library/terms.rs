@@ -164,6 +164,12 @@ impl Library {
     /// Write a project's (or the library's) BibTeX/biblatex file. Used for the automatically
     /// refreshed bibliography file for writing tools.
     pub fn write_bib_file(&self, project_id: &str, path: &std::path::Path, biblatex: bool, exclude_fields: &[String]) -> Result<usize> {
+        self.write_kept_file(project_id, path, if biblatex { "biblatex" } else { "bibtex" }, exclude_fields)
+    }
+
+    /// Write an export file that is kept up to date (BibTeX, biblatex, RIS, CSL JSON, CSV or Excel).
+    /// The file is rewritten only when its content changes, so watchers in other programs stay quiet.
+    pub fn write_kept_file(&self, project_id: &str, path: &std::path::Path, format: &str, exclude_fields: &[String]) -> Result<usize> {
         let refs: Vec<Reference> = if project_id.is_empty() {
             crate::store::list_in(&self.store.conn, "WHERE trashed IS NULL", &[])?
         } else {
@@ -172,12 +178,18 @@ impl Library {
         };
         let mut rr: Vec<&Reference> = refs.iter().collect();
         rr.sort_by(|a, b| a.citekey.cmp(&b.citekey));
-        let text = crate::formats::bibtex::export(&rr, biblatex, exclude_fields);
-        // Rewrite only when the content changed, so file watchers in writing tools stay quiet.
-        if std::fs::read_to_string(path).map(|s| s == text).unwrap_or(false) {
+        let bytes: Vec<u8> = match format {
+            "biblatex" => crate::formats::bibtex::export(&rr, true, exclude_fields).into_bytes(),
+            "ris" => crate::formats::ris::export(&rr).into_bytes(),
+            "csljson" => crate::formats::csljson::export(&rr).into_bytes(),
+            "csv" => crate::formats::csvfmt::export(&rr)?.into_bytes(),
+            "xlsx" => crate::formats::csvfmt::export_xlsx(&rr)?,
+            _ => crate::formats::bibtex::export(&rr, false, exclude_fields).into_bytes(),
+        };
+        if std::fs::read(path).map(|s| s == bytes).unwrap_or(false) {
             return Ok(rr.len());
         }
-        crate::util::write_atomic(path, text.as_bytes())?;
+        crate::util::write_atomic(path, &bytes)?;
         Ok(rr.len())
     }
 

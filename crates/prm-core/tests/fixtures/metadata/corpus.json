@@ -1,0 +1,12 @@
+{
+  "about": "Metadata accuracy corpus (spec QAL-005). Each entry gives a DOI and the values a reviewer confirmed on the publisher's own page. Entries with an empty reviewed_by are candidates written from well-known publications and must be checked against the publisher page before they count toward the release gate.",
+  "entries": [
+    { "doi": "10.1371/journal.pmed.0020124", "title": "Why most published research findings are false", "first_author": "Ioannidis", "year": 2005, "reviewed_by": "" },
+    { "doi": "10.1038/s41586-020-2649-2", "title": "Array programming with NumPy", "first_author": "Harris", "year": 2020, "reviewed_by": "" },
+    { "doi": "10.7554/eLife.00013", "title": "A bacterial sulfonolipid triggers multicellular development in the closest living relatives of animals", "first_author": "Alegado", "year": 2012, "reviewed_by": "" },
+    { "doi": "10.1038/nature14539", "title": "Deep learning", "first_author": "LeCun", "year": 2015, "reviewed_by": "" },
+    { "doi": "10.1126/science.aac4716", "title": "Estimating the reproducibility of psychological science", "first_author": "Open Science Collaboration", "year": 2015, "reviewed_by": "" },
+    { "doi": "10.1038/nature12373", "title": "Nanometre-scale thermometry in a living cell", "first_author": "Kucsko", "year": 2013, "reviewed_by": "" },
+    { "doi": "10.1145/3065386", "title": "ImageNet classification with deep convolutional neural networks", "first_author": "Krizhevsky", "year": 2017, "reviewed_by": "" }
+  ]
+}

@@ -9,6 +9,10 @@ already pass are listed at the end for reference.
 - [x] **Shipping license.** Apache-2.0, approved by the owner on 2026-11-13.
 - [ ] **Code signing.** Approved in principle: sign once there is a working version. Until then
       builds stay unsigned (Windows SmartScreen will warn).
+- [ ] **Contribution terms.** CONTRIBUTING.md uses the license's own terms (inbound equals
+      outbound) with a sign-off line on each commit. Confirm, or choose a contributor agreement.
+- [ ] **Security contact.** SECURITY.md points to the repository's private vulnerability
+      reporting once it is published. Confirm, or add another private channel.
 - [ ] **Bundled citation styles licence.** The bundled styles and locale files are CC BY-SA 3.0
       and ship unmodified, credited in THIRD-PARTY.md. Confirm this is acceptable for distribution.
 - [x] **Update channel.** Decided 2026-11-13: full updater built in, switched off. It stays
@@ -112,6 +116,16 @@ already pass are listed at the end for reference.
       number, a date) and one type of your own; add sources with them; export the definitions
       file and import it into a second library.
 - [ ] Export those sources to CSV and open it in a spreadsheet: one column per field.
+
+## 2g. Accuracy corpora (release gates QAL-005, QAL-006)
+
+- [ ] Review `crates/prm-core/tests/fixtures/metadata/corpus.json` against each publisher's own
+      page, add more real records (ideally 100 or more, across publishers and types), and put
+      the reviewer's name in `reviewed_by`. Then run
+      `cargo test -p prm-core --release --test accuracy -- --ignored --nocapture`. The 7 starter
+      entries all pass; one of them found and fixed a defect (group authors were dropped).
+- [ ] Collect a folder of real open-access PDFs with known DOIs, write `labels.csv`
+      (`file name,DOI`), and run the same command with `PRM_PDF_CORPUS` set to that folder.
 
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
@@ -256,7 +270,7 @@ work that could not be verified here or an owner decision.
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other
-  programs (EXT-013); scheduled export presets (EXP-006); a spreadsheet (.xlsx) export (CSV works).
+  programs (EXT-013).
 - Text recognition (OCR) for scanned PDFs (FIL-010); tasks interface (KNW-012; the data model exists).
 
 ## Automated checks that pass in this build

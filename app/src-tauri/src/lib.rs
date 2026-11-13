@@ -179,7 +179,7 @@ pub fn run() {
                         let seq = lib.last_event_seq();
                         if seq != last_bib_seq {
                             for b in &s.bib_exports {
-                                let _ = lib.write_bib_file(&b.project_id, std::path::Path::new(&b.path), b.biblatex, &b.exclude_fields);
+                                let _ = lib.write_kept_file(&b.project_id, std::path::Path::new(&b.path), if b.format.is_empty() { if b.biblatex { "biblatex" } else { "bibtex" } } else { &b.format }, &b.exclude_fields);
                             }
                             last_bib_seq = seq;
                         }

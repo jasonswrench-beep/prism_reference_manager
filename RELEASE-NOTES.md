@@ -14,6 +14,10 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Export.** Excel workbooks, copying selected sources as BibTeX, biblatex, RIS or CSL JSON,
+named export presets, and files kept up to date in any of those formats (not only BibTeX).
+Notes export to plain text; annotations export to DOCX and structured JSON.
+
 **Fields and types.** Your own fields (text, number, date, list, yes/no, web link) with
 defaults, required values and validation, shown in the editor and details, searchable, and
 carried in CSV and CSL JSON. Your own source types as named variants of built-in types, which

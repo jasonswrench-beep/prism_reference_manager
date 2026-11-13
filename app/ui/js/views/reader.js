@@ -578,7 +578,7 @@ registerView("reader", {
       } catch (e) { showError(e); }
     }
     async function exportList() {
-      const fmt = select([["md", "Markdown"], ["html", "HTML"], ["txt", "Plain text"]], "md");
+      const fmt = select([["docx", "DOCX document (.docx)"], ["md", "Markdown"], ["html", "HTML"], ["txt", "Plain text"], ["json", "Structured JSON (with page and citation for each)"]], "docx");
       const r = await modal("Export notes", field("Format", fmt), { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Export", kind: "primary", run: () => call("ann.export_list", { attachment_id: d.att.id, project_id: project, manuscript_id: manuscript()?.id || "", format: fmt.value }) }] }).done;
       if (r && !r.cancelled) toast("Saved " + r.path, "success");
     }

@@ -120,6 +120,10 @@ fn name_of(v: &Value) -> Name {
     if !s("literal").is_empty() {
         return Name { kind: NameKind::Organization, literal: s("literal"), ..Default::default() };
     }
+    // The DOI registry sends group authors as {"name": "..."} rather than the standard "literal".
+    if s("family").is_empty() && s("given").is_empty() && !s("name").is_empty() {
+        return Name { kind: NameKind::Organization, literal: s("name"), ..Default::default() };
+    }
     let mut particle = s("non-dropping-particle");
     if !s("dropping-particle").is_empty() {
         particle = format!("{} {}", s("dropping-particle"), particle).trim().to_string();

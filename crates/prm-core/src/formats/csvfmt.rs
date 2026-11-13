@@ -118,11 +118,54 @@ pub fn parse(text: &str, mapping: Option<&BTreeMap<String, String>>) -> ParseOut
 /// Export the main fields as CSV, one row per reference, with the stable id first so a
 /// spreadsheet edit can be matched back.
 pub fn export(refs: &[&Reference]) -> crate::Result<String> {
+    let (head, rows) = table(refs);
     let mut w = csv::Writer::from_writer(vec![]);
+    w.write_record(&head)?;
+    for r in rows {
+        w.write_record(&r)?;
+    }
+    let bytes = w.into_inner().map_err(|e| crate::Error::user(e.to_string()))?;
+    // A byte-order mark helps spreadsheet programs detect UTF-8.
+    Ok(format!("\u{feff}{}", String::from_utf8_lossy(&bytes)))
+}
+
+/// The same table as an Excel workbook: bold header row, frozen, with a filter and sensible widths.
+pub fn export_xlsx(refs: &[&Reference]) -> crate::Result<Vec<u8>> {
+    use rust_xlsxwriter::{Format, Workbook};
+    let (head, rows) = table(refs);
+    let mut wb = Workbook::new();
+    let ws = wb.add_worksheet();
+    let x = |e: rust_xlsxwriter::XlsxError| crate::Error::user(e.to_string());
+    ws.set_name("Sources").map_err(x)?;
+    let bold = Format::new().set_bold();
+    for (c, h) in head.iter().enumerate() {
+        ws.write_string_with_format(0, c as u16, h, &bold).map_err(x)?;
+    }
+    for (i, row) in rows.iter().enumerate() {
+        for (c, v) in row.iter().enumerate() {
+            if !v.is_empty() {
+                // Values stay text so identifiers and page ranges are never reinterpreted.
+                ws.write_string(i as u32 + 1, c as u16, v).map_err(x)?;
+            }
+        }
+    }
+    for (c, h) in head.iter().enumerate() {
+        let w = match h.as_str() { "title" | "abstract" => 60.0, "authors" | "container_title" => 32.0, "id" => 38.0, _ => 14.0 };
+        ws.set_column_width(c as u16, w).map_err(x)?;
+    }
+    ws.set_freeze_panes(1, 0).map_err(x)?;
+    if !rows.is_empty() {
+        ws.autofilter(0, 0, rows.len() as u32, head.len() as u16 - 1).map_err(x)?;
+    }
+    wb.save_to_buffer().map_err(x)
+}
+
+/// Header and rows shared by the CSV and Excel exports.
+pub fn table(refs: &[&Reference]) -> (Vec<String>, Vec<Vec<String>>) {
     let custom: Vec<String> = refs.iter().flat_map(|r| r.custom.keys().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
     let mut head: Vec<String> = ["id", "citekey", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "publisher_place", "edition", "isbn", "issn", "abstract", "keywords", "language", "note"].iter().map(|s| s.to_string()).collect();
     head.extend(custom.iter().map(|c| format!("custom:{c}")));
-    w.write_record(&head)?;
+    let mut rows = vec![];
     for r in refs {
         let cv: Vec<String> = custom.iter().map(|c| match r.custom.get(c) { Some(serde_json::Value::String(s)) => s.clone(), Some(serde_json::Value::Null) | None => String::new(), Some(v) => v.to_string() }).collect();
         let names = |role: &str| {
@@ -135,7 +178,7 @@ pub fn export(refs: &[&Reference]) -> crate::Result<String> {
         };
         let year = r.year().map(|y| y.to_string()).unwrap_or_default();
         let date = r.issued.as_ref().map(|d| if d.status.is_empty() { d.iso() } else { d.status.clone() }).unwrap_or_default();
-        w.write_record(vec![
+        rows.push(vec![
             r.id.as_str(),
             &r.citekey,
             &r.rtype,
@@ -160,9 +203,7 @@ pub fn export(refs: &[&Reference]) -> crate::Result<String> {
             &r.tags.join("; "),
             r.f("language"),
             r.f("note"),
-        ].into_iter().map(|s| s.to_string()).chain(cv.into_iter()).collect::<Vec<String>>())?;
+        ].into_iter().map(|s| s.to_string()).chain(cv.into_iter()).collect::<Vec<String>>());
     }
-    let bytes = w.into_inner().map_err(|e| crate::Error::user(e.to_string()))?;
-    // A byte-order mark helps spreadsheet programs detect UTF-8.
-    Ok(format!("\u{feff}{}", String::from_utf8_lossy(&bytes)))
+    (head, rows)
 }
