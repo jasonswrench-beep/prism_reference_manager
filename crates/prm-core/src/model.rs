@@ -102,7 +102,7 @@ impl Name {
         let split_particle = |family: &str| -> (String, String) {
             let lower = family.to_lowercase();
             for p in particles {
-                if lower.starts_with(&format!("{p} ")) {
+                if lower.starts_with(&format!("{p} ")) && family.is_char_boundary(p.len()) && family.is_char_boundary(p.len() + 1) {
                     return (family[..p.len()].to_string(), family[p.len() + 1..].trim().to_string());
                 }
             }
@@ -126,6 +126,9 @@ impl Name {
             return Name { kind: NameKind::Person, family, given, particle, suffix, ..Default::default() };
         }
         let words: Vec<&str> = t.split_whitespace().collect();
+        if words.is_empty() {
+            return Name::default();
+        }
         if words.len() == 1 {
             return Name::person(words[0], "");
         }
@@ -208,7 +211,7 @@ impl PartialDate {
         if lower.contains("in press") || lower == "forthcoming" {
             return Some(PartialDate { status: if lower.contains("press") { "in press".into() } else { "forthcoming".into() }, ..Default::default() });
         }
-        let re_iso = regex::Regex::new(r"^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?$").unwrap();
+        let re_iso = re!(r"^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?$");
         if let Some(c) = re_iso.captures(t) {
             let y = c[1].parse().ok();
             let m = c.get(2).and_then(|m| m.as_str().parse().ok());
@@ -217,7 +220,7 @@ impl PartialDate {
                 return Some(PartialDate { year: y, month: m, day: d, ..Default::default() });
             }
         }
-        let re_range = regex::Regex::new(r"^(\d{4})\s*[-–/]\s*(\d{4})$").unwrap();
+        let re_range = re!(r"^(\d{4})\s*[-–/]\s*(\d{4})$");
         if let Some(c) = re_range.captures(t) {
             return Some(PartialDate {
                 year: c[1].parse().ok(),
@@ -227,14 +230,14 @@ impl PartialDate {
         }
         let months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
         let seasons = [("spring", 1u8), ("summer", 2), ("fall", 3), ("autumn", 3), ("winter", 4)];
-        let year_re = regex::Regex::new(r"\b(\d{4})\b").unwrap();
+        let year_re = re!(r"\b(\d{4})\b");
         let year: Option<i32> = year_re.captures(t).and_then(|c| c[1].parse().ok());
         if year.is_some() {
             let mut d = PartialDate { year, ..Default::default() };
             for (i, m) in months.iter().enumerate() {
                 if lower.contains(m) {
                     d.month = Some(i as u8 + 1);
-                    let day_re = regex::Regex::new(r"\b(\d{1,2})\b").unwrap();
+                    let day_re = re!(r"\b(\d{1,2})\b");
                     d.day = day_re.captures(t).and_then(|c| c[1].parse().ok());
                     break;
                 }

@@ -105,7 +105,7 @@ pub fn delatex(s: &str) -> String {
         i += 1;
     }
     let out = out.replace("---", "—").replace("--", "–").replace("``", "“").replace("''", "”");
-    let re = regex::Regex::new(r"\\(emph|textit|textbf|textsc|textrm|mathrm|url|href)\s*").unwrap();
+    let re = re!(r"\\(emph|textit|textbf|textsc|textrm|mathrm|url|href)\s*");
     let out = re.replace_all(&out, "").into_owned();
     out.replace(['{', '}'], "").replace('~', "\u{a0}").split_whitespace().collect::<Vec<_>>().join(" ")
 }

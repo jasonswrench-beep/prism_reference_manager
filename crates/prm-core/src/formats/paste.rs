@@ -7,11 +7,11 @@ use crate::model::{PartialDate, Reference};
 
 pub fn identifiers(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
-    let doi = regex::Regex::new(r"(?i)\b(10\.\d{4,9}/[^\s\]\)>,;]+)").unwrap();
-    let arxiv = regex::Regex::new(r"(?i)\barxiv:\s*(\d{4}\.\d{4,5}(v\d+)?)").unwrap();
-    let pmid = regex::Regex::new(r"(?i)\bPMID:?\s*(\d{5,9})").unwrap();
-    let pmc = regex::Regex::new(r"(?i)\b(PMC\d{5,9})\b").unwrap();
-    let isbn = regex::Regex::new(r"(?i)\bISBN(?:-1[03])?:?\s*([0-9X][0-9X\- ]{8,16}[0-9X])").unwrap();
+    let doi = re!(r"(?i)\b(10\.\d{4,9}/[^\s\]\)>,;]+)");
+    let arxiv = re!(r"(?i)\barxiv:\s*(\d{4}\.\d{4,5}(v\d+)?)");
+    let pmid = re!(r"(?i)\bPMID:?\s*(\d{5,9})");
+    let pmc = re!(r"(?i)\b(PMC\d{5,9})\b");
+    let isbn = re!(r"(?i)\bISBN(?:-1[03])?:?\s*([0-9X][0-9X\- ]{8,16}[0-9X])");
     for c in doi.captures_iter(text) {
         out.push(("doi".into(), c[1].trim_end_matches('.').to_string()));
     }
@@ -43,8 +43,8 @@ fn entries(text: &str) -> Vec<String> {
 pub fn parse(text: &str) -> ParseOutput {
     let mut out = ParseOutput::default();
     // Author-date pattern: "Authors (Year). Title. Source, vol(issue), pages. doi"
-    let ad = regex::Regex::new(r"^(?P<authors>.+?)\s*\((?P<year>\d{4}[a-z]?|n\.d\.|in press)(?:,[^)]*)?\)\.\s*(?P<title>[^.?!]+[.?!])\s*(?P<rest>.*)$").unwrap();
-    let src = regex::Regex::new(r"^(?P<journal>[^,]+),\s*(?P<vol>\d+)(?:\((?P<iss>[^)]+)\))?(?:,\s*(?P<pages>[\dA-Za-z]+(?:[-–][\dA-Za-z]+)?))?").unwrap();
+    let ad = re!(r"^(?P<authors>.+?)\s*\((?P<year>\d{4}[a-z]?|n\.d\.|in press)(?:,[^)]*)?\)\.\s*(?P<title>[^.?!]+[.?!])\s*(?P<rest>.*)$");
+    let src = re!(r"^(?P<journal>[^,]+),\s*(?P<vol>\d+)(?:\((?P<iss>[^)]+)\))?(?:,\s*(?P<pages>[\dA-Za-z]+(?:[-–][\dA-Za-z]+)?))?");
     for e in entries(text) {
         let ids = identifiers(&e);
         let mut r = Reference::default();

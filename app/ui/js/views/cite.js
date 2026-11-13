@@ -84,7 +84,7 @@ async function workspace(el, m) {
   async function drawBib() {
     clear(bibCard);
     const set = select([["confirmed", "Confirmed used in manuscript"], ["manuscript", "All sources in the manuscript"], ["project", "All project sources"], ["selected", "Sources in this citation"]], C.bibSet, { "aria-label": "Bibliography source set", style: { width: "auto" }, on: { change: (e) => { C.bibSet = e.target.value; drawBib(); } } });
-    const fmt = select([["docx", "Word document (.docx)"], ["rtf", "Rich Text (.rtf)"], ["html", "HTML"], ["md", "Markdown"], ["txt", "Plain text"]], "docx", { "aria-label": "File format" });
+    const fmt = select([["docx", "DOCX document (.docx)"], ["rtf", "Rich Text (.rtf)"], ["html", "HTML"], ["md", "Markdown"], ["txt", "Plain text"]], "docx", { "aria-label": "File format" });
     bibCard.append(h("div.row", h("h2.section-title.grow", { style: { margin: 0 } }, "Bibliography"), set));
     if (!m && C.bibSet !== "selected") { bibCard.append(h("p.muted", "Choose a manuscript to build its bibliography.")); return; }
     try {
@@ -180,7 +180,7 @@ async function readiness(el, m) {
           h("td.nowrap", c.status === "copied" ? btn("Mark used", { small: true, onClick: async () => { await call("copies.set_status", { id: c.id, status: "used" }); go("cite"); } }) : null, c.status !== "discarded" ? btn("Discard", { small: true, kind: "ghost", onClick: async () => { await call("copies.set_status", { id: c.id, status: "discarded" }); go("cite"); } }) : null)))))));
   }
   if (C.subtab === "bibliography") {
-    const fmt = select([["docx", "Word (.docx)"], ["rtf", "Rich Text"], ["html", "HTML"], ["md", "Markdown"], ["txt", "Plain text"]], "docx");
+    const fmt = select([["docx", "DOCX document (.docx)"], ["rtf", "Rich Text"], ["html", "HTML"], ["md", "Markdown"], ["txt", "Plain text"]], "docx");
     try {
       const b = await call("cite.render", { request: { manuscript_id: m.id, mode: "bibliography", set: "confirmed" } });
       main.append(h("div.card.pad", h("h2.section-title.bar", `Submission bibliography (${b.source_count} confirmed used)`),

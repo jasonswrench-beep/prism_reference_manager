@@ -116,14 +116,24 @@ pub fn run() {
             // Background: library heartbeat, mirror catch-up, trash retention, scheduled backup.
             let st2 = state.clone();
             let handle = app.handle().clone();
-            std::thread::spawn(move || loop {
-                std::thread::sleep(std::time::Duration::from_secs(30));
+            std::thread::spawn(move || {
+              let mut last_bib_seq: i64 = -1;
+              loop {
+                std::thread::sleep(std::time::Duration::from_secs(10));
                 let mut msg = None;
                 if let Ok(mut st) = st2.lock() {
                     let s = st.settings.clone();
                     if let Some(lib) = st.lib.as_mut() {
                         let _ = lib.heartbeat();
                         let _ = lib.store.advance_mirror();
+                        // Keep automatically refreshed BibTeX files current.
+                        let seq = lib.last_event_seq();
+                        if seq != last_bib_seq {
+                            for b in &s.bib_exports {
+                                let _ = lib.write_bib_file(&b.project_id, std::path::Path::new(&b.path), b.biblatex);
+                            }
+                            last_bib_seq = seq;
+                        }
                         let due = s.auto_backup
                             && (s.last_backup.is_empty()
                                 || chrono::DateTime::parse_from_rfc3339(&s.last_backup).map(|t| chrono::Utc::now().signed_duration_since(t).num_hours() >= s.backup_interval_hours as i64).unwrap_or(true));
@@ -145,6 +155,7 @@ pub fn run() {
                 if let Some(m) = msg {
                     let _ = handle.emit("job", m);
                 }
+              }
             });
 
             // Optional local API.

@@ -298,7 +298,7 @@ registerView("library", {
         const fs = ["title", "creators", "issued", ...Object.keys(r.fields).filter((f) => f !== "title"), "type"];
         body.append(h("table.table", h("tbody", fs.map((f) => h("tr", h("td", fieldLabel(f) === f ? f : fieldLabel(f)), h("td.small.muted", r.provenance?.[f] ? `${r.provenance[f].source}${r.provenance[f].user_edited ? " (edited)" : ""} • ${fmtDate(r.provenance[f].time)}` : ""),
           h("td", btn("History", { small: true, onClick: () => dialogs.fieldHistory(r.id, f) })))))),
-          h("div.btn-row", { style: { marginTop: "10px" } }, btn("Regenerate citation key", { small: true, onClick: async () => { try { await call("refs.regenerate_citekey", { id: r.id }); drawInspector(); } catch (e) { showError(e); } } }),
+          h("div.btn-row", { style: { marginTop: "10px" } }, (r.fields.doi || r.fields.pmid || r.fields.arxiv || r.fields.isbn) ? btn("Refresh from online record…", { small: true, icon: "refresh", onClick: () => dialogs.refreshFromSource(r.id) }) : null, btn("Regenerate citation key", { small: true, onClick: async () => { try { await call("refs.regenerate_citekey", { id: r.id }); drawInspector(); } catch (e) { showError(e); } } }),
             btn("Copy citation key", { small: true, onClick: async () => { await call("refs.citekey_copy", { ids: [r.id], syntax: "pandoc" }); toast("Copied @" + r.citekey, "success"); } })));
       }
       // Bottom panel

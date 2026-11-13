@@ -170,6 +170,7 @@ impl Library {
         if b.state != "staged" {
             return Err(Error::user("This import was already committed or cancelled; nothing was changed."));
         }
+        self.safety_snapshot("import")?;
         let t = now();
         let source = format!("import:{}", b.adapter);
         let mut report = CommitReport { batch_id: b.id.clone(), added: 0, merged: 0, linked: 0, skipped: 0, failed: vec![] };

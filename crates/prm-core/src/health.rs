@@ -31,7 +31,7 @@ pub fn run(lib: &Library) -> Result<HealthReport> {
     let refs: Vec<Reference> = crate::store::list_in(&lib.store.conn, "WHERE trashed IS NULL", &[])?;
     let mut items = Vec::new();
     let mut keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let doi_re = regex::Regex::new(r"^10\.\d{4,9}/\S+$").unwrap();
+    let doi_re = re!(r"^10\.\d{4,9}/\S+$");
     for r in &refs {
         let t = super::library::short(r.title());
         let mut push = |check: &str, detail: String, action: &str| items.push(HealthItem { check: check.into(), ref_id: r.id.clone(), title: t.clone(), detail, action: action.into() });

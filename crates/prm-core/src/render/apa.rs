@@ -44,7 +44,7 @@ fn supported(rtype: &str) -> bool {
 
 fn dash(s: &str) -> String {
     // Number ranges use an en dash.
-    let re = regex::Regex::new(r"(\w)\s*[-‐‑‒―]\s*(\w)").unwrap();
+    let re = re!(r"(\w)\s*[-‐‑‒―]\s*(\w)");
     re.replace_all(s.trim(), "$1–$2").into_owned()
 }
 

@@ -54,7 +54,7 @@ fn filters(kind: &str) -> Vec<(&'static str, Vec<&'static str>)> {
         "bib" => vec![("Bibliographic files", vec!["ris", "bib", "bibtex", "json", "xml", "csv", "tsv", "txt"]), ("All files", vec!["*"])],
         "zip" => vec![("Archives", vec!["zip"])],
         "any" => vec![("All files", vec!["*"])],
-        "docx" => vec![("Word document", vec!["docx"])],
+        "docx" => vec![("DOCX document", vec!["docx"])],
         "rtf" => vec![("Rich Text", vec!["rtf"])],
         "html" => vec![("Web page", vec!["html"])],
         "md" => vec![("Markdown", vec!["md"])],
@@ -416,7 +416,28 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         }
         "refs.update" => {
             let r: Reference = arg(a, "ref")?;
-            ok(lib_mut(st)?.update_reference(r, if client.is_some() { "agent" } else { "user" }).map_err(err)?)
+            let src = s(a, "source");
+            let source = if client.is_some() { "agent".to_string() } else if src.starts_with("lookup:") { src } else { "user".to_string() };
+            ok(lib_mut(st)?.update_reference(r, &source).map_err(err)?)
+        }
+        "terms.list" => ok(lib_mut(st)?.terms(&s(a, "kind")).map_err(err)?),
+        "terms.variants" => ok(lib_mut(st)?.term_variants(&s(a, "kind")).map_err(err)?),
+        "terms.merge" => ok(lib_mut(st)?.merge_terms(&s(a, "kind"), &arg::<Vec<String>>(a, "from")?, &s(a, "to")).map_err(err)?),
+        "bib.add_export" => {
+            let pid = s(a, "project_id");
+            let Some(p) = save_file(app, "bibtex", "references.bib", "Choose where to keep the BibTeX file") else { return ok(json!({"cancelled": true})) };
+            let biblatex: bool = opt(a, "biblatex");
+            let n = lib_mut(st)?.write_bib_file(&pid, &p, biblatex).map_err(err)?;
+            st.settings.bib_exports.retain(|b| b.path != p.to_string_lossy());
+            st.settings.bib_exports.push(settings::BibExport { project_id: pid, path: p.to_string_lossy().to_string(), biblatex });
+            let _ = settings::save(&st.config_dir, &st.settings);
+            ok(json!({"path": p.to_string_lossy(), "count": n}))
+        }
+        "bib.remove_export" => {
+            let path = s(a, "path");
+            st.settings.bib_exports.retain(|b| b.path != path);
+            let _ = settings::save(&st.config_dir, &st.settings);
+            ok(true)
         }
         "refs.trash" => ok(lib_mut(st)?.trash(&arg::<Vec<String>>(a, "ids")?).map_err(err)?),
         "refs.restore" => ok(lib_mut(st)?.restore(&arg::<Vec<String>>(a, "ids")?).map_err(err)?),

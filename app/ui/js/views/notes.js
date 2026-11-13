@@ -192,7 +192,7 @@ registerView("notes", {
       setTimeout(() => editorPane.querySelector("textarea")?.focus(), 50);
     }
     async function exportNotes(outlineOnly) {
-      const fmt = select([["docx", "Word document (.docx)"], ["md", "Markdown"], ["html", "HTML"], ["rtf", "Rich Text (.rtf)"], ["json", "Structured JSON"]], "docx");
+      const fmt = select([["docx", "DOCX document (.docx)"], ["md", "Markdown"], ["html", "HTML"], ["rtf", "Rich Text (.rtf)"], ["json", "Structured JSON"]], "docx");
       const r = await modal(outlineOnly ? "Export outline" : "Export notes", h("div", field("Format", fmt), h("p.small.muted", "Quotations carry their citations in the active manuscript's style, followed by a reference list.")),
         { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Export", kind: "primary", run: () => call("notes.export", { project_id: pid, manuscript_id: manuscript()?.id || "", outline_only: outlineOnly, format: fmt.value }) }] }).done;
       if (r && !r.cancelled) toast("Saved " + r.path, "success");

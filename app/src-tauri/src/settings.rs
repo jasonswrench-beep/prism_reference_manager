@@ -21,6 +21,15 @@ impl Default for ApiClient {
     }
 }
 
+/// A BibTeX or biblatex file kept up to date for writing tools.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct BibExport {
+    pub project_id: String,
+    pub path: String,
+    pub biblatex: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -58,6 +67,7 @@ pub struct Settings {
     pub tour_done: bool,
     pub interface_language: String,
     pub duplicate_sensitivity: f32,
+    pub bib_exports: Vec<BibExport>,
 }
 
 impl Default for Settings {
@@ -94,6 +104,7 @@ impl Default for Settings {
             tour_done: false,
             interface_language: "en".into(),
             duplicate_sensitivity: 0.88,
+            bib_exports: vec![],
         }
     }
 }

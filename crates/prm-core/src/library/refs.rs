@@ -403,6 +403,7 @@ impl Library {
         if !confirmed {
             return Err(Error::user("Permanent deletion needs confirmation."));
         }
+        self.safety_snapshot("delete")?;
         let mut n = 0;
         let mut files_to_check = Vec::new();
         self.write("Delete permanently", |tx| {
@@ -475,6 +476,7 @@ impl Library {
     /// keep. Memberships, notes, attachments, annotations and copy references move to the
     /// target; each retired id becomes an alias so old links still resolve.
     pub fn merge(&mut self, target: &str, others: &[String], choices: &BTreeMap<String, String>) -> Result<Reference> {
+        self.safety_snapshot("merge")?;
         let mut t = self.store.must::<Reference>(target)?;
         let sources: Vec<Reference> = others.iter().filter(|o| o.as_str() != target).map(|o| self.store.must::<Reference>(o)).collect::<Result<_>>()?;
         for (field, from) in choices {
@@ -711,6 +713,7 @@ impl Library {
             }
         }
         if apply && !updated.is_empty() {
+            self.safety_snapshot("bulk-edit")?;
             let t = now();
             let label = format!("Bulk {} {} on {} sources", op.op, crate::types::field_label(&op.field), updated.len());
             self.write(&label, |tx| {
@@ -760,6 +763,7 @@ impl Library {
             }
         }
         if apply && !updated.is_empty() {
+            self.safety_snapshot("find-replace")?;
             let t = now();
             self.write(&format!("Find and replace in {} sources", updated.len()), |tx| {
                 for mut r in updated {

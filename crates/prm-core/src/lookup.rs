@@ -241,8 +241,8 @@ pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool,
 /// Embedded citation metadata (citation_*, Dublin Core, Open Graph) as a candidate; it never
 /// overrides a person's corrections.
 pub fn from_meta_tags(html: &str, url: &str) -> Reference {
-    let re = regex::Regex::new(r#"(?is)<meta\s+[^>]*?(?:name|property)\s*=\s*["']([^"']+)["'][^>]*?content\s*=\s*["']([^"']*)["'][^>]*>"#).unwrap();
-    let re2 = regex::Regex::new(r#"(?is)<meta\s+[^>]*?content\s*=\s*["']([^"']*)["'][^>]*?(?:name|property)\s*=\s*["']([^"']+)["'][^>]*>"#).unwrap();
+    let re = re!(r#"(?is)<meta\s+[^>]*?(?:name|property)\s*=\s*["']([^"']+)["'][^>]*?content\s*=\s*["']([^"']*)["'][^>]*>"#);
+    let re2 = re!(r#"(?is)<meta\s+[^>]*?content\s*=\s*["']([^"']*)["'][^>]*?(?:name|property)\s*=\s*["']([^"']+)["'][^>]*>"#);
     let mut tags: Vec<(String, String)> = re.captures_iter(html).map(|c| (c[1].to_lowercase(), html_unescape(&c[2]))).collect();
     tags.extend(re2.captures_iter(html).map(|c| (c[2].to_lowercase(), html_unescape(&c[1]))));
     let first = |k: &str| tags.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();

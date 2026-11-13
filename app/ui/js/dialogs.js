@@ -522,3 +522,63 @@ export function outputPreview(out) {
 }
 
 export { manuscript };
+
+// ---- term lists and refreshing records -----------------------------------------------------
+
+export async function termLists() {
+  let kind = "journal";
+  const body = h("div");
+  const draw = async () => {
+    const [variants, terms] = await Promise.all([call("terms.variants", { kind }), call("terms.list", { kind })]);
+    clear(body,
+      select([["journal", "Journals"], ["publisher", "Publishers"], ["creator", "Authors and editors"], ["keyword", "Keywords"]], kind, { "aria-label": "Term list", on: { change: (e) => { kind = e.target.value; draw(); } } }),
+      h("h3", `Possible variants (${variants.length} groups)`),
+      variants.length ? h("div", variants.slice(0, 100).map((g) => {
+        const pref = select(g.map((t) => [t.value, `${t.value} (${t.count})`]), g.sort((a, b) => b.count - a.count)[0].value, { "aria-label": "Preferred form" });
+        return h("div.card.pad", { style: { marginBottom: "8px" } }, h("div.small.muted", g.map((t) => `“${t.value}” ×${t.count}`).join(" • ")),
+          h("div.row", { style: { marginTop: "6px" } }, h("span", "Use:"), pref, btn("Merge variants", { small: true, kind: "primary", onClick: async () => {
+            const n = await call("terms.merge", { kind, from: g.map((t) => t.value).filter((v) => v !== pref.value), to: pref.value });
+            toast(`${n} sources updated in one undo step.`, "success");
+            draw();
+          } })));
+      })) : h("p.muted", "No likely variants found."),
+      h("details", h("summary", `All ${terms.length} values`), h("table.table", h("tbody", terms.slice(0, 1000).map((t) => h("tr", h("td", t.value), h("td.num", t.count)))))));
+  };
+  modal("Term lists", body, { size: "wide", buttons: [{ label: "Close" }] });
+  draw().catch((e) => showError(e, body));
+}
+
+export async function refreshFromSource(refId) {
+  const d = await call("refs.get", { id: refId });
+  const r = d.ref;
+  const kind = r.fields.doi ? "doi" : r.fields.pmid ? "pmid" : r.fields.arxiv ? "arxiv" : r.fields.isbn ? "isbn" : null;
+  if (!kind) return toast("This source has no DOI, PubMed ID, arXiv ID or ISBN to refresh from.", "info");
+  const res = await call("lookup.resolve", { kind, id: r.fields[kind] });
+  if (!res.ok) return toast(res.message, "error");
+  const c = res.candidate;
+  const val = (x, k) => k === "creators" ? (x.creators || []).map((n) => n.name.literal || `${n.name.family}, ${n.name.given || ""}`).join("; ") : k === "issued" ? JSON.stringify(x.issued || null) : x.fields[k] || "";
+  const keys = [...new Set(["creators", "issued", ...Object.keys(c.fields)])].filter((k) => val(c, k) && val(c, k) !== val(r, k));
+  if (!keys.length) return toast("The online record matches this source.", "success");
+  const boxes = {};
+  const rows = keys.map((k) => {
+    const userEdited = r.provenance?.[k]?.user_edited;
+    const cb = h("input", { type: "checkbox", checked: !userEdited && !val(r, k), "aria-label": "Use new value for " + fieldLabel(k) });
+    boxes[k] = cb;
+    return h("tr", h("td", cb), h("td", h("strong", fieldLabel(k)), userEdited ? h("div.small.status-review", "You edited this field") : null), h("td.small", val(r, k) || h("em.muted", "empty")), h("td.small", val(c, k)));
+  });
+  const ok = await modal("Refresh from the online record", h("div",
+    h("p", `Values from ${kind.toUpperCase()} ${r.fields[kind]}. Only the fields you tick are changed; the rest stay as they are. Each change keeps its earlier value in history.`),
+    ...res.conflicts.map((x) => h("div.small.status-review", icon("warn", 13), " " + x)),
+    h("table.table", h("thead", h("tr", h("th", "Use"), h("th", "Field"), h("th", "Current"), h("th", "Online record"))), h("tbody", rows))),
+    { size: "wide", buttons: [{ label: "Cancel" }, { label: "Apply ticked fields", kind: "primary", run: async () => {
+      const nr = structuredClone(r);
+      for (const k of keys) if (boxes[k].checked) {
+        if (k === "creators") nr.creators = c.creators;
+        else if (k === "issued") nr.issued = c.issued;
+        else nr.fields[k] = c.fields[k];
+      }
+      nr.notices = [...(r.notices || []), ...(c.notices || []).filter((n) => !(r.notices || []).some((o) => o.url === n.url))];
+      return call("refs.update", { ref: nr, source: "lookup:" + kind });
+    } }] }).done;
+  if (ok) { toast("Source refreshed", "success"); await refresh(); }
+}

@@ -143,7 +143,7 @@ pub fn inspect(path: &Path) -> PdfInfo {
     }
     // DOIs in the first megabyte (XMP metadata and first-page text streams often carry them).
     let head = String::from_utf8_lossy(&bytes[..bytes.len().min(1 << 20)]);
-    let re = regex::Regex::new(r"(?i)\b(10\.\d{4,9}/[^\s<>\]\)\(\x22]+)").unwrap();
+    let re = re!(r"(?i)\b(10\.\d{4,9}/[^\s<>\]\)\(\x22]+)");
     for c in re.captures_iter(&head) {
         let d = c[1].trim_end_matches(['.', ',', ';']).to_lowercase();
         if !info.dois.contains(&d) && d.len() < 100 {

@@ -228,6 +228,7 @@ function registerCommands() {
   command("cite.checks", "Style checks", () => go("cite", { tab: "checks" }), "", "Cite");
   command("tools.duplicates", "Find duplicates…", () => dialogs.duplicates(), "", "Tools");
   command("tools.health", "Library health report…", () => dialogs.health(), "", "Tools");
+  command("tools.terms", "Term lists (journals, authors, keywords)…", () => dialogs.termLists(), "", "Tools");
   command("tools.files", "Check attached files…", () => dialogs.checkFiles(), "", "Tools");
   command("tools.trash", "Open trash", () => go("library", { view: "trash" }), "", "Tools");
   command("tools.history", "Change history…", () => dialogs.history(), "", "Tools");

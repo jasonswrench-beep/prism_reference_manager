@@ -4,6 +4,14 @@
 //! imports, exports and change events. The desktop shell, the local API and tests all call
 //! the same operations through [`library::Library`].
 
+/// A regular expression compiled once, on first use.
+macro_rules! re {
+    ($s:expr) => {{
+        static R: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new($s).unwrap());
+        &*R
+    }};
+}
+
 pub mod error;
 pub mod util;
 pub mod model;

@@ -391,7 +391,7 @@ impl Library {
 
     fn change_reason(&self, c: &CopyEvent, cur: &CiteOutput) -> Result<String> {
         let mut reasons = Vec::new();
-        let suffix = regex::Regex::new(r"(\d{4}|n\.d\.|in press)(-?[a-z]{1,2})?\b").unwrap();
+        let suffix = re!(r"(\d{4}|n\.d\.|in press)(-?[a-z]{1,2})?\b");
         let strip = |s: &str| suffix.replace_all(s, "$1").into_owned();
         if strip(&c.payload_text) == strip(&cur.text) {
             reasons.push("Year suffix changed after another work by the same authors entered the manuscript".to_string());

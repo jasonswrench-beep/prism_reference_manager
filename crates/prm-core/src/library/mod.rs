@@ -7,6 +7,7 @@ mod imports;
 mod notes;
 mod projects;
 mod refs;
+mod terms;
 
 pub use cite::*;
 pub use files::*;
@@ -14,6 +15,7 @@ pub use imports::*;
 pub use notes::*;
 pub use projects::*;
 pub use refs::*;
+pub use terms::*;
 
 use crate::error::{Error, Result};
 use crate::model::*;

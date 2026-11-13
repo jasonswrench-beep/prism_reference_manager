@@ -28,9 +28,10 @@ pub fn parse(text: &str) -> ParseOutput {
     let mut last_tag = String::new();
     for line in text.lines() {
         let l = line.trim_end_matches('\r');
-        let (tag, val) = if l.len() >= 6 && &l[2..6] == "  - " {
+        // Byte-safe slicing: a tag line starts with two ASCII characters.
+        let (tag, val) = if l.get(2..6) == Some("  - ") && l.get(..2).is_some() {
             (l[..2].to_string(), l[6..].trim().to_string())
-        } else if l.len() >= 5 && l.get(2..5) == Some("  -") {
+        } else if l.get(2..5) == Some("  -") && l.get(..2).is_some() && l.get(5..).map(|r| r.trim().is_empty()).unwrap_or(false) {
             (l[..2].to_string(), String::new())
         } else {
             // Continuation line of the previous tag.
