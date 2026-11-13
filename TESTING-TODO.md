@@ -84,6 +84,9 @@ already pass are listed at the end for reference.
 - [ ] Look up a handful of real DOIs, ISBNs and web pages, import a PDF folder, and paste a messy
       reference list. In each source's History tab, check that the sources and confidence figures
       make sense and that the values flagged for checking are the ones that really need it.
+- [ ] Library format upgrade: open a library made by the previous installed build with this
+      build, and confirm the upgrade message, the Format history, and that the earlier build
+      can open the library again after "Return to the format before the last upgrade".
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder

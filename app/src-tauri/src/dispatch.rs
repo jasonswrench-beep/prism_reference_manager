@@ -607,6 +607,30 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(true)
         }
         "library.info" => ok(lib_mut(st)?.info().map_err(err)?),
+        "library.schema" => {
+            let l = lib_mut(st)?;
+            ok(json!({
+                "version": l.store.schema_version(),
+                "supported": prm_core::store::SCHEMA_VERSION,
+                "history": l.store.schema_history().map_err(err)?,
+                "backups": prm_core::store::upgrade_backups(&l.root),
+            }))
+        }
+        // Put the library back as it was before a format upgrade. It is closed first and not
+        // reopened here, because this program would upgrade it again.
+        "library.revert_upgrade" => {
+            if !opt::<bool>(a, "confirmed") {
+                return Err(user("Returning to the earlier format needs confirmation."));
+            }
+            let root = lib_mut(st)?.root.clone();
+            if let Some(l) = st.lib.take() {
+                l.close();
+            }
+            let kept = prm_core::store::revert_upgrade(&root, &s(a, "backup")).map_err(err)?;
+            st.settings.last_library.clear();
+            let _ = settings::save(&st.config_dir, &st.settings);
+            ok(json!({"kept": kept.to_string_lossy(), "root": root.to_string_lossy()}))
+        }
         "library.rename" => ok(lib_mut(st)?.rename(&s(a, "name")).map_err(err)?),
         "library.reveal" => {
             let l = lib_mut(st)?;

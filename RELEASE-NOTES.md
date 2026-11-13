@@ -65,6 +65,11 @@ web page's tags or a pasted reference less so, a guess from a PDF's properties l
 70% are highlighted in the editor and marked for review in the list until you check or correct
 them. A value two resolvers disagree on is marked as a conflict.
 
+**Library format upgrades.** A library made by an earlier version is upgraded on opening, after
+a copy is saved and checked; if anything fails, nothing changes. Each upgrade is recorded, and the
+last one can be reversed to go back to an earlier program version. A library from a newer version
+opens read-only with an explanation.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

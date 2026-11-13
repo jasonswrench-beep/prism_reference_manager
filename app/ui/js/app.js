@@ -62,9 +62,15 @@ export function autoIndex() {
   })();
 }
 
+let upgradeShown = "";
 export async function loadInfo() {
   const info = await call("app.info");
   S.info = info;
+  const op = info.library?.opened;
+  if (op?.migrated_from && upgradeShown !== info.library.id) {
+    upgradeShown = info.library.id;
+    setTimeout(() => toast(`This library was upgraded from format ${op.migrated_from} to ${info.library.schema}. A verified copy of the earlier version was saved in its backups folder first.`, "info", { sticky: true }), 500);
+  }
   if (info.library) setTimeout(autoIndex, 3000);
   S.settings = info.settings;
   S.types = info.types;

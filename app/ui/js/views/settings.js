@@ -136,10 +136,23 @@ registerView("settings", {
         }
       }
       const bl = info ? await call("backup.list").catch(() => null) : null;
+      const sch = info ? await call("library.schema").catch(() => null) : null;
+      const schemaBox = sch && (sch.history.length > 1 || sch.backups.length) ? h("details.small",
+        h("summary", "Format history"),
+        h("table.table", h("tbody", sch.history.map((x) => h("tr", h("td", `Format ${x.version}`), h("td", x.label), h("td.muted", x.applied ? fmtDate(x.applied) : ""), h("td.muted", x.app_version ? "program " + x.app_version : ""))))),
+        sch.backups.length ? h("div",
+          h("p", `A verified copy was made before each upgrade. The newest is from format ${sch.backups[0].version} (${(sch.backups[0].size / 1048576).toFixed(1)} MB).`),
+          btn("Return to the format before the last upgrade…", { small: true, kind: "danger", onClick: async () => {
+            const b = sch.backups[0];
+            if (!(await confirmDialog("Return to the earlier format", `Put this library back exactly as it was before it was upgraded to format ${sch.version}? Use this to go back to an earlier program version. Changes made since the upgrade are not in that copy; the current library file is kept in the backups folder, so nothing is deleted. This program will close the library now, and would upgrade it again if you opened it here.`, { ok: "Return to format " + b.version, kind: "danger" }))) return;
+            try { const r = await call("library.revert_upgrade", { backup: b.path, confirmed: true }); toast(`The library is back in format ${b.version}. The upgraded file was kept as ${r.kept}.`, "success", { sticky: true }); await loadInfo(); go("library"); } catch (e) { showError(e); }
+          } })) : null) : null;
       body.append(card("This library", info ? h("div",
         h("p", h("strong", info.name), h("br"), h("span.mono", info.root)),
         info.sync_folder_warning ? h("div.notice.warn", icon("warn"), "This library is inside a synchronized folder. Never open it on two computers at the same time; the program refuses a second writer, but sync conflicts can still damage files. Prefer a local folder and move between computers with backups.") : null,
-        h("p.small", `${info.counts.references} sources • ${info.counts.projects} projects • ${info.counts.notes} notes • ${info.counts.annotations} annotations • ${info.counts.attachments} files • schema ${info.schema}`),
+        h("p.small", `${info.counts.references} sources • ${info.counts.projects} projects • ${info.counts.notes} notes • ${info.counts.annotations} annotations • ${info.counts.attachments} files • format version ${info.schema}`),
+        info.read_only && info.opened?.too_new ? h("div.notice.warn", icon("warn"), `This library was last opened by a newer version of the program (format ${info.schema}; this version writes format ${info.schema_supported}). It is open read-only so nothing in it is lost. Install the newer version to edit it, or export what you need now.`) : null,
+        schemaBox,
         h("div.btn-row", btn("Rename library…", { onClick: async () => { const { promptDialog } = await import("../dom.js"); const n = await promptDialog("Rename library", "Name", info.name, { ok: "Rename" }); if (n && n.trim()) { try { await call("library.rename", { name: n.trim() }); await loadInfo(); go("settings", { tab: "library" }); } catch (e) { showError(e); } } } }), btn("Show in folder", { onClick: () => call("library.reveal") }), btn("Open another library…", { onClick: () => dialogs.openLibrary() }), btn("New library…", { onClick: () => dialogs.newLibrary() }), btn("Library health", { onClick: () => dialogs.health() }), btn("Index all PDFs for search", { onClick: async () => { const { indexAll } = await import("./reader.js"); const t = toast("Indexing PDF text…", "info", { sticky: true }); const n = await indexAll((d, all) => (t.querySelector(".grow div").textContent = `Indexing PDF text… ${d} of ${all}`)); t.remove(); toast(`${n} PDFs indexed`, "success"); } }))) : h("p.muted", "No library is open.")),
         card("Automatic backup",
           h("label.row", { for: "ab" }, h("input", { type: "checkbox", id: "ab", checked: s.auto_backup, disabled: "auto_backup" in locked, on: { change: (e) => saveSettings({ auto_backup: e.target.checked }) } }), "Back up automatically", lockNote("auto_backup")),

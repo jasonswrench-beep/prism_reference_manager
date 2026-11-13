@@ -1,4 +1,4 @@
-# Library folder and file formats (schema version 1)
+# Library folder and file formats (schema version 2)
 
 ```
 <library folder>/
@@ -23,8 +23,29 @@ sorted). Tables: `refs`, `aliases`, `projects`, `project_sources`, `manuscripts`
 after`. `undo_groups` holds undo steps. `fts` and `page_text` are rebuildable search caches.
 `meta` holds `schema_version`, `library_id`, `name` and `mirror_seq` (the mirror checkpoint).
 
-A newer schema than the program supports opens read-only. An older schema is migrated after a
-copy of the database is written to `backups/`.
+## Format versions and upgrades
+
+`meta.schema_version` is the format version; `schema_history` records each version a library
+reached (`version, applied, label, backup, app_version`).
+
+| Version | Change |
+|---|---|
+| 1 | First format. |
+| 2 | Adds `schema_history`. Additive tables and columns of this release (`ocr_words`, new JSON fields) need no step: fields absent from older records take their defaults. |
+
+Opening a library in an older format: the database is copied to
+`backups/pre-migration-schema<old>-<time>.db` and the copy is checked (SQLite integrity check and
+the same row count in every table); then every upgrade step runs in one transaction. If the copy
+fails its check, or any step fails, nothing is changed and the library is not opened. A library in
+a newer format than the program writes opens read-only.
+
+Reversal (Settings › Library and backup › This library › Format history) closes the library, keeps
+the current file as `backups/before-revert-<time>.db`, and puts the pre-upgrade copy back. It is
+for returning to an earlier program version; this version upgrades the library again when it next
+opens it. It cannot make an older program understand fields added later.
+
+New upgrade steps go in `prm_core::store::MIGRATIONS` together with a raised `SCHEMA_VERSION`, a
+row in the table above and a test in `crates/prm-core/tests/migrations.rs`.
 
 ## Key rules
 

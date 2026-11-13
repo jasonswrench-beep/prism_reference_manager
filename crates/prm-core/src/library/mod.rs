@@ -57,8 +57,13 @@ pub struct LibraryInfo {
     pub id: String,
     pub name: String,
     pub root: String,
+    /// Format version of this library's file.
     pub schema: i64,
+    /// Format version this program writes.
+    pub schema_supported: i64,
     pub read_only: bool,
+    /// What happened on opening: an upgrade (with its verified backup), or a newer format.
+    pub opened: crate::store::OpenReport,
     pub sync_folder_warning: Option<String>,
     pub counts: std::collections::BTreeMap<String, i64>,
     pub undo: Option<String>,
@@ -125,8 +130,10 @@ impl Library {
             id: self.store.meta("library_id").unwrap_or_default(),
             name: self.store.meta("name").unwrap_or_default(),
             root: self.root.to_string_lossy().to_string(),
-            schema: crate::store::SCHEMA_VERSION,
+            schema: self.store.schema_version(),
+            schema_supported: crate::store::SCHEMA_VERSION,
             read_only: self.store.read_only,
+            opened: self.store.opened.clone(),
             sync_folder_warning: store::in_sync_folder(&self.root),
             counts,
             undo: self.store.undo_label(),

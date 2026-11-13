@@ -12,8 +12,51 @@ use crate::util::{canonical_json, canonical_json_pretty, new_id, now, write_atom
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA_VERSION: i64 = 1;
+/// Version of the working store's format. Raise it only together with a step in `MIGRATIONS`.
+pub const SCHEMA_VERSION: i64 = 2;
 pub const DB_FILE: &str = "library.db";
+
+/// One upgrade step from `to - 1` to `to`. Steps run in order inside a single transaction after a
+/// verified backup; if any step fails nothing is changed. Additive changes (new tables, columns,
+/// indexes) also happen in `init_schema`, which is idempotent; a step is for changes that alter
+/// existing data or structure.
+pub struct Migration {
+    pub to: i64,
+    pub label: &'static str,
+    pub run: fn(&Connection) -> Result<()>,
+}
+
+/// Version 2 starts the schema history: libraries created before it get a first row saying so.
+fn m2_schema_history(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "INSERT INTO schema_history(version, applied, label, backup, app_version) VALUES(1, COALESCE((SELECT value FROM meta WHERE key='created'), ''), 'Library created before the schema history was kept', '', '')",
+        [],
+    )?;
+    Ok(())
+}
+
+pub const MIGRATIONS: &[Migration] = &[Migration { to: 2, label: "Keep a history of format upgrades", run: m2_schema_history }];
+
+/// How the store was opened, for the window to explain.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct OpenReport {
+    /// Version found in the file (0 for a new library).
+    pub found: i64,
+    pub migrated_from: Option<i64>,
+    /// Verified copy made before upgrading.
+    pub backup: String,
+    /// The library was made by a newer program version and is open read-only.
+    pub too_new: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SchemaStep {
+    pub version: i64,
+    pub applied: String,
+    pub label: String,
+    pub backup: String,
+    pub app_version: String,
+}
 
 /// Entity tables that hold durable data. They are mirrored, exported and compared in round trips.
 pub const TABLES: &[&str] = &[
@@ -66,6 +109,8 @@ pub struct Store {
     pub device: String,
     pub actor: String,
     pub read_only: bool,
+    /// What happened when the store was opened (an upgrade, or a too-new format).
+    pub opened: OpenReport,
 }
 
 /// An open write transaction. All changes and their events commit together.
@@ -85,15 +130,21 @@ fn table_ok(t: &str) -> Result<()> {
     }
 }
 
+/// Connection settings; they cannot change inside a transaction, so they run first.
+fn connection_pragmas(conn: &Connection, writable: bool) -> Result<()> {
+    if writable {
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")?;
+    }
+    conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA cache_size=-65536; PRAGMA temp_store=MEMORY; PRAGMA mmap_size=268435456;")?;
+    Ok(())
+}
+
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
-        "PRAGMA journal_mode=WAL;
-         PRAGMA synchronous=FULL;
-         PRAGMA foreign_keys=ON;
-         PRAGMA cache_size=-65536;
-         PRAGMA temp_store=MEMORY;
-         PRAGMA mmap_size=268435456;
-         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS schema_history(
+            version INTEGER NOT NULL, applied TEXT NOT NULL, label TEXT NOT NULL,
+            backup TEXT NOT NULL, app_version TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS events(
             seq INTEGER PRIMARY KEY AUTOINCREMENT,
             id TEXT NOT NULL, grp TEXT NOT NULL, time TEXT NOT NULL, device TEXT NOT NULL,
@@ -145,49 +196,137 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Version recorded in a database file (0 when it has none).
+fn file_version(conn: &Connection) -> i64 {
+    conn.query_row("SELECT value FROM meta WHERE key='schema_version'", [], |r| r.get::<_, String>(0)).optional().ok().flatten().and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+/// Copy the database to `dest` and check the copy: SQLite's integrity check and the same number
+/// of rows in every table.
+fn verified_copy(conn: &Connection, dest: &Path) -> Result<()> {
+    conn.execute("VACUUM INTO ?1", params![dest.to_string_lossy()])?;
+    let copy = Connection::open_with_flags(dest, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let ok: String = copy.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
+    let tables: Vec<String> = {
+        let mut st = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'fts%'")?;
+        let v = st.query_map([], |r| r.get(0))?.filter_map(|r| r.ok()).collect();
+        v
+    };
+    let mut same = ok == "ok";
+    for t in &tables {
+        let a: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM \"{t}\""), [], |r| r.get(0))?;
+        let b: i64 = copy.query_row(&format!("SELECT COUNT(*) FROM \"{t}\""), [], |r| r.get(0)).unwrap_or(-1);
+        same &= a == b;
+    }
+    drop(copy);
+    if !same {
+        let _ = std::fs::remove_file(dest);
+        return Err(Error::user("The library could not be backed up before upgrading its format, so it was not changed. Free some disk space and open it again."));
+    }
+    Ok(())
+}
+
+/// Run every step after `from` up to `target` in one transaction. Nothing changes on failure.
+fn migrate(conn: &Connection, from: i64, target: i64, steps: &[Migration], backup: &str) -> Result<()> {
+    conn.execute_batch("BEGIN IMMEDIATE")?;
+    let res = (|| -> Result<()> {
+        init_schema(conn)?;
+        for m in steps.iter().filter(|m| m.to > from && m.to <= target) {
+            (m.run)(conn).map_err(|e| Error::user(format!("Upgrading the library format (step {}: {}) failed: {e}", m.to, m.label)))?;
+            conn.execute(
+                "INSERT INTO schema_history(version, applied, label, backup, app_version) VALUES(?1, ?2, ?3, ?4, ?5)",
+                params![m.to, now(), m.label, backup, env!("CARGO_PKG_VERSION")],
+            )?;
+        }
+        conn.execute(
+            "INSERT INTO meta(key,value) VALUES('schema_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            params![target.to_string()],
+        )?;
+        Ok(())
+    })();
+    match res {
+        Ok(()) => {
+            conn.execute_batch("COMMIT")?;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
+}
+
 impl Store {
-    /// Open or create the store in `root`. Creates a verified backup of the database before a
-    /// schema migration, and opens a too-new schema read-only.
+    /// Open or create the store in `root`. An older format is upgraded after a verified backup;
+    /// a newer one (made by a later program version) opens read-only.
     pub fn open(root: &Path, device: &str) -> Result<Store> {
+        Ok(Self::open_with(root, device, MIGRATIONS, SCHEMA_VERSION)?.0)
+    }
+
+    /// `open` with an explicit list of steps and target version (tests use their own).
+    pub fn open_with(root: &Path, device: &str, steps: &[Migration], target: i64) -> Result<(Store, OpenReport)> {
         std::fs::create_dir_all(root)?;
         let db = root.join(DB_FILE);
         let existed = db.exists();
         let conn = Connection::open(&db)?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        let mut rep = OpenReport::default();
         let mut read_only = false;
         if existed {
-            let v: Option<String> = conn
-                .query_row("SELECT value FROM meta WHERE key='schema_version'", [], |r| r.get(0))
-                .optional()
-                .unwrap_or(None);
-            let v: i64 = v.and_then(|s| s.parse().ok()).unwrap_or(0);
-            if v > SCHEMA_VERSION {
+            let v = file_version(&conn);
+            rep.found = v;
+            if v > target {
                 read_only = true;
-            } else if v < SCHEMA_VERSION {
-                // Pre-migration backup of the whole database file.
+                rep.too_new = true;
+            } else if v < target && v > 0 {
+                connection_pragmas(&conn, true)?;
                 let backup_dir = root.join("backups");
                 std::fs::create_dir_all(&backup_dir)?;
                 let name = format!("pre-migration-schema{}-{}.db", v, now().replace([':', '.'], "-"));
-                conn.execute("VACUUM INTO ?1", params![backup_dir.join(name).to_string_lossy()])?;
+                let dest = backup_dir.join(&name);
+                verified_copy(&conn, &dest)?;
+                migrate(&conn, v, target, steps, &format!("backups/{name}"))?;
+                rep.migrated_from = Some(v);
+                rep.backup = dest.to_string_lossy().to_string();
             }
         }
         if !read_only {
+            connection_pragmas(&conn, true)?;
             init_schema(&conn)?;
+            if !existed || file_version(&conn) == 0 {
+                conn.execute(
+                    "INSERT INTO meta(key,value) VALUES('schema_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    params![target.to_string()],
+                )?;
+                conn.execute("INSERT INTO schema_history(version, applied, label, backup, app_version) VALUES(?1, ?2, 'Library created', '', ?3)", params![target, now(), env!("CARGO_PKG_VERSION")])?;
+            }
             crate::search::ensure_ref_index(&conn)?;
             crate::search::ensure_fts_version(&conn)?;
-            conn.execute(
-                "INSERT INTO meta(key,value) VALUES('schema_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                params![SCHEMA_VERSION.to_string()],
-            )?;
             let has_id: bool = conn.prepare("SELECT 1 FROM meta WHERE key='library_id'")?.exists([])?;
             if !has_id {
                 conn.execute("INSERT INTO meta(key,value) VALUES('library_id',?1)", params![new_id()])?;
                 conn.execute("INSERT INTO meta(key,value) VALUES('created',?1)", params![now()])?;
             }
         } else {
+            connection_pragmas(&conn, false)?;
             conn.execute_batch("PRAGMA query_only=ON;")?;
         }
-        Ok(Store { conn, root: root.to_path_buf(), device: device.into(), actor: "user".into(), read_only })
+        let store = Store { conn, root: root.to_path_buf(), device: device.into(), actor: "user".into(), read_only, opened: rep.clone() };
+        Ok((store, rep))
+    }
+
+    /// Format upgrades applied to this library, oldest first.
+    pub fn schema_history(&self) -> Result<Vec<SchemaStep>> {
+        let mut st = self.conn.prepare("SELECT version, applied, label, backup, app_version FROM schema_history ORDER BY rowid")?;
+        let v = st
+            .query_map([], |r| Ok(SchemaStep { version: r.get(0)?, applied: r.get(1)?, label: r.get(2)?, backup: r.get(3)?, app_version: r.get(4)? }))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(v)
+    }
+
+    pub fn schema_version(&self) -> i64 {
+        file_version(&self.conn)
     }
 
     pub fn meta(&self, key: &str) -> Option<String> {
@@ -612,4 +751,65 @@ pub fn in_sync_folder(root: &Path) -> Option<String> {
         }
     }
     None
+}
+
+/// A verified copy made before a format upgrade, still on disk.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UpgradeBackup {
+    /// Path relative to the library folder.
+    pub path: String,
+    /// Format version of the copy.
+    pub version: i64,
+    pub made: String,
+    pub size: u64,
+}
+
+/// Pre-upgrade copies of the library in `root`, newest first.
+pub fn upgrade_backups(root: &Path) -> Vec<UpgradeBackup> {
+    let dir = root.join("backups");
+    let mut out: Vec<UpgradeBackup> = std::fs::read_dir(&dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let rest = name.strip_prefix("pre-migration-schema")?.strip_suffix(".db")?;
+            let (v, made) = rest.split_once('-')?;
+            Some(UpgradeBackup { path: format!("backups/{name}"), version: v.parse().ok()?, made: made.to_string(), size: e.metadata().map(|m| m.len()).unwrap_or(0) })
+        })
+        .collect();
+    out.sort_by(|a, b| b.made.cmp(&a.made));
+    out
+}
+
+/// Put the library in `root` back as it was before a format upgrade, from a pre-upgrade copy.
+/// The library must be closed. The current database is kept beside it (returned), so nothing is
+/// lost: changes made since the upgrade are in that kept file. The restored library has the older
+/// format; this program upgrades it again the next time it opens it, so the step is for going
+/// back to an earlier program version.
+pub fn revert_upgrade(root: &Path, backup: &str) -> Result<PathBuf> {
+    if backup.contains("..") || !backup.starts_with("backups/pre-migration-schema") {
+        return Err(Error::user("That is not a pre-upgrade copy of this library."));
+    }
+    let src = root.join(backup);
+    let copy = Connection::open_with_flags(&src, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|_| Error::user("The pre-upgrade copy could not be opened."))?;
+    let ok: String = copy.query_row("PRAGMA integrity_check", [], |r| r.get(0)).unwrap_or_default();
+    let v = file_version(&copy);
+    drop(copy);
+    if ok != "ok" || v <= 0 {
+        return Err(Error::user("The pre-upgrade copy is damaged, so nothing was changed."));
+    }
+    let db = root.join(DB_FILE);
+    let keep = root.join("backups").join(format!("before-revert-{}.db", now().replace([':', '.'], "-")));
+    {
+        let cur = Connection::open(&db)?;
+        verified_copy(&cur, &keep)?;
+    }
+    let tmp = root.join("library.db.reverting");
+    std::fs::copy(&src, &tmp)?;
+    for ext in ["-wal", "-shm"] {
+        let _ = std::fs::remove_file(root.join(format!("{DB_FILE}{ext}")));
+    }
+    std::fs::rename(&tmp, &db)?;
+    Ok(keep)
 }
