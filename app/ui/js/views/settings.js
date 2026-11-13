@@ -65,6 +65,23 @@ registerView("settings", {
     if (tab === "library") {
       const info = S.info?.library;
       if (info) {
+        const rules = S.settings.save_rules || {};
+        const rule = (k, label, help) => {
+          const cb = h("input", { type: "checkbox", id: "rule-" + k, checked: !!rules[k], on: { change: (e) => saveSettings({ save_rules: { ...(S.settings.save_rules || {}), [k]: e.target.checked } }) } });
+          return h("div", { style: { marginBottom: "6px" } }, h("label.row", { for: "rule-" + k }, cb, label), help ? h("div.small.muted", { style: { marginLeft: "26px" } }, help) : null);
+        };
+        body.append(card("Tidying when sources are saved",
+          h("p.small.muted", "Applied every time a source is added, edited or imported. Changes show in the source's history."),
+          rule("tidy_spaces", "Remove extra spaces"),
+          rule("standard_identifiers", "Write DOIs, ISBNs and ISSNs in one standard form"),
+          rule("title_final_period", "Remove a final period from titles", "Citation styles add their own punctuation."),
+          rule("capital_titles", "Change titles typed entirely in capitals to sentence case", "Words in Protected terms keep their capitals; check names afterwards."),
+          rule("capital_names", "Change author names typed entirely in capitals (SMITH, JOHN)")));
+        const hd = select([["0", "Off"], ["7", "Every week"], ["30", "Every month"]], String(S.settings.health_days ?? 7), { "aria-label": "Automatic health check", on: { change: (e) => saveSettings({ health_days: +e.target.value }) } });
+        body.append(card("Library health check",
+          field("Run a quick check automatically", hd, "Looks for missing information, duplicate citation keys and file problems, and tells you if anything needs attention. It never changes anything. The duplicate search runs only when you open the full report."),
+          h("div.btn-row", btn("Open the full report", { small: true, onClick: () => dialogs.health() })),
+          S.settings.health_last ? h("p.small.muted", "Last automatic check: " + fmtDate(S.settings.health_last)) : null));
         const ai = h("input", { type: "checkbox", id: "auto-index", checked: S.settings.auto_index !== false, on: { change: async (e) => { await saveSettings({ auto_index: e.target.checked }); if (e.target.checked) autoIndex(); } } });
         body.append(card("Full-text search",
           h("label.row", { for: "auto-index" }, ai, "Read the text of PDFs in the background so full-text search finds them"),

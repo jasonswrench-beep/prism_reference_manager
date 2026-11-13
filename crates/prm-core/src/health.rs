@@ -28,6 +28,11 @@ pub struct HealthReport {
 }
 
 pub fn run(lib: &Library) -> Result<HealthReport> {
+    run_with(lib, true)
+}
+
+/// `duplicates` false skips the slow duplicate scan (used for scheduled checks).
+pub fn run_with(lib: &Library, duplicates: bool) -> Result<HealthReport> {
     let refs: Vec<Reference> = crate::store::list_in(&lib.store.conn, "WHERE trashed IS NULL", &[])?;
     let mut items = Vec::new();
     let mut keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -83,7 +88,7 @@ pub fn run(lib: &Library) -> Result<HealthReport> {
         let title = refs.iter().find(|r| r.id == f.ref_id).map(|r| r.title().to_string()).unwrap_or_default();
         items.push(HealthItem { check: "File problem".into(), ref_id: f.ref_id.clone(), title, detail: f.message.clone(), action: "Relink".into() });
     }
-    let dups = lib.duplicates(0.88)?.len();
+    let dups = if duplicates { lib.duplicates(0.88)?.len() } else { 0 };
     let mut counts = BTreeMap::new();
     for i in &items {
         *counts.entry(i.check.clone()).or_default() += 1;

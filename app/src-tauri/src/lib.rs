@@ -125,6 +125,33 @@ pub fn run() {
                 let _ = pdfimport::scan_watched(&wh, &ws);
             });
 
+            // Scheduled quick health check (no duplicate scan, so the window is never held up).
+            let hh = app.handle().clone();
+            let hs = state.clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(300));
+                let report = {
+                    let Ok(mut st) = hs.lock() else { continue };
+                    let days = st.settings.health_days;
+                    let due = days > 0
+                        && chrono::DateTime::parse_from_rfc3339(&st.settings.health_last)
+                            .map(|t| chrono::Utc::now().signed_duration_since(t) > chrono::Duration::days(days as i64))
+                            .unwrap_or(true);
+                    if !due || st.lib.is_none() {
+                        continue;
+                    }
+                    let r = st.lib.as_ref().and_then(|l| prm_core::health::run_with(l, false).ok());
+                    st.settings.health_last = chrono::Utc::now().to_rfc3339();
+                    let _ = settings::save(&st.config_dir, &st.settings);
+                    r
+                };
+                if let Some(r) = report {
+                    if !r.items.is_empty() {
+                        let _ = hh.emit("health", serde_json::json!({"items": r.items.len(), "checked": r.checked}));
+                    }
+                }
+            });
+
             // Automatic update checks (off unless the person turns them on and updates are set up).
             let uh = app.handle().clone();
             std::thread::spawn(move || {

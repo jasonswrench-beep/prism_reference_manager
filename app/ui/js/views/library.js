@@ -380,6 +380,16 @@ registerView("library", {
           btn("Label", { small: true, icon: "tag", onClick: () => labelDialog([...st.selected], labels) }),
           btn("Bulk edit", { small: true, onClick: () => dialogs.bulkEdit([...st.selected]) }),
           btn("Export", { small: true, onClick: () => dialogs.exportRefs([...st.selected]) }),
+          btn("Clean up", { small: true, icon: "chevronDown", onClick: (e) => {
+            const ids = [...st.selected];
+            let close;
+            const item = (label, run) => h("button.menu-item", { type: "button", role: "menuitem", style: { display: "block", width: "100%" }, on: { click: () => { close(); run(); } } }, label);
+            close = popover(e.currentTarget, h("div", { role: "menu", "aria-label": "Clean up", style: { minWidth: "240px" } },
+              item("Find missing DOIs", () => dialogs.cleanup("doi", ids)),
+              item("Fetch missing abstracts", () => dialogs.cleanup("abstract", ids)),
+              item("Titles to sentence case", () => dialogs.cleanup("title_case", ids)),
+              item("Check web addresses", () => dialogs.checkLinks(ids))));
+          } }),
           btn("Find free full texts", { small: true, title: "Look for legal open-access PDFs for the selected sources that have a DOI and no PDF", onClick: () => dialogs.findFreeCopies([...st.selected]) }),
           n === 2 ? btn("Compare", { small: true, onClick: () => dialogs.compareRecords(...st.selected) }) : null,
           btn("Trash", { small: true, kind: "danger", icon: "trash", onClick: async () => { const k = await call("refs.trash", { ids: [...st.selected] }); toast(`${k} moved to trash`, "success", { action: { label: "Undo", run: async () => { await call("undo"); await refresh(); } } }); st.selected.clear(); await refresh(); } }));

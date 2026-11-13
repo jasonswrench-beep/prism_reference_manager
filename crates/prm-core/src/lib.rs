@@ -25,6 +25,7 @@ pub mod backup;
 pub mod pdf;
 pub mod lookup;
 pub mod health;
+pub mod cleanup;
 pub mod citekey;
 pub mod types;
 

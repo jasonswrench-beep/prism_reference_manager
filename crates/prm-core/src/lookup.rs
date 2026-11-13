@@ -21,6 +21,9 @@ pub const NETWORK_INVENTORY: &[(&str, &str, &str)] = &[
     ("webpage", "(the page's own site)", "Read embedded citation metadata from a web page you entered. Sends a request for that URL."),
     ("retraction", "api.crossref.org", "Check for retraction and correction notices. Sends DOIs."),
     ("openaccess", "api.openalex.org", "Find a free, legal copy of an article. Sends the DOI."),
+    ("doi-search", "api.crossref.org", "Find a missing DOI when you ask. Sends the title, first author's surname and year."),
+    ("abstract", "api.crossref.org", "Fetch a missing abstract when you ask. Sends the DOI."),
+    ("linkcheck", "(each source's own web address)", "Check that saved web addresses still work, when you ask. Sends a request for each address."),
     ("openaccess-download", "(the repository or publisher hosting the free copy)", "Download a free copy that was found. Sends a request for that file."),
     ("update", "(the update feed, once set up)", "Check for a newer version of this program when you ask, or once a day if you turn that on. Sends the program's version and Windows architecture."),
 ];
@@ -170,6 +173,80 @@ pub fn download_pdf(url: &str, dest: &std::path::Path, log: &mut dyn FnMut(&str,
     std::fs::write(dest, &buf)?;
     log("openaccess-download", &host, url, true, &format!("{} bytes", buf.len()));
     Ok(buf.len() as u64)
+}
+
+/// A DOI found for a source without one, with how closely the found record matches.
+#[derive(Debug, Clone, Serialize)]
+pub struct DoiMatch {
+    pub doi: String,
+    pub title: String,
+    pub year: Option<i32>,
+    pub similarity: f64,
+}
+
+/// Search the DOI registry by title, first author and year. Returns the best match only when the
+/// title is very close and the year agrees, so the person reviews likely matches, not guesses.
+pub fn find_doi(title: &str, surname: &str, year: Option<i32>, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> Result<Option<DoiMatch>> {
+    let q = format!("{title} {surname} {}", year.map(|y| y.to_string()).unwrap_or_default());
+    let enc: String = q.trim().bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else if b == b' ' { "+".into() } else { format!("%{b:02X}") }).collect();
+    let url = format!("https://api.crossref.org/works?rows=3&select=DOI,title,issued&query.bibliographic={enc}");
+    let res = get(&url, "application/json");
+    log("doi-search", "api.crossref.org", q.trim(), res.is_ok(), res.as_ref().err().map(|e| e.to_string()).unwrap_or_default().as_str());
+    let v: serde_json::Value = serde_json::from_str(&res?)?;
+    let want = crate::util::sort_key(title);
+    let mut best: Option<DoiMatch> = None;
+    for it in v["message"]["items"].as_array().map(|a| a.as_slice()).unwrap_or(&[]) {
+        let t = it["title"][0].as_str().unwrap_or("").to_string();
+        let y = it["issued"]["date-parts"][0][0].as_i64().map(|y| y as i32);
+        let sim = strsim::normalized_levenshtein(&want, &crate::util::sort_key(&t));
+        let year_ok = match (year, y) { (Some(a), Some(b)) => (a - b).abs() <= 1, _ => true };
+        if sim >= 0.9 && year_ok && best.as_ref().map_or(true, |b| sim > b.similarity) {
+            best = Some(DoiMatch { doi: it["DOI"].as_str().unwrap_or("").to_lowercase(), title: t, year: y, similarity: sim });
+        }
+    }
+    Ok(best)
+}
+
+/// The abstract the DOI registry holds for a work, as plain text.
+pub fn fetch_abstract(doi: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> Result<Option<String>> {
+    let d = crate::util::normalize_doi(doi).ok_or_else(|| Error::user("This source has no valid DOI."))?;
+    let url = format!("https://api.crossref.org/works/{}", urlencode_path(&d));
+    let res = get(&url, "application/json");
+    log("abstract", "api.crossref.org", &d, res.is_ok(), res.as_ref().err().map(|e| e.to_string()).unwrap_or_default().as_str());
+    let v: serde_json::Value = serde_json::from_str(&res?)?;
+    let Some(a) = v["message"]["abstract"].as_str() else { return Ok(None) };
+    // Strip the markup the registry uses (JATS) and a leading "Abstract" heading.
+    let text = re!(r"<[^>]+>").replace_all(a, " ");
+    let text = html_unescape(&text.split_whitespace().collect::<Vec<_>>().join(" "));
+    let text = text.trim_start_matches("Abstract").trim_start_matches(['.', ':', ' ']).to_string();
+    Ok(if text.len() < 40 { None } else { Some(text) })
+}
+
+/// Result of checking one web address.
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkStatus {
+    pub url: String,
+    /// working, moved, broken, unreachable
+    pub state: String,
+    pub code: u16,
+    pub final_url: String,
+    pub message: String,
+}
+
+pub fn check_link(url: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> LinkStatus {
+    let host = url_host(url);
+    let a = ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(8)).timeout(Duration::from_secs(15)).user_agent(USER_AGENT).redirects(5).build();
+    let st = match a.head(url).call().or_else(|_| a.get(url).call()) {
+        Ok(r) => {
+            let fin = r.get_url().to_string();
+            let moved = url_host(&fin) != host;
+            LinkStatus { url: url.into(), state: if moved { "moved".into() } else { "working".into() }, code: r.status(), message: if moved { format!("Now leads to {}", url_host(&fin)) } else { "Works".into() }, final_url: fin }
+        }
+        Err(ureq::Error::Status(code, r)) => LinkStatus { url: url.into(), state: if code == 404 || code == 410 { "broken".into() } else { "unreachable".into() }, code, final_url: r.get_url().to_string(), message: format!("The site answered HTTP {code}") },
+        Err(e) => LinkStatus { url: url.into(), state: "unreachable".into(), code: 0, final_url: String::new(), message: format!("No answer ({e})") },
+    };
+    log("linkcheck", &host, url, st.state == "working" || st.state == "moved", &st.message);
+    st
 }
 
 fn url_host(u: &str) -> String {

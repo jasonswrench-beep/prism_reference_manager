@@ -427,6 +427,7 @@ export async function start() {
   on("job", (j) => { S.jobs.push(j); toast(j.message, j.ok ? "success" : "error"); renderStatus(); });
   on("api-pair", (p) => dialogs.pairRequest(p));
   on("update-available", (u) => toast(`Version ${u.version} is available.`, "info", { sticky: true, action: { label: "Review", run: () => go("settings", { tab: "about" }) } }));
+  on("health", (r) => toast(`Library health check: ${r.items} item${r.items === 1 ? "" : "s"} may need attention.`, "info", { sticky: true, action: { label: "Review", run: () => dialogs.health() } }));
   on("watch", (w) => toast(`${w.count} new PDF${w.count === 1 ? "" : "s"} found in a watched folder. They wait for your review.`, "info", { sticky: true, action: { label: "Review", run: async () => dialogs.importReview(await call("import.get", { id: w.batch_id })) } }));
   on("capture", (c) => {
     const what = c.count === 1 ? `“${(c.title || "a source").slice(0, 80)}”` : `${c.count} sources`;

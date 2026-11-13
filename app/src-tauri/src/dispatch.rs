@@ -226,6 +226,46 @@ fn find_open_access(shared: &Shared, id: &str, project_id: &str) -> Result<Value
     Ok(with(base, json!({"status": "attached", "message": format!("Attached a free copy from {}.", oa.host), "landing_url": oa.landing_url, "pdf_url": oa.pdf_url, "license": oa.license, "version": oa.version, "host": oa.host})))
 }
 
+fn write_log(shared: &Shared, log: &[(String, String, String, bool, String)], purpose: &str) {
+    if let Ok(st) = shared.lock() {
+        if let Some(l) = st.lib.as_ref() {
+            for (k, h, sent, okk, d) in log {
+                l.store.log_network(k, h, purpose, sent, *okk, d);
+            }
+        }
+    }
+}
+
+/// Find missing DOIs or abstracts for review. Nothing is changed here.
+fn propose_online(app: &tauri::AppHandle, shared: &Shared, kind: &str, ids: &[String], pid: &str) -> Result<Vec<prm_core::cleanup::Proposal>, CallError> {
+    let net_kind = if kind == "doi" { "doi-search" } else { "abstract" };
+    let refs: Vec<Reference> = {
+        let st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+        network_allowed(&st, net_kind, pid)?;
+        let l = st.lib.as_ref().ok_or(user("Open or create a library first."))?;
+        ids.iter().filter_map(|id| l.store.get::<Reference>(id).ok().flatten()).collect()
+    };
+    let todo: Vec<&Reference> = refs.iter().filter(|r| if kind == "doi" { !r.has("doi") && !r.title().trim().is_empty() } else { r.has("doi") && !r.has("abstract") }).collect();
+    let mut log: Vec<(String, String, String, bool, String)> = vec![];
+    let mut out = vec![];
+    for (i, r) in todo.iter().enumerate() {
+        let _ = app.emit("cleanup-progress", json!({"phase": if kind == "doi" { "Looking for DOIs" } else { "Fetching abstracts" }, "done": i, "total": todo.len()}));
+        let mut lg = |k: &str, h: &str, sent: &str, okk: bool, d: &str| log.push((k.into(), h.into(), sent.into(), okk, d.into()));
+        if kind == "doi" {
+            let surname = r.creators.first().map(|c| c.name.surname()).unwrap_or_default();
+            if let Ok(Some(m)) = prm_core::lookup::find_doi(r.title(), &surname, r.year(), &mut lg) {
+                out.push(prm_core::cleanup::Proposal { ref_id: r.id.clone(), title: r.title().to_string(), field: "doi".into(), before: String::new(), after: m.doi.clone(), source: "lookup:crossref-search".into(),
+                    note: format!("Registered as “{}”{}. Check it is the same work.", m.title, m.year.map(|y| format!(" ({y})")).unwrap_or_default()) });
+            }
+        } else if let Ok(Some(text)) = prm_core::lookup::fetch_abstract(r.f("doi"), &mut lg) {
+            out.push(prm_core::cleanup::Proposal { ref_id: r.id.clone(), title: r.title().to_string(), field: "abstract".into(), before: String::new(), after: text, source: "lookup:crossref".into(), note: String::new() });
+        }
+    }
+    let _ = app.emit("cleanup-progress", json!({"phase": "Done", "done": todo.len(), "total": todo.len()}));
+    write_log(shared, &log, if kind == "doi" { "Find missing DOIs" } else { "Fetch missing abstracts" });
+    Ok(out)
+}
+
 /// Progress reports for the window during long imports.
 fn progress_emitter(app: &tauri::AppHandle) -> std::sync::Arc<dyn Fn(&str, usize, usize) + Send + Sync> {
     let app = app.clone();
@@ -264,6 +304,7 @@ fn open_library(st: &mut crate::AppState, path: &Path) -> Result<Value, CallErro
     let mut lib = Library::open(path, &st.device, &st.host).map_err(err)?;
     lib.citekey_pattern = st.settings.citekey_pattern.clone();
     lib.protected_terms = st.settings.protected_terms.clone();
+    lib.save_rules = st.settings.save_rules.clone();
     lib.network_allowed = st.settings.network_enabled;
     let _ = lib.empty_trash_older_than(st.settings.trash_retention_days.max(1));
     let _ = lib.recompute_copies(None);
@@ -330,6 +371,28 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             return ok(json!({"path": path}));
         }
         "watch.scan" if client.is_none() => return ok(crate::pdfimport::scan_watched(app, shared)?),
+        "cleanup.propose" if client.is_none() && matches!(s(&a, "kind").as_str(), "doi" | "abstract") => {
+            return ok(propose_online(app, shared, &s(&a, "kind"), &opt::<Vec<String>>(&a, "ids"), &s(&a, "project_id"))?);
+        }
+        "links.check" if client.is_none() => {
+            let ids: Vec<String> = opt(&a, "ids");
+            let pid = s(&a, "project_id");
+            let targets: Vec<(String, String, String)> = {
+                let st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+                network_allowed(&st, "linkcheck", &pid)?;
+                let l = st.lib.as_ref().ok_or(user("Open or create a library first."))?;
+                ids.iter().filter_map(|id| l.store.get::<Reference>(id).ok().flatten()).filter(|r| r.has("url")).map(|r| (r.id.clone(), r.title().to_string(), r.f("url").to_string())).collect()
+            };
+            let mut log: Vec<(String, String, String, bool, String)> = vec![];
+            let mut out = vec![];
+            for (i, (id, title, url)) in targets.iter().enumerate() {
+                let _ = app.emit("cleanup-progress", json!({"phase": "Checking web addresses", "done": i, "total": targets.len()}));
+                let st = prm_core::lookup::check_link(url, &mut |k, h, sent, okk, d| log.push((k.into(), h.into(), sent.into(), okk, d.into())));
+                out.push(json!({"ref_id": id, "title": title, "status": st}));
+            }
+            write_log(shared, &log, "Link check");
+            return ok(json!({"checked": out, "without_url": ids.len() - targets.len()}));
+        }
         "import.stop" if client.is_none() => {
             prm_core::library::IMPORT_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
             return ok(true);
@@ -485,6 +548,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             if let Some(lib) = st.lib.as_mut() {
                 lib.citekey_pattern = st.settings.citekey_pattern.clone();
                 lib.protected_terms = st.settings.protected_terms.clone();
+                lib.save_rules = st.settings.save_rules.clone();
                 lib.network_allowed = st.settings.network_enabled;
             }
             settings::save(&st.config_dir, &st.settings).map_err(|e| CallError { message: "Settings could not be saved.".into(), detail: e.to_string() })?;
@@ -953,6 +1017,13 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(json!({"report": report, "attached": attached, "collected": placed}))
         }
         "import.cancel" => ok(lib_mut(st)?.cancel_import(&s(a, "id")).map_err(err)?),
+        "cleanup.propose" => ok(lib_mut(st)?.propose_title_case(&opt::<Vec<String>>(a, "ids")).map_err(err)?),
+        "cleanup.apply" => {
+            let ps: Vec<prm_core::cleanup::Proposal> = arg(a, "proposals")?;
+            let label = s(a, "label");
+            ok(lib_mut(st)?.apply_proposals(&ps, if label.is_empty() { "Apply reviewed fixes" } else { &label }).map_err(err)?)
+        }
+        "links.set_accessed" => ok(lib_mut(st)?.set_accessed_today(&opt::<Vec<String>>(a, "ids")).map_err(err)?),
         "watch.list" => {
             let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).unwrap_or_default();
             ok(st.settings.watched_folders.iter().filter(|w| w.library == lib_root).cloned().collect::<Vec<_>>())

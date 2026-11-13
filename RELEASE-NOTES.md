@@ -14,6 +14,12 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Clean-up.** Tidying rules run whenever a source is saved (spaces, standard DOIs, ISBNs and
+ISSNs, final periods in titles, and optionally titles and names typed in capitals). Batch fixes
+for selected sources find missing DOIs, fetch missing abstracts and change titles to sentence
+case, always as proposals reviewed before anything changes. Web addresses can be checked and
+access dates updated. A quick health check can run weekly or monthly.
+
 **Moving from another program.** Groups in an export, including nested groups, can become
 collections, and ratings are carried. Each record's identity in the exporting program is kept,
 so importing a later export updates only the records that changed there, never overwriting edits

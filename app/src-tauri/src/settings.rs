@@ -88,6 +88,11 @@ pub struct Settings {
     pub watched_folders: Vec<WatchedFolder>,
     /// Read the text of new PDFs in the background so full-text search finds them.
     pub auto_index: bool,
+    /// Tidying rules applied whenever a source is saved.
+    pub save_rules: prm_core::cleanup::SaveRules,
+    /// Days between automatic quick health checks (0 = off).
+    pub health_days: u32,
+    pub health_last: String,
 }
 
 impl Default for Settings {
@@ -129,6 +134,9 @@ impl Default for Settings {
             update_last_check: String::new(),
             watched_folders: vec![],
             auto_index: true,
+            save_rules: Default::default(),
+            health_days: 7,
+            health_last: String::new(),
         }
     }
 }

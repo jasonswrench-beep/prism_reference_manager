@@ -498,6 +498,67 @@ export async function compareRecords(a, b, after) {
 
 // ---- reports -----------------------------------------------------------------------------
 
+// ---- clean-up: proposals reviewed before anything changes ----------------------------------------
+
+async function withCleanupProgress(run) {
+  const bar = h("div.small", "Working…");
+  const back = h("div.toasts", { role: "status", style: { pointerEvents: "none" } }, h("div.toast", bar));
+  document.body.append(back);
+  const off = await on("cleanup-progress", (p) => { bar.textContent = p.total ? `${p.phase}: ${Math.min(p.done + 1, p.total)} of ${p.total}` : p.phase; });
+  try { return await run(); } finally { if (typeof off === "function") off(); back.remove(); }
+}
+
+const CLEANUP = {
+  doi: { title: "Find missing DOIs", label: "Add found DOIs", none: "No DOI was found for the selected sources that do not have one. Only very close title and year matches are offered." },
+  abstract: { title: "Fetch missing abstracts", label: "Add fetched abstracts", none: "No abstracts were found for the selected sources with a DOI and no abstract." },
+  title_case: { title: "Titles to sentence case", label: "Change titles to sentence case", none: "The selected titles are already in sentence case." },
+};
+
+/** Propose a batch fix for the selected sources and let the person review every change. */
+export async function cleanup(kind, ids) {
+  const c = CLEANUP[kind];
+  let ps;
+  try { ps = await withCleanupProgress(() => call("cleanup.propose", { kind, ids, project_id: pid() })); }
+  catch (e) { return showError(e); }
+  if (!ps.length) return toast(c.none, "info");
+  const rows = ps.map((p) => {
+    const cb = h("input", { type: "checkbox", checked: true, "aria-label": "Accept change for " + p.title });
+    const val = p.field === "abstract" ? h("textarea", { rows: 4, value: p.after, "aria-label": "New " + p.field }) : h("input", { value: p.after, "aria-label": "New " + p.field });
+    return { p, cb, val, el: h("tr", h("td", cb), h("td", h("strong", p.title || "Source"), p.before ? h("div.small.muted", "Now: " + p.before) : null, p.note ? h("div.small.status-review", icon("info", 13), " " + p.note) : null), h("td", { style: { minWidth: "40%" } }, val)) };
+  });
+  const ok = await modal(`${c.title}: review ${ps.length} change${ps.length === 1 ? "" : "s"}`, h("div",
+    h("p.small.muted", "Nothing has changed yet. Untick anything that is wrong, edit a value if needed, then apply. Changes are recorded in each source's history and can be undone."),
+    h("div", { style: { maxHeight: "55vh", overflow: "auto" } }, h("table.table", h("thead", h("tr", h("th", ""), h("th", "Source"), h("th", "New value"))), h("tbody", rows.map((r) => r.el))))),
+    { size: "wide", buttons: [{ label: "Cancel" }, { label: c.label, kind: "primary", run: async () => {
+      const chosen = rows.filter((r) => r.cb.checked).map((r) => ({ ...r.p, after: r.val.value }));
+      if (!chosen.length) return true;
+      const n = await call("cleanup.apply", { proposals: chosen, label: c.title });
+      toast(`${n} source${n === 1 ? "" : "s"} updated.`, "success", { action: { label: "Undo", run: async () => { await call("undo"); await refresh(); } } });
+      return true;
+    } }] }).done;
+  if (ok) await refresh();
+}
+
+/** Check the selected sources' web addresses and offer to update access dates. */
+export async function checkLinks(ids) {
+  let r;
+  try { r = await withCleanupProgress(() => call("links.check", { ids, project_id: pid() })); }
+  catch (e) { return showError(e); }
+  if (!r.checked.length) return toast("None of the selected sources has a web address.", "info");
+  const working = r.checked.filter((x) => x.status.state === "working").map((x) => x.ref_id);
+  const badge = { working: ["Works", "success"], moved: ["Moved", "attention"], broken: ["Broken", "danger"], unreachable: ["No answer", "attention"] };
+  await modal("Web address check", h("div",
+    h("p", `${r.checked.length} checked: ${working.length} working.` + (r.without_url ? ` ${r.without_url} selected sources have no web address.` : "")),
+    h("div", { style: { maxHeight: "50vh", overflow: "auto" } }, h("table.table", h("tbody", r.checked.map((x) => {
+      const [t, k] = badge[x.status.state] || [x.status.state, "neutral"];
+      return h("tr", h("td", h("strong", x.title), h("div.small.mono", x.status.url)), h("td", h("span.badge." + k, t)), h("td.small", x.status.message),
+        h("td", x.status.state !== "working" ? btn("Open", { small: true, onClick: () => call("system.open_url", { url: x.status.final_url || x.status.url }) }) : null));
+    })))),
+    h("p.small.muted", "A retrieval date matters only for content designed to change. Update access dates only for pages you have checked.")),
+    { size: "wide", buttons: [{ label: "Close" }, working.length ? { label: `Set today's access date on ${working.length} working`, kind: "primary", run: async () => { const n = await call("links.set_accessed", { ids: working }); toast(`${n} access dates updated.`, "success"); return true; } } : null].filter(Boolean) }).done;
+  await refresh();
+}
+
 export async function health() {
   const body = h("div", h("p.muted", "Checking the library…"));
   modal("Library health report", body, { size: "wide", buttons: [{ label: "Close" }] });

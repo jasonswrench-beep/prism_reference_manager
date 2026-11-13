@@ -369,6 +369,7 @@ impl Library {
                     r.modified = t.clone();
                     r.revision = 1;
                     formats::finish(&mut r);
+                    crate::cleanup::apply_rules(&mut r, &self.save_rules, &self.protected_terms);
                     let base = if r.citekey.is_empty() { crate::citekey::generate(&r, &self.citekey_pattern) } else { r.citekey.clone() };
                     r.citekey = crate::citekey::unique(&base, &taken);
                     taken.insert(r.citekey.clone());

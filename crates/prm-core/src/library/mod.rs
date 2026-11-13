@@ -36,6 +36,8 @@ pub struct Library {
     pub protected_terms: Vec<String>,
     /// Network permission: when false no outbound request is made.
     pub network_allowed: bool,
+    /// Tidying rules applied whenever a source is saved.
+    pub save_rules: crate::cleanup::SaveRules,
     /// Progress for long operations (phase, done, total), set by the window.
     pub progress: Option<std::sync::Arc<dyn Fn(&str, usize, usize) + Send + Sync>>,
 }
@@ -79,6 +81,7 @@ impl Library {
             citekey_pattern: crate::citekey::DEFAULT_PATTERN.into(),
             protected_terms: vec![],
             progress: None,
+            save_rules: Default::default(),
             network_allowed: true,
         };
         if lib.store.meta("name").is_none() && !lib.store.read_only {

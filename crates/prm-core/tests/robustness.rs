@@ -90,6 +90,8 @@ fn lib(name: &str) -> Library {
 #[test]
 fn term_variants_merge_in_one_step() {
     let mut l = lib("terms");
+    // Tidying on save would already fix the double space; this test is about merging variants.
+    l.save_rules.tidy_spaces = false;
     for (i, j) in ["Journal of Teaching Practice", "Journal of Teaching  Practice", "journal of teaching practice"].iter().enumerate() {
         let mut r = Reference { rtype: "article-journal".into(), ..Default::default() };
         r.fields.insert("title".into(), format!("Paper {i}"));

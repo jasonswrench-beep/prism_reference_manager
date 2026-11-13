@@ -394,6 +394,7 @@ impl Library {
             r.origin = "user".into();
         }
         crate::formats::finish(r);
+        crate::cleanup::apply_rules(r, &self.save_rules, &self.protected_terms);
         let taken = self.taken_keys()?;
         if r.citekey.is_empty() || taken.contains(&r.citekey) {
             let base = if r.citekey.is_empty() { crate::citekey::generate(r, &self.citekey_pattern) } else { r.citekey.clone() };
@@ -447,6 +448,7 @@ impl Library {
     /// re-checks copied output that used it.
     pub fn update_reference(&mut self, mut r: Reference, source: &str) -> Result<Reference> {
         let old = self.store.must::<Reference>(&r.id)?;
+        crate::cleanup::apply_rules(&mut r, &self.save_rules, &self.protected_terms);
         let changed = changed_fields(&old, &r);
         if changed.is_empty() && old.provenance == r.provenance && old.rating == r.rating && old.notices == r.notices && old.conflicts == r.conflicts && old.custom == r.custom && old.overflow == r.overflow && old.translations == r.translations && old.work_id == r.work_id && old.preferred_version == r.preferred_version && old.citekey_locked == r.citekey_locked {
             return Ok(old);

@@ -94,6 +94,18 @@ already pass are listed at the end for reference.
 - [ ] Start a large import (several thousand records), watch the progress, and use Stop once:
       nothing should be added, and the import can be started again.
 
+## 2e. Data clean-up
+
+- [ ] Turn on each rule in Settings › Library and backup › Tidying, and save a few real records
+      that need it (titles in capitals, DOIs pasted as links, ISBNs with hyphens).
+- [ ] Select real sources and try Clean up › Find missing DOIs, Fetch missing abstracts and
+      Titles to sentence case. Check that the proposals are right before applying, especially
+      names and proper nouns in titles (add them to Protected terms).
+- [ ] Clean up › Check web addresses on sources with links; confirm broken and moved links are
+      reported correctly.
+- [ ] Leave the program open past a scheduled health check (weekly by default) and confirm the
+      notice appears only when something needs attention.
+
 ## 3. Real paste matrix (release gate G04, G05; spec CIT-018)
 
 For each host, record the exact build, OS and paste mode, and whether italics, punctuation,
