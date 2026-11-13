@@ -134,7 +134,12 @@ impl Library {
     /// Work that follows any committed change: advance the mirror and refresh changed-copy
     /// flags. Failures here never undo the committed change; the mirror catches up later.
     pub fn after_change(&mut self) -> Result<()> {
-        let _ = self.store.advance_mirror();
+        // Small changes are mirrored at once; large batches are left to the background worker
+        // (the mirror is behind a durable checkpoint, so nothing is lost if it lags).
+        let checkpoint: i64 = self.store.meta("mirror_seq").and_then(|s| s.parse().ok()).unwrap_or(0);
+        if self.last_event_seq() - checkpoint <= 200 {
+            let _ = self.store.advance_mirror();
+        }
         Ok(())
     }
 

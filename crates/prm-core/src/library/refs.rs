@@ -145,10 +145,7 @@ pub struct BulkChange {
 
 impl Library {
     pub fn list_references(&self, q: &ListQuery) -> Result<RefPage> {
-        let mut refs: Vec<Reference> = match q.view.as_str() {
-            "trash" => crate::store::list_in(&self.store.conn, "WHERE trashed IS NOT NULL", &[])?,
-            _ => crate::store::list_in(&self.store.conn, "WHERE trashed IS NULL", &[])?,
-        };
+        let mut refs: Vec<Reference> = self.list_lite(q.view == "trash")?;
         let memberships: BTreeMap<String, ProjectSource> = if !q.project_id.is_empty() {
             self.store.by::<ProjectSource>("project_id", &q.project_id)?.into_iter().map(|m| (m.ref_id.clone(), m)).collect()
         } else {
@@ -183,8 +180,11 @@ impl Library {
         if !q.rtype.is_empty() {
             refs.retain(|r| r.rtype == q.rtype);
         }
-        let attachments: Vec<Attachment> = self.store.all()?;
-        let with_pdf: BTreeSet<&str> = attachments.iter().filter(|a| a.mime == "application/pdf" && !a.superseded).map(|a| a.ref_id.as_str()).collect();
+        let with_pdf: BTreeSet<String> = {
+            let mut st = self.store.conn.prepare("SELECT DISTINCT ref_id FROM attachments WHERE json_extract(data,'$.mime')='application/pdf' AND COALESCE(json_extract(data,'$.superseded'),0)=0")?;
+            let v: BTreeSet<String> = st.query_map([], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).collect();
+            v
+        };
         match q.view.as_str() {
             "recent_added" => refs.retain(|r| chrono::DateTime::parse_from_rfc3339(&r.created).map(|t| chrono::Utc::now().signed_duration_since(t).num_days() <= 14).unwrap_or(false)),
             "recent_modified" => refs.retain(|r| chrono::DateTime::parse_from_rfc3339(&r.modified).map(|t| chrono::Utc::now().signed_duration_since(t).num_days() <= 14).unwrap_or(false)),
@@ -228,26 +228,77 @@ impl Library {
             })
             .collect();
         let sort = if q.sort.is_empty() { "authors" } else { q.sort.as_str() };
-        rows.sort_by(|a, b| {
-            let o = match sort {
-                "year" => a.year.cmp(&b.year),
-                "title" => sort_key(&a.title).cmp(&sort_key(&b.title)),
-                "container" => sort_key(&a.container).cmp(&sort_key(&b.container)),
-                "modified" => a.modified.cmp(&b.modified),
-                "created" => a.created.cmp(&b.created),
-                "type" => a.type_label.cmp(&b.type_label),
-                "rating" => a.rating.cmp(&b.rating),
-                "citekey" => a.citekey.cmp(&b.citekey),
-                _ => sort_key(&a.authors).cmp(&sort_key(&b.authors)),
-            };
-            // Stable tiebreakers keep selection stable through sorting and refresh.
-            let o = o.then(sort_key(&a.title).cmp(&sort_key(&b.title))).then(a.id.cmp(&b.id));
-            if q.desc { o.reverse() } else { o }
-        });
+        // Sort keys are computed once per row, not once per comparison.
+        let mut keyed: Vec<((String, String, String), RefRow)> = rows
+            .into_iter()
+            .map(|r| {
+                let primary = match sort {
+                    "year" => r.year.clone(),
+                    "title" => String::new(),
+                    "container" => sort_key(&r.container),
+                    "modified" => r.modified.clone(),
+                    "created" => r.created.clone(),
+                    "type" => r.type_label.clone(),
+                    "rating" => format!("{:03}", r.rating),
+                    "citekey" => r.citekey.clone(),
+                    _ => sort_key(&r.authors),
+                };
+                ((primary, sort_key(&r.title), r.id.clone()), r)
+            })
+            .collect();
+        keyed.sort_by(|a, b| if q.desc { b.0.cmp(&a.0) } else { a.0.cmp(&b.0) });
+        let rows: Vec<RefRow> = keyed.into_iter().map(|(_, r)| r).collect();
         let total = rows.len();
         let limit = if q.limit == 0 { 500 } else { q.limit };
         let rows = rows.into_iter().skip(q.offset).take(limit).collect();
         Ok(RefPage { total, rows, pending_index: crate::search::pending_index_count(&self.store.conn)?, search_hits: hits })
+    }
+
+    /// Load references with only the fields list views need (abstracts, provenance and other
+    /// large members are skipped while parsing).
+    fn list_lite(&self, trash: bool) -> Result<Vec<Reference>> {
+        #[derive(serde::Deserialize, Default)]
+        #[serde(default)]
+        struct LiteFields {
+            title: String,
+            container_title: String,
+        }
+        #[derive(serde::Deserialize, Default)]
+        #[serde(default)]
+        struct Lite {
+            id: String,
+            #[serde(rename = "type")]
+            rtype: String,
+            citekey: String,
+            creators: Vec<Creator>,
+            issued: Option<PartialDate>,
+            fields: LiteFields,
+            confirmed_absent: Vec<String>,
+            conflicts: Vec<FieldConflict>,
+            labels: Vec<String>,
+            rating: u8,
+            notices: Vec<Notice>,
+            origin: String,
+            created: String,
+            modified: String,
+            trashed_at: Option<String>,
+        }
+        let sql = if trash { "SELECT data FROM refs WHERE trashed IS NOT NULL" } else { "SELECT data FROM refs WHERE trashed IS NULL" };
+        let mut st = self.store.conn.prepare(sql)?;
+        let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+        let mut out = Vec::new();
+        for row in rows {
+            let l: Lite = serde_json::from_str(&row?)?;
+            let mut fields = BTreeMap::new();
+            if !l.fields.title.is_empty() {
+                fields.insert("title".to_string(), l.fields.title);
+            }
+            if !l.fields.container_title.is_empty() {
+                fields.insert("container_title".to_string(), l.fields.container_title);
+            }
+            out.push(Reference { id: l.id, rtype: l.rtype, citekey: l.citekey, creators: l.creators, issued: l.issued, fields, confirmed_absent: l.confirmed_absent, conflicts: l.conflicts, labels: l.labels, rating: l.rating, notices: l.notices, origin: l.origin, created: l.created, modified: l.modified, trashed_at: l.trashed_at, ..Default::default() });
+        }
+        Ok(out)
     }
 
     fn taken_keys(&self) -> Result<BTreeSet<String>> {

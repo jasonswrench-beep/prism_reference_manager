@@ -32,6 +32,15 @@ fn ins(conn: &Connection, entity: &str, id: &str, scope: &str, field: &str, page
         "INSERT INTO fts(entity,entity_id,scope,field,page,orig,text) VALUES(?1,?2,?3,?4,?5,?6,?7)",
         params![entity, id, scope, field, page, orig, fold(orig)],
     )?;
+    let row = conn.last_insert_rowid();
+    conn.execute("INSERT INTO fts_map(entity,entity_id,row) VALUES(?1,?2,?3)", params![entity, id, row])?;
+    Ok(())
+}
+
+/// Remove an entity's index rows by their row ids (the text columns are not indexed for lookups).
+pub fn unindex(conn: &Connection, entity: &str, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM fts WHERE rowid IN (SELECT row FROM fts_map WHERE entity=?1 AND entity_id=?2)", params![entity, id])?;
+    conn.execute("DELETE FROM fts_map WHERE entity=?1 AND entity_id=?2", params![entity, id])?;
     Ok(())
 }
 
@@ -43,7 +52,7 @@ pub fn reindex(conn: &Connection, table: &str, id: &str, data: Option<&str>) -> 
         "annotations" => "annotation",
         _ => return Ok(()),
     };
-    conn.execute("DELETE FROM fts WHERE entity=?1 AND entity_id=?2", params![entity, id])?;
+    unindex(conn, entity, id)?;
     let Some(d) = data else { return Ok(()) };
     let v: serde_json::Value = serde_json::from_str(d)?;
     let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
@@ -95,7 +104,7 @@ pub fn reindex(conn: &Connection, table: &str, id: &str, data: Option<&str>) -> 
 
 /// Store extracted page text for an attachment (a cache; rebuildable from the file).
 pub fn index_pages(conn: &Connection, attachment_id: &str, pages: &[String]) -> Result<()> {
-    conn.execute("DELETE FROM fts WHERE entity='page' AND entity_id=?1", params![attachment_id])?;
+    unindex(conn, "page", attachment_id)?;
     conn.execute("DELETE FROM page_text WHERE attachment_id=?1", params![attachment_id])?;
     for (i, p) in pages.iter().enumerate() {
         conn.execute("INSERT INTO page_text(attachment_id,page,text) VALUES(?1,?2,?3)", params![attachment_id, i as i64, p])?;
@@ -107,6 +116,7 @@ pub fn index_pages(conn: &Connection, attachment_id: &str, pages: &[String]) -> 
 /// Rebuild the metadata, note and annotation index from the store.
 pub fn rebuild(conn: &Connection) -> Result<()> {
     conn.execute("DELETE FROM fts WHERE entity IN ('ref','note','annotation')", [])?;
+    conn.execute("DELETE FROM fts_map WHERE entity IN ('ref','note','annotation')", [])?;
     for (table, _) in [("refs", "ref"), ("notes", "note"), ("annotations", "annotation")] {
         let mut st = conn.prepare(&format!("SELECT id,data FROM {table}"))?;
         let rows: Vec<(String, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<std::result::Result<_, _>>()?;

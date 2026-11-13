@@ -137,9 +137,13 @@ fn benchmark_100k_references() {
         .unwrap();
     }
     let insert = t0.elapsed();
+    println!("BENCH insert done {:.1}s", insert.as_secs_f64());
+    let tm = std::time::Instant::now();
+    l.store.advance_mirror().unwrap();
+    println!("BENCH mirror catch-up (background in the program) {:.1}s", tm.elapsed().as_secs_f64());
     let time = |f: &mut dyn FnMut()| {
         let mut v = Vec::new();
-        for _ in 0..20 {
+        for _ in 0..10 {
             let t = std::time::Instant::now();
             f();
             v.push(t.elapsed().as_secs_f64() * 1000.0);
@@ -152,9 +156,11 @@ fn benchmark_100k_references() {
         let q = queries.next().unwrap();
         let _ = prm_core::search::run(&l.store.conn, q, None, None, 500).unwrap();
     });
+    println!("BENCH search done median={m1:.1}ms p95={p1:.1}ms");
     let (m2, p2) = time(&mut || {
         let _ = l.list_references(&ListQuery { sort: "title".into(), limit: 400, ..Default::default() }).unwrap();
     });
+    println!("BENCH list done median={m2:.1}ms p95={p2:.1}ms");
     let refs: Vec<Reference> = l.store.all().unwrap();
     let a: Vec<&Reference> = refs.iter().take(1).collect();
     let ctx = prm_core::render::Context { set: refs.iter().take(200).collect(), locale: "en-US".into(), ..Default::default() };

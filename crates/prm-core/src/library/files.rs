@@ -254,7 +254,7 @@ impl Library {
             tx.put(&a)
         })?;
         if excluded {
-            self.store.conn.execute("DELETE FROM fts WHERE entity='page' AND entity_id=?1", [attachment_id])?;
+            crate::search::unindex(&self.store.conn, "page", attachment_id)?;
         }
         Ok(())
     }

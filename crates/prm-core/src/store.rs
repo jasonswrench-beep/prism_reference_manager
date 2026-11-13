@@ -105,6 +105,8 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
          CREATE TABLE IF NOT EXISTS network_log(
             seq INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT NOT NULL, kind TEXT NOT NULL,
             host TEXT NOT NULL, purpose TEXT NOT NULL, sent TEXT NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS fts_map(entity TEXT NOT NULL, entity_id TEXT NOT NULL, row INTEGER NOT NULL);
+         CREATE INDEX IF NOT EXISTS fts_map_entity ON fts_map(entity, entity_id);
          CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
             entity UNINDEXED, entity_id UNINDEXED, scope UNINDEXED, field UNINDEXED, page UNINDEXED,
             orig UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2');",
