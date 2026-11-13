@@ -14,6 +14,22 @@ const TOOLS = [
 ];
 const MEANINGS = [["quotation", "Direct quotation"], ["important", "Important"], ["question", "Question"], ["disagree", "Disagree"], ["method", "Method"], ["evidence", "Evidence"], ["definition", "Definition"]];
 const COLORS = [["#ffd400", "Yellow"], ["#5fe3e3", "Cyan"], ["#a0e870", "Green"], ["#ffaad4", "Pink"], ["#c3a6ff", "Purple"], ["#ff8c5a", "Orange"]];
+// What each colour means by default; the person can change it (Settings layouts.reader_scheme).
+const DEFAULT_SCHEME = { "#ffd400": "quotation", "#a0e870": "evidence", "#5fe3e3": "method", "#ffaad4": "question", "#c3a6ff": "definition", "#ff8c5a": "disagree" };
+const scheme = () => ({ ...DEFAULT_SCHEME, ...(S.settings.layouts?.reader_scheme || {}) });
+const meaningLabel = (m) => MEANINGS.find((x) => x[0] === m)?.[1] || "";
+async function editScheme() {
+  const cur = scheme();
+  const sels = COLORS.map(([c, n], i) => [c, n, i, select([["", "No meaning"], ...MEANINGS], cur[c] || "", { "aria-label": `Meaning of ${n}` })]);
+  const ok = await modal("Colour meanings", h("div",
+    h("p.small.muted", "New marks in a colour get its meaning. Keys 1 to 6 choose a colour while reading."),
+    h("table.table", h("tbody", sels.map(([c, n, i, sel]) => h("tr", h("td", h("span.swatch", { style: { background: c, display: "inline-block", width: "16px", height: "16px", borderRadius: "3px" } })), h("td", `${n} (${i + 1})`), h("td", sel)))))),
+    { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Save", kind: "primary", value: true }] }).done;
+  if (!ok) return false;
+  const next = Object.fromEntries(sels.map(([c, , , sel]) => [c, sel.value]));
+  S.settings = await call("settings.set", { settings: { layouts: { ...(S.settings.layouts || {}), reader_scheme: next } } });
+  return true;
+}
 
 const R = {
   docs: [], // {ref, att, title}
@@ -165,12 +181,13 @@ registerView("reader", {
     }
     // Toolbar
     const toolBtns = TOOLS.map(([k, label, ic, key]) => h("button.tool", { type: "button", "aria-pressed": String(R.tool === k), title: `${label} (${key.toUpperCase()})`, on: { click: () => setTool(k) } }, icon(ic, 17), label));
-    const colorSel = select(COLORS, R.color, { "aria-label": "Mark colour", style: { width: "110px" }, on: { change: (e) => (R.color = e.target.value) } });
+    const colorSel = select(COLORS.map(([c, n], i) => [c, `${i + 1} ${n}${meaningLabel(scheme()[c]) ? " — " + meaningLabel(scheme()[c]) : ""}`]), R.color, { "aria-label": "Mark colour and meaning", style: { width: "190px" }, on: { change: (e) => (R.color = e.target.value) } });
+    const schemeBtn = iconBtn("settings", "Colour meanings", async () => { if (await editScheme()) go("reader"); });
     const search = h("input", { type: "search", placeholder: "Search in PDF", "aria-label": "Search in PDF", "data-search": "1", style: { width: "180px" } });
     const zoomSel = select([["0", "Fit width"], ["0.75", "75%"], ["1", "100%"], ["1.25", "125%"], ["1.5", "150%"], ["2", "200%"]], String(R.scale), { "aria-label": "Zoom", style: { width: "110px" }, on: { change: (e) => { R.scale = +e.target.value; drawPages(); } } });
     const modeSel = select([["continuous", "Continuous"], ["single", "Single page"], ["two", "Two pages"]], R.mode, { "aria-label": "Page layout", style: { width: "130px" }, on: { change: (e) => { R.mode = e.target.value; drawPages(); } } });
     const themeSel = select([["light", "Light page"], ["dark", "Dark page"], ["sepia", "Sepia page"]], S.settings.reader_theme || "light", { "aria-label": "Reading theme", style: { width: "120px" }, on: { change: async (e) => { await call("settings.set", { settings: { reader_theme: e.target.value } }); S.settings.reader_theme = e.target.value; docEl.className = "doc reader-theme-" + e.target.value; } } });
-    const toolbar = h("div.toolbar", { role: "toolbar", "aria-label": "Reader tools" }, ...toolBtns, colorSel, h("span.sep"), search,
+    const toolbar = h("div.toolbar", { role: "toolbar", "aria-label": "Reader tools" }, ...toolBtns, colorSel, schemeBtn, h("span.sep"), search,
       iconBtn("chevronUp", "Previous match", () => nextHit(-1)), iconBtn("chevronDown", "Next match", () => nextHit(1)), h("span.sep"),
       iconBtn("minus", "Zoom out (Ctrl+-)", () => zoom(-1)), zoomSel, iconBtn("plus", "Zoom in (Ctrl+=)", () => zoom(1)), modeSel, themeSel,
       iconBtn("eye", "Distraction-free reading", () => { R.distraction = !R.distraction; layout.classList.toggle("no-thumbs", R.distraction); side.hidden = R.distraction; }, R.distraction));
@@ -321,7 +338,7 @@ registerView("reader", {
       const prefix = at > 0 ? pageText.slice(Math.max(0, at - 40), at) : "";
       const suffix = at >= 0 ? pageText.slice(at + text.length, at + text.length + 40) : "";
       sel.removeAllRanges();
-      await saveNew({ kind: R.tool, rects, text, prefix, suffix, page_index: n - 1, meaning: R.tool === "highlight" ? "quotation" : "" });
+      await saveNew({ kind: R.tool, rects, text, prefix, suffix, page_index: n - 1, meaning: scheme()[R.color] || (R.tool === "highlight" ? "quotation" : "") });
     }
 
     function startDraw(e, n) {
@@ -488,11 +505,18 @@ registerView("reader", {
       if (R.panelTab === "notes") return drawNotesTab(body);
       body.append(h("h2", { style: { fontSize: "18px", margin: "0 0 6px" } }, "Project notes"),
         S.project ? h("span.chip", icon("folder", 14), S.project.project.title) : h("span.chip", "Library-wide (no project chosen)"));
-      const filt = select([["", "All marks"], ...TOOLS.slice(1).map(([k, l]) => [k, l]), ["review", "Needs review"]], R.filter, { "aria-label": "Filter marks", style: { margin: "8px 0" }, on: { change: (e) => { R.filter = e.target.value; drawPanel(); } } });
-      body.append(filt);
+      const filt = select([["", "All marks"], ...TOOLS.slice(1).map(([k, l]) => [k, l]), ["review", "Needs review"]], R.filter, { "aria-label": "Filter marks by kind", on: { change: (e) => { R.filter = e.target.value; drawPanel(); } } });
+      const colF = select([["", "Any colour"], ...COLORS.map(([c, n]) => [c, n])], R.filterColor || "", { "aria-label": "Filter marks by colour", on: { change: (e) => { R.filterColor = e.target.value; drawPanel(); } } });
+      const from = h("input", { type: "number", min: "1", value: R.filterFrom || "", placeholder: "from", "aria-label": "From PDF page", style: { width: "70px" }, on: { change: (e) => { R.filterFrom = e.target.value; drawPanel(); } } });
+      const to = h("input", { type: "number", min: "1", value: R.filterTo || "", placeholder: "to", "aria-label": "To PDF page", style: { width: "70px" }, on: { change: (e) => { R.filterTo = e.target.value; drawPanel(); } } });
+      const authors = [...new Set(R.anns.map((a) => a.author).filter(Boolean))];
+      const autF = authors.length ? select([["", "Anyone"], ["__me", "My marks"], ...authors.map((x) => [x, x])], R.filterAuthor || "", { "aria-label": "Filter marks by author", on: { change: (e) => { R.filterAuthor = e.target.value; drawPanel(); } } }) : null;
+      body.append(h("div.row.small", { style: { flexWrap: "wrap", gap: "6px", margin: "8px 0" } }, filt, colF, h("span", "Pages"), from, to, autF));
       const sel = R.anns.find((a) => a.id === R.selectedAnn);
       if (sel) body.append(annCard(sel, true));
-      const list = R.anns.filter((a) => a.id !== R.selectedAnn && (!R.filter || a.kind === R.filter || (R.filter === "review" && (a.anchor_state !== "matched" || !a.locator_confirmed))));
+      const list = R.anns.filter((a) => a.id !== R.selectedAnn && (!R.filter || a.kind === R.filter || (R.filter === "review" && (a.anchor_state !== "matched" || !a.locator_confirmed)))
+        && (!R.filterColor || a.color === R.filterColor) && (!R.filterFrom || a.page_index + 1 >= +R.filterFrom) && (!R.filterTo || a.page_index + 1 <= +R.filterTo)
+        && (!R.filterAuthor || (R.filterAuthor === "__me" ? !a.author : a.author === R.filterAuthor)));
       for (const a of list) body.append(annCard(a, false));
       if (!R.anns.length) body.append(h("p.muted", "Choose a tool and select text, or press a tool key (H for highlight) and select. Marks are saved in the library, not in the PDF."));
       body.append(h("div.btn-row", { style: { marginTop: "12px" } },
@@ -521,7 +545,12 @@ registerView("reader", {
       comment.addEventListener("change", () => update({ comment: comment.value }));
       const tagsIn = h("input", { value: (a.tags || []).join("; "), placeholder: "Labels, separated by semicolons", "aria-label": "Labels" });
       tagsIn.addEventListener("change", () => update({ tags: tagsIn.value.split(";").map((s) => s.trim()).filter(Boolean) }));
-      card.append(h("div.body", field("Type", meaningSel), field("My interpretation", comment), field("Labels", tagsIn),
+      const others = R.anns.filter((x) => x.id !== a.id);
+      const linked = (a.links || []).map((id) => others.find((x) => x.id === id)).filter(Boolean);
+      const short = (x) => `p. ${x.page_index + 1}: ${(x.text || x.comment || meaningLabel(x.meaning) || x.kind).slice(0, 50)}`;
+      const linkSel = others.length ? select([["", "Link to another mark…"], ...others.filter((x) => !(a.links || []).includes(x.id)).map((x) => [x.id, short(x)])], "", { "aria-label": "Link to another mark", on: { change: (e) => e.target.value && update({ links: [...(a.links || []), e.target.value] }) } }) : null;
+      const linksBox = h("div", linked.map((x) => h("div.row.small", h("a", { href: "#", on: { click: (e) => { e.preventDefault(); selectAnn(x.id); } } }, short(x)), iconBtn("x", "Remove link", () => update({ links: (a.links || []).filter((id) => id !== x.id) })))), linkSel);
+      card.append(h("div.body", field("Type", meaningSel), field("My interpretation", comment), field("Labels", tagsIn), others.length ? field("Linked marks", linksBox) : null,
         h("div.btn-row",
           a.text ? btn("Copy with narrative citation", { small: true, disabled: !a.locator_confirmed, title: "Authors and year before the quotation, page after it", onClick: () => copyQuote(a, "narrative_quote") }) : null,
           a.text ? btn("Copy quote with citation", { kind: "primary", icon: "copy", disabled: !a.locator_confirmed, title: a.locator_confirmed ? "" : "Confirm the citation page first", onClick: () => copyQuote(a) }) : null,
@@ -641,6 +670,7 @@ registerView("reader", {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       const t = TOOLS.find((x) => x[3] === e.key.toLowerCase());
       if (t && !e.ctrlKey && !e.altKey) { setTool(t[0]); e.preventDefault(); return; }
+      if (/^[1-6]$/.test(e.key) && !e.ctrlKey && !e.altKey) { R.color = COLORS[+e.key - 1][0]; colorSel.value = R.color; announce(`${COLORS[+e.key - 1][1]}${meaningLabel(scheme()[R.color]) ? ", " + meaningLabel(scheme()[R.color]) : ""}`); e.preventDefault(); return; }
       if (e.key === "PageDown" || (e.key === "ArrowRight" && R.mode !== "continuous")) { gotoPage(R.page + (R.mode === "two" ? 2 : 1)); e.preventDefault(); }
       if (e.key === "PageUp" || (e.key === "ArrowLeft" && R.mode !== "continuous")) { gotoPage(R.page - (R.mode === "two" ? 2 : 1)); e.preventDefault(); }
       if (e.key === "Home" && e.ctrlKey) gotoPage(1);
@@ -653,6 +683,17 @@ registerView("reader", {
     await drawPages();
     drawThumbs();
     drawPanel();
+    clearInterval(R.timeTimer);
+    let lastInput = Date.now(), pending = 0;
+    for (const ev of ["mousemove", "keydown", "wheel", "scroll"]) docEl.addEventListener(ev, () => (lastInput = Date.now()), { passive: true });
+    if (S.project) {
+      const refId = d.ref.id, projectId = S.project.project.id;
+      R.timeTimer = setInterval(() => {
+        if (!document.body.contains(docEl)) { clearInterval(R.timeTimer); if (pending) call("membership.add_time", { project_id: projectId, ref_id: refId, secs: pending }).catch(() => {}); return; }
+        if (document.visibilityState === "visible" && document.hasFocus() && Date.now() - lastInput < 5 * 60 * 1000) pending += 15;
+        if (pending >= 60) { const n = pending; pending = 0; call("membership.add_time", { project_id: projectId, ref_id: refId, secs: n }).catch(() => {}); }
+      }, 15000);
+    }
     if (params.replace) { params.replace = false; replaceVersion(); }
   },
 });

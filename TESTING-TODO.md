@@ -264,8 +264,7 @@ work that could not be verified here or an owner decision.
 - Optional local OCR for scanned PDFs (FIL-010).
 - Journal abbreviation lists (QLT-009).
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).
-- Side-by-side reading of two documents (part of RDR-001); configurable colour-to-type scheme
-  (RDR-003); annotation filters by colour and author (RDR-007).
+- Side-by-side reading of two documents (part of RDR-001).
 - Customizable keyboard shortcuts (UIX-012). Navigation can be collapsed (Ctrl+B).
 - A visual style editor (STY-007, P2). Style catalog updates from an online repository (STY-003);
   bundled styles change only with a program update, and imported files are versioned by hash.

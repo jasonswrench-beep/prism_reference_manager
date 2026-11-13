@@ -464,6 +464,9 @@ pub struct ProjectSource {
     pub rating: u8,
     #[serde(default)]
     pub reading_position: Option<ReadingPosition>,
+    /// Seconds spent with the source open in the reader while working in this project.
+    #[serde(default)]
+    pub time_spent_secs: u64,
     pub added: String,
 }
 entity!(ProjectSource, "project_sources");

@@ -14,6 +14,10 @@ BibTeX/biblatex, CSL JSON, XML records, mapped CSV and pasted reference lists; P
 identifier detection. Everything is staged for review with duplicates, conflicts and unmapped
 fields shown, and whole imports can be undone.
 
+**Reading.** Each highlight colour carries a meaning (editable; keys 1 to 6 choose a colour), marks
+can be filtered by colour, page range and author and linked to each other, and reading time is
+kept per project while a document is open and in use.
+
 **Working with selections and projects.** Project tasks on the dashboard and from a selected
 source; rating a selection (per project or library-wide), adding it to a collection, renaming
 or exporting its files; a project's evaluation and tags for each source; unlinking versions;

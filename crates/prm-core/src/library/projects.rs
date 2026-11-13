@@ -351,6 +351,16 @@ impl Library {
         self.store.get(&ProjectSource::key(project_id, ref_id))
     }
 
+    /// Add reading time (a convenience record, not an undo step).
+    pub fn add_reading_time(&mut self, project_id: &str, ref_id: &str, secs: u64) -> Result<u64> {
+        let key = ProjectSource::key(project_id, ref_id);
+        let Some(mut m) = self.store.get::<ProjectSource>(&key)? else { return Ok(0) };
+        m.time_spent_secs += secs.min(3600);
+        let s = crate::util::canonical_json(&serde_json::to_value(&m)?);
+        self.store.conn.execute("UPDATE project_sources SET data=?1 WHERE id=?2", rusqlite::params![s, key])?;
+        Ok(m.time_spent_secs)
+    }
+
     pub fn set_reading_position(&mut self, project_id: &str, ref_id: &str, pos: ReadingPosition) -> Result<()> {
         // Reading position is a convenience and is not an undo step.
         let key = ProjectSource::key(project_id, ref_id);

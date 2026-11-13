@@ -794,6 +794,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             }
             ok(n)
         }
+        "membership.add_time" => ok(lib_mut(st)?.add_reading_time(&s(a, "project_id"), &s(a, "ref_id"), opt(a, "secs")).map_err(err)?),
         "membership.position" => ok(lib_mut(st)?.set_reading_position(&s(a, "project_id"), &s(a, "ref_id"), arg(a, "position")?).map_err(err)?),
         "manuscripts.create" => ok(lib_mut(st)?.create_manuscript(&s(a, "project_id"), &s(a, "title"), &s(a, "style"), &s(a, "locale")).map_err(err)?),
         "manuscripts.update" => ok(lib_mut(st)?.update_manuscript(arg(a, "manuscript")?).map_err(err)?),
