@@ -160,6 +160,16 @@ fn gates_fulltext_20k_pdfs() {
     let mut l = Library::open(&dir("ft"), "bench", "bench").unwrap();
     let recs = records(pdfs, &mut rng, &vocab);
     fill(&mut l, &recs);
+    // Each PDF is attached to its source, so full-text hits lead back to sources.
+    for chunk in recs.chunks(10_000) {
+        l.write("gate attachments", |tx| {
+            for r in chunk {
+                tx.put(&Attachment { id: format!("att-{}", r.id), ref_id: r.id.clone(), hash: r.id.clone(), path: format!("x/{}.pdf", r.id), mode: "managed".into(), mime: "application/pdf".into(), role: "full-text".into(), original_name: "paper.pdf".into(), indexed: true, ..Default::default() })?;
+            }
+            Ok(())
+        })
+        .unwrap();
+    }
     // PRF-006: core indexing rate for extracted page text (text extraction itself runs in the
     // window with pdf.js and is measured separately on real files).
     let t = Instant::now();
@@ -180,9 +190,12 @@ fn gates_fulltext_20k_pdfs() {
     for q in [vocab[20].clone(), format!("{} {}", vocab[100], vocab[200]), format!("fulltext:{}", vocab[300]), format!("\"{} {}\"", vocab[5], vocab[6])] {
         for _ in 0..3 {
             let t = Instant::now();
-            let _ = l.list_references(&ListQuery { search: q.clone(), sort: "relevance".into(), limit: 50, ..Default::default() }).unwrap();
+            let page = l.list_references(&ListQuery { search: q.clone(), sort: "relevance".into(), limit: 50, ..Default::default() }).unwrap();
             times.push(t.elapsed().as_secs_f64() * 1000.0);
+            assert!(page.total > 0, "full-text search should find sources for {q}");
         }
+        let last = &times[times.len() - 3..];
+        println!("INFO query {q:?}: {:.0} / {:.0} / {:.0} ms", last[0], last[1], last[2]);
     }
     let (m, p) = p95(times);
     println!("GATE PRF-005 full-text search over {pdfs} PDFs: median {m:.0} ms, p95 {p:.0} ms to the first page of results (target <= 1,000 ms)");

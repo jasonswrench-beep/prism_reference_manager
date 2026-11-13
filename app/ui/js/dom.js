@@ -19,6 +19,8 @@ export function h(tag, attrs, ...children) {
     else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
     else if (k === "html") el.innerHTML = v;
     else if (k === "class") el.className = v;
+    // Text boxes take their text as a property: a "value" attribute is ignored by <textarea>.
+    else if (k === "value" && (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)) { el.value = String(v); el.defaultValue = String(v); }
     else if (k in el && typeof v !== "string" && k !== "list") el[k] = v;
     else el.setAttribute(k, v === true ? "" : v);
   }

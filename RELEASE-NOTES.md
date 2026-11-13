@@ -44,11 +44,17 @@ collections, and ratings are carried. Each record's identity in the exporting pr
 so importing a later export updates only the records that changed there, never overwriting edits
 made here. Large imports show progress and can be stopped without adding anything.
 
+**File storage.** Files can be managed (copied into the library) or linked (kept where they
+are). Linked files inside a chosen base folder are stored relative to it, and each computer can
+say where that folder is, so a synced folder at a different path still works. All files can be
+converted either way in one step; conversion copies, never deletes, and can be undone.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,
 added and modified ranges, a search builder, and author, journal, label, collection and project
-results in the command palette. PDF text is indexed automatically in the background.
+results in the command palette. PDF text is indexed automatically in the background. Snippets are built only for the results
+on screen, which keeps full-text search over 20,000 PDFs under a second.
 
 **Citation styles.** Besides the tested APA 7 profile, about 75 Citation Style Language styles
 are bundled and any CSL file can be imported, including dependent styles. A searchable catalog

@@ -68,13 +68,202 @@ fn safe_name(s: &str) -> String {
     if t.is_empty() { "file".into() } else { t }
 }
 
+/// Prefix marking a linked path stored relative to the base folder.
+pub const BASE_PREFIX: &str = "base:";
+
+/// Outcome of converting attachments between managed and linked storage.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ConvertReport {
+    pub converted: usize,
+    /// Already in the requested mode.
+    pub unchanged: usize,
+    /// (attachment id, reason)
+    pub failed: Vec<(String, String)>,
+}
+
+fn under(path: &Path, base: &Path) -> Option<String> {
+    let norm = |p: &Path| p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_string();
+    let (p, b) = (norm(path), norm(base));
+    if b.is_empty() || p.len() <= b.len() + 1 {
+        return None;
+    }
+    let (head, rest) = p.split_at(b.len());
+    if head.eq_ignore_ascii_case(&b) && rest.starts_with('\\') {
+        Some(rest[1..].replace('\\', "/"))
+    } else {
+        None
+    }
+}
+
 impl Library {
     pub fn attachment_path(&self, a: &Attachment) -> PathBuf {
         if a.mode == "managed" {
             self.files_dir().join(&a.path)
+        } else if let Some(rel) = a.path.strip_prefix(BASE_PREFIX) {
+            match self.linked_base() {
+                Some(b) => b.join(rel.replace('/', "\\")),
+                None => PathBuf::from(rel),
+            }
         } else {
             PathBuf::from(&a.path)
         }
+    }
+
+    /// The folder linked files are stored relative to: this computer's choice, else the
+    /// library's.
+    pub fn linked_base(&self) -> Option<PathBuf> {
+        if let Some(p) = &self.linked_base_override {
+            return Some(p.clone());
+        }
+        self.store.meta("linked_base").filter(|s| !s.trim().is_empty()).map(PathBuf::from)
+    }
+
+    /// Set the library's base folder for linked files (empty clears it). Linked files inside it
+    /// are then stored relative to it; returns how many existing links were made relative.
+    pub fn set_linked_base(&mut self, folder: &str) -> Result<usize> {
+        let f = folder.trim();
+        if !f.is_empty() && !Path::new(f).is_dir() {
+            return Err(Error::user(format!("The folder {f} was not found.")));
+        }
+        self.store.set_meta("linked_base", f)?;
+        if f.is_empty() {
+            return Ok(0);
+        }
+        self.make_links_relative()
+    }
+
+    /// The stored form of a linked file's path: relative to the base folder when inside it.
+    pub fn link_path(&self, p: &Path) -> String {
+        if let Some(b) = self.linked_base() {
+            if let Some(rel) = under(p, &b) {
+                return format!("{BASE_PREFIX}{rel}");
+            }
+        }
+        p.to_string_lossy().to_string()
+    }
+
+    /// Store every linked file inside the base folder relative to it.
+    pub fn make_links_relative(&mut self) -> Result<usize> {
+        let mut updates = Vec::new();
+        for a in self.store.all::<Attachment>()?.into_iter().filter(|a| a.mode == "linked" && !a.path.starts_with(BASE_PREFIX)) {
+            let rel = self.link_path(Path::new(&a.path));
+            if rel != a.path {
+                let mut na = a.clone();
+                na.path = rel;
+                updates.push(na);
+            }
+        }
+        let n = updates.len();
+        if n > 0 {
+            self.write(&format!("Make {n} links relative"), |tx| {
+                for u in &updates {
+                    tx.put(u)?;
+                }
+                Ok(())
+            })?;
+        }
+        Ok(n)
+    }
+
+    /// Copy a file into the managed store, checking the copy; returns its relative path.
+    fn copy_into_store(&self, src: &Path, hash: &str, original_name: &str) -> Result<String> {
+        let rel = format!("{}/{}/{}", &hash[..2], &hash[..16], safe_name(original_name));
+        let dest = self.files_dir().join(&rel);
+        if !dest.exists() {
+            std::fs::create_dir_all(dest.parent().unwrap())?;
+            let tmp = dest.with_extension("part");
+            std::fs::copy(src, &tmp)?;
+            if sha256_file(&tmp)? != hash {
+                let _ = std::fs::remove_file(&tmp);
+                return Err(Error::user("The copied file did not match the original. Nothing was changed; try again."));
+            }
+            std::fs::rename(&tmp, &dest)?;
+        }
+        Ok(rel)
+    }
+
+    /// Convert attachments to managed (copied into the library) or linked (copied out to
+    /// `folder` and referenced there). Files are copied, never moved: the original of a linked
+    /// file stays where it is, and the library's copy of a managed file stays until the
+    /// attachment is deleted, so the change can be undone.
+    pub fn convert_storage(&mut self, ids: &[String], to: &str, folder: Option<&Path>) -> Result<ConvertReport> {
+        let mut rep = ConvertReport::default();
+        let mut updates = Vec::new();
+        let total = ids.len();
+        for (i, id) in ids.iter().enumerate() {
+            self.report_progress("Converting files", i, total);
+            let a = self.store.must::<Attachment>(id)?;
+            if a.mode == to {
+                rep.unchanged += 1;
+                continue;
+            }
+            let src = self.attachment_path(&a);
+            if !src.exists() {
+                rep.failed.push((a.id.clone(), format!("{} is missing.", src.display())));
+                continue;
+            }
+            if sha256_file(&src).map(|h| h != a.hash).unwrap_or(true) {
+                rep.failed.push((a.id.clone(), format!("{} changed since it was attached.", src.display())));
+                continue;
+            }
+            let mut na = a.clone();
+            match to {
+                "managed" => match self.copy_into_store(&src, &a.hash, &a.original_name) {
+                    Ok(rel) => {
+                        na.mode = "managed".into();
+                        na.path = rel;
+                    }
+                    Err(e) => {
+                        rep.failed.push((a.id.clone(), e.to_string()));
+                        continue;
+                    }
+                },
+                "linked" => {
+                    let Some(dir) = folder else {
+                        return Err(Error::user("Choose a folder to put the linked files in."));
+                    };
+                    std::fs::create_dir_all(dir)?;
+                    let name = safe_name(&a.original_name);
+                    let (stem, ext) = match name.rsplit_once('.') {
+                        Some((s, e)) => (s.to_string(), format!(".{e}")),
+                        None => (name.clone(), String::new()),
+                    };
+                    let mut dest = dir.join(&name);
+                    let mut n = 2;
+                    // Reuse an identical file already there; otherwise pick a free name.
+                    while dest.exists() && sha256_file(&dest).map(|h| h != a.hash).unwrap_or(true) {
+                        dest = dir.join(format!("{stem} ({n}){ext}"));
+                        n += 1;
+                    }
+                    if !dest.exists() {
+                        let tmp = dest.with_extension("part");
+                        std::fs::copy(&src, &tmp)?;
+                        if sha256_file(&tmp)? != a.hash {
+                            let _ = std::fs::remove_file(&tmp);
+                            rep.failed.push((a.id.clone(), "The copy did not match the original.".into()));
+                            continue;
+                        }
+                        std::fs::rename(&tmp, &dest)?;
+                    }
+                    na.mode = "linked".into();
+                    na.path = self.link_path(&dest);
+                }
+                _ => return Err(Error::user("Files can be managed or linked.")),
+            }
+            updates.push(na);
+        }
+        self.report_progress("Converting files", total, total);
+        rep.converted = updates.len();
+        if !updates.is_empty() {
+            let label = if to == "managed" { "Copy files into the library" } else { "Link files from a folder" };
+            self.write(label, |tx| {
+                for u in &updates {
+                    tx.put(u)?;
+                }
+                Ok(())
+            })?;
+        }
+        Ok(rep)
     }
 
     pub fn attachments(&self, ref_id: &str) -> Result<Vec<Attachment>> {
@@ -94,23 +283,7 @@ impl Library {
         let size = std::fs::metadata(src)?.len();
         let original_name = src.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
         let mime = mime_for(src).to_string();
-        let path = if mode == "linked" {
-            src.to_string_lossy().to_string()
-        } else {
-            let rel = format!("{}/{}/{}", &hash[..2], &hash[..16], safe_name(&original_name));
-            let dest = self.files_dir().join(&rel);
-            if !dest.exists() {
-                std::fs::create_dir_all(dest.parent().unwrap())?;
-                let tmp = dest.with_extension("part");
-                std::fs::copy(src, &tmp)?;
-                if sha256_file(&tmp)? != hash {
-                    let _ = std::fs::remove_file(&tmp);
-                    return Err(Error::user("The copied file did not match the original. Nothing was attached; try again."));
-                }
-                std::fs::rename(&tmp, &dest)?;
-            }
-            rel
-        };
+        let path = if mode == "linked" { self.link_path(src) } else { self.copy_into_store(src, &hash, &original_name)? };
         let mut a = Attachment {
             id: new_id(),
             ref_id: ref_id.into(),
@@ -294,7 +467,7 @@ impl Library {
         if h != a.hash {
             return Err(Error::user("That file is different from the one attached (its contents do not match). Attach it as a new version instead."));
         }
-        let p = new_path.to_string_lossy().to_string();
+        let p = self.link_path(new_path);
         if a.mode == "managed" {
             // Put the found copy back into the managed store; the record stays the same.
             let dest = self.files_dir().join(&a.path);
@@ -320,16 +493,17 @@ impl Library {
         let mut updates = Vec::new();
         let mut missing = 0;
         for a in all.into_iter().filter(|a| a.mode == "linked") {
-            let lower = a.path.to_lowercase().replace('/', "\\");
+            let full = self.attachment_path(&a).to_string_lossy().to_string();
+            let lower = full.to_lowercase().replace('/', "\\");
             let old = old_prefix.to_lowercase().replace('/', "\\");
             if !lower.starts_with(&old) {
                 continue;
             }
-            let rest = &a.path[old_prefix.len()..];
+            let rest = &full[old_prefix.len()..];
             let candidate = PathBuf::from(format!("{}{}", new_prefix.trim_end_matches(['\\', '/']), if rest.starts_with(['\\', '/']) { rest.to_string() } else { format!("\\{rest}") }));
             if candidate.exists() && sha256_file(&candidate).map(|h| h == a.hash).unwrap_or(false) {
                 let mut na = a.clone();
-                na.path = candidate.to_string_lossy().to_string();
+                na.path = self.link_path(&candidate);
                 updates.push(na);
             } else {
                 missing += 1;

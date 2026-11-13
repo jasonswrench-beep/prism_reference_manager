@@ -251,7 +251,7 @@ impl Library {
         if !q.collection_id.is_empty() {
             let c = self.store.must::<Collection>(&q.collection_id)?;
             let ids: BTreeSet<String> = if !c.query.is_empty() {
-                crate::search::run(conn, &c.query, None, None, usize::MAX)?.ref_ids.into_iter().collect()
+                crate::search::run_ids(conn, &c.query, None, None, usize::MAX)?.ref_ids.into_iter().collect()
             } else {
                 let mut ids: BTreeSet<String> = c.ref_ids.iter().cloned().collect();
                 let all: Vec<Collection> = self.store.all()?;
@@ -268,12 +268,14 @@ impl Library {
         }
         let mut hits = Vec::new();
         let mut corrections = vec![];
+        let mut search_res: Option<crate::search::Results> = None;
         let mut scores: HashMap<String, f64> = HashMap::new();
         if !q.search.trim().is_empty() {
-            let res = crate::search::run(conn, &q.search, None, id_set.as_ref(), usize::MAX)?;
-            id_set = Some(res.ref_ids.into_iter().collect());
-            scores = res.scores;
-            corrections = res.corrections;
+            let res = crate::search::run_ids(conn, &q.search, None, id_set.as_ref(), usize::MAX)?;
+            id_set = Some(res.ref_ids.iter().cloned().collect());
+            scores = res.scores.clone();
+            corrections = res.corrections.clone();
+            search_res = Some(res);
         }
         if let Some(ids) = &id_set {
             conn.execute_batch("DROP TABLE IF EXISTS temp.list_ids; CREATE TEMP TABLE list_ids(id TEXT PRIMARY KEY, score REAL NOT NULL DEFAULT 0);")?;
@@ -347,7 +349,7 @@ impl Library {
             });
         }
         if !q.search.trim().is_empty() {
-            hits = crate::search::hits_for(conn, &q.search, &page_ids, None)?;
+            hits = match &search_res { Some(r) => crate::search::hits_from(conn, r, &page_ids, None)?, None => crate::search::hits_for(conn, &q.search, &page_ids, None)? };
         }
         Ok(RefPage { total: total as usize, rows, pending_index: crate::search::pending_index_count(conn)?, search_hits: hits, facets, corrections })
     }

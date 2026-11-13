@@ -913,6 +913,9 @@ pub struct Note {
     pub trashed_at: Option<String>,
     pub created: String,
     pub modified: String,
+    /// @citekeys in the note text that match no source (shown so the person can fix them).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unresolved_keys: Vec<String>,
 }
 entity!(Note, "notes");
 

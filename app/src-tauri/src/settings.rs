@@ -95,6 +95,8 @@ pub struct Settings {
     /// Days between automatic quick health checks (0 = off).
     pub health_days: u32,
     pub health_last: String,
+    /// This computer's base folder for relative linked files, by library id.
+    pub linked_bases: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for Settings {
@@ -139,6 +141,7 @@ impl Default for Settings {
             save_rules: Default::default(),
             health_days: 7,
             health_last: String::new(),
+            linked_bases: Default::default(),
         }
     }
 }

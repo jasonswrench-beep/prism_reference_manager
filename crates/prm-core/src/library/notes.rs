@@ -53,6 +53,7 @@ impl Library {
     /// Create or update a knowledge item. New items default to the active project; a
     /// library-wide note must be chosen deliberately (empty project id).
     pub fn save_note(&mut self, mut n: Note) -> Result<Note> {
+        self.link_citekeys(&mut n)?;
         Self::validate_note(&mut n)?;
         let t = now();
         let label;
@@ -76,6 +77,101 @@ impl Library {
         let nn = n.clone();
         self.write(label, |tx| tx.put(&nn))?;
         Ok(n)
+    }
+
+    /// Sources cited as @citekey in the note text become source links; unknown keys are listed.
+    fn link_citekeys(&self, n: &mut Note) -> Result<()> {
+        n.unresolved_keys.clear();
+        let mut keys: Vec<String> = vec![];
+        for c in re!(r"(?:^|[\s(\[;,])@([A-Za-z0-9_][A-Za-z0-9_:.\-]*[A-Za-z0-9_])").captures_iter(&n.body) {
+            let k = c[1].to_string();
+            if !keys.contains(&k) {
+                keys.push(k);
+            }
+        }
+        for k in keys {
+            let id: Option<String> = self.store.conn.query_row("SELECT id FROM ref_index WHERE citekey=?1 AND trashed=0", [&k], |r| r.get(0)).ok();
+            match id {
+                Some(id) => {
+                    if !n.ref_ids.contains(&id) {
+                        n.ref_ids.push(id);
+                    }
+                }
+                None => n.unresolved_keys.push(k),
+            }
+        }
+        Ok(())
+    }
+
+    /// Merge `other` into `keep`: text appended, sources, tags and labels combined; `other` goes to
+    /// the trash. One undoable step.
+    pub fn merge_notes(&mut self, keep: &str, other: &str) -> Result<Note> {
+        if keep == other {
+            return Err(Error::user("Choose a different note to merge."));
+        }
+        let mut a = self.store.must::<Note>(keep)?;
+        let mut b = self.store.must::<Note>(other)?;
+        if !b.exact_text.is_empty() {
+            if a.exact_text.is_empty() {
+                a.exact_text = b.exact_text.clone();
+            } else if a.exact_text != b.exact_text {
+                a.body = format!("{}\n\n> “{}”", a.body.trim_end(), b.exact_text);
+            }
+        }
+        if !b.body.trim().is_empty() {
+            a.body = if a.body.trim().is_empty() { b.body.clone() } else { format!("{}\n\n{}", a.body.trim_end(), b.body.trim()) };
+        }
+        for id in &b.ref_ids {
+            if !a.ref_ids.contains(id) {
+                a.ref_ids.push(id.clone());
+            }
+        }
+        for t in &b.tags {
+            if !a.tags.contains(t) {
+                a.tags.push(t.clone());
+            }
+        }
+        for l in &b.labels {
+            if !a.labels.contains(l) {
+                a.labels.push(l.clone());
+            }
+        }
+        if a.locator.is_empty() && !b.locator.is_empty() {
+            a.locator = b.locator.clone();
+            a.locator_label = b.locator_label.clone();
+        }
+        a.modified = now();
+        b.trashed_at = Some(now());
+        let (aa, bb) = (a.clone(), b.clone());
+        self.write("Merge notes", |tx| {
+            tx.put(&aa)?;
+            tx.put(&bb)
+        })?;
+        Ok(a)
+    }
+
+    /// Split a note's text at a character position: the text after it becomes a new note with
+    /// the same type, scope, sources and tags. The quotation stays with the original.
+    pub fn split_note(&mut self, id: &str, at: usize) -> Result<Note> {
+        let mut a = self.store.must::<Note>(id)?;
+        let chars: Vec<char> = a.body.chars().collect();
+        if at == 0 || at >= chars.len() {
+            return Err(Error::user("Place the cursor inside the note text where it should be split."));
+        }
+        let first: String = chars[..at].iter().collect();
+        let second: String = chars[at..].iter().collect();
+        if second.trim().is_empty() || first.trim().is_empty() {
+            return Err(Error::user("Both parts need some text."));
+        }
+        a.body = first.trim_end().to_string();
+        a.modified = now();
+        let b = Note { id: new_id(), kind: a.kind.clone(), project_id: a.project_id.clone(), title: String::new(), body: second.trim_start().to_string(), ref_ids: a.ref_ids.clone(), tags: a.tags.clone(), labels: a.labels.clone(), origin: "user".into(), created: now(), modified: now(), anchor_state: if a.ref_ids.is_empty() { a.anchor_state.clone() } else { "no-locator".into() }, ..Default::default() };
+        let (aa, bb) = (a.clone(), b.clone());
+        self.write("Split note", |tx| {
+            tx.put(&aa)?;
+            tx.put(&bb)
+        })?;
+        Ok(b)
     }
 
     pub fn trash_note(&mut self, id: &str) -> Result<()> {
@@ -124,6 +220,7 @@ impl Library {
             trashed_at: None,
             created: String::new(),
             modified: String::new(),
+            unresolved_keys: vec![],
         };
         self.save_note(n)
     }

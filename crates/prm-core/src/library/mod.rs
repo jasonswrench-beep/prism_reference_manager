@@ -42,6 +42,9 @@ pub struct Library {
     pub save_rules: crate::cleanup::SaveRules,
     /// Progress for long operations (phase, done, total), set by the window.
     pub progress: Option<std::sync::Arc<dyn Fn(&str, usize, usize) + Send + Sync>>,
+    /// This computer's base folder for relative linked files, when it differs from the
+    /// library's own setting (a synced folder can sit at a different path on each computer).
+    pub linked_base_override: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -85,6 +88,7 @@ impl Library {
             progress: None,
             save_rules: Default::default(),
             network_allowed: true,
+            linked_base_override: None,
         };
         if lib.store.meta("name").is_none() && !lib.store.read_only {
             let name = root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "My Library".into());

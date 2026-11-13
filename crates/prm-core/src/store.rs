@@ -90,6 +90,9 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         "PRAGMA journal_mode=WAL;
          PRAGMA synchronous=FULL;
          PRAGMA foreign_keys=ON;
+         PRAGMA cache_size=-65536;
+         PRAGMA temp_store=MEMORY;
+         PRAGMA mmap_size=268435456;
          CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS events(
             seq INTEGER PRIMARY KEY AUTOINCREMENT,

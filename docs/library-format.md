@@ -36,6 +36,10 @@ copy of the database is written to `backups/`.
 - Unmapped imported fields are kept in `overflow` under a namespace such as `ris:M3`.
 - Each annotation stores the attachment version hash, physical page index, page label,
   confirmed citation locator, page-relative geometry and text anchors.
+- An attachment's `mode` is `managed` (its `path` is relative to `files/`) or `linked`. A linked
+  `path` is either a full path or `base:` followed by a path relative to the base folder, with
+  forward slashes. The library's base folder is the `linked_base` key in `meta`; each computer
+  may override it in its own settings.
 
 ## Export package
 

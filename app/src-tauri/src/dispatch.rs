@@ -307,6 +307,11 @@ fn open_library(st: &mut crate::AppState, path: &Path) -> Result<Value, CallErro
     lib.protected_terms = st.settings.protected_terms.clone();
     lib.save_rules = st.settings.save_rules.clone();
     lib.network_allowed = st.settings.network_enabled;
+    if let Some(b) = lib.info().ok().map(|i| i.id).and_then(|id| st.settings.linked_bases.get(&id).cloned()) {
+        if !b.is_empty() {
+            lib.linked_base_override = Some(PathBuf::from(b));
+        }
+    }
     let _ = lib.empty_trash_older_than(st.settings.trash_retention_days.max(1));
     let _ = lib.recompute_copies(None);
     let info = lib.info().map_err(err)?;
@@ -876,6 +881,8 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             }
             ok(lib_mut(st)?.save_note(n).map_err(err)?)
         }
+        "notes.merge" => ok(lib_mut(st)?.merge_notes(&s(a, "keep"), &s(a, "other")).map_err(err)?),
+        "notes.split" => ok(lib_mut(st)?.split_note(&s(a, "id"), opt(a, "at")).map_err(err)?),
         "notes.trash" => ok(lib_mut(st)?.trash_note(&s(a, "id")).map_err(err)?),
         "notes.accept" => ok(lib_mut(st)?.accept_machine_note(&s(a, "id")).map_err(err)?),
         "notes.from_annotation" => ok(lib_mut(st)?.note_from_annotation(&s(a, "annotation_id"), &s(a, "kind")).map_err(err)?),
@@ -927,6 +934,47 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "files.check" => ok(lib_mut(st)?.check_files(opt(a, "rehash")).map_err(err)?),
         "files.relink_pick" => ok(lib_mut(st)?.relink(&s(a, "id"), &path.unwrap()).map_err(err)?),
         "files.relink_folder" => ok(lib_mut(st)?.relink_folder(&s(a, "old_prefix"), &s(a, "new_prefix")).map_err(err)?),
+        "files.base" => {
+            let l = lib_mut(st)?;
+            let linked: i64 = l.store.conn.query_row("SELECT COUNT(*) FROM attachments WHERE json_extract(data,'$.mode')='linked'", [], |r| r.get(0)).unwrap_or(0);
+            let relative: i64 = l.store.conn.query_row("SELECT COUNT(*) FROM attachments WHERE json_extract(data,'$.mode')='linked' AND json_extract(data,'$.path') LIKE 'base:%'", [], |r| r.get(0)).unwrap_or(0);
+            let managed: i64 = l.store.conn.query_row("SELECT COUNT(*) FROM attachments WHERE json_extract(data,'$.mode')='managed'", [], |r| r.get(0)).unwrap_or(0);
+            ok(json!({
+                "library": l.store.meta("linked_base").unwrap_or_default(),
+                "this_computer": l.linked_base_override.as_ref().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+                "effective": l.linked_base().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+                "linked": linked, "relative": relative, "managed": managed,
+            }))
+        }
+        "files.set_base" => {
+            let folder = s(a, "folder");
+            if opt::<bool>(a, "this_computer") {
+                if !folder.trim().is_empty() && !Path::new(folder.trim()).is_dir() {
+                    return Err(user(&format!("The folder {} was not found.", folder.trim())));
+                }
+                let id = lib_mut(st)?.info().map_err(err)?.id;
+                if folder.trim().is_empty() {
+                    st.settings.linked_bases.remove(&id);
+                } else {
+                    st.settings.linked_bases.insert(id, folder.trim().to_string());
+                }
+                let _ = settings::save(&st.config_dir, &st.settings);
+                let l = lib_mut(st)?;
+                l.linked_base_override = if folder.trim().is_empty() { None } else { Some(PathBuf::from(folder.trim())) };
+                ok(l.make_links_relative().map_err(err)?)
+            } else {
+                ok(lib_mut(st)?.set_linked_base(&folder).map_err(err)?)
+            }
+        }
+        "files.make_relative" => ok(lib_mut(st)?.make_links_relative().map_err(err)?),
+        "files.convert" => {
+            let ids: Vec<String> = arg(a, "ids")?;
+            let folder = s(a, "folder");
+            let l = lib_mut(st)?;
+            // An empty id list means every attachment not already in the requested mode.
+            let ids = if ids.is_empty() { l.store.all::<prm_core::model::Attachment>().map_err(err)?.into_iter().map(|x| x.id).collect() } else { ids };
+            ok(l.convert_storage(&ids, &s(a, "to"), if folder.is_empty() { None } else { Some(Path::new(&folder)) }).map_err(err)?)
+        }
         "files.replace_pick" => ok(json!({"path": path.unwrap().to_string_lossy()})),
         "files.replace" => {
             let p = PathBuf::from(s(a, "path"));

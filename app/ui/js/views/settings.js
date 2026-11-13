@@ -96,6 +96,39 @@ registerView("settings", {
           h("label.row.small", { for: "w-mirror" }, mirror, "Turn subfolders into collections"),
           h("div.btn-row", btn("Watch a folder…", { small: true, kind: "primary", onClick: async () => { try { const r = await call("watch.add", { project_id: S.project?.project.id || "", mirror: mirror.checked }); if (r && !r.cancelled) { toast(`Watching ${r.path}`, "success"); go("settings", { tab: "library" }); } } catch (e) { showError(e); } } }),
             watched.length ? btn("Check now", { small: true, onClick: async () => { const r = await call("watch.scan"); toast(r.length ? `${r.reduce((n, x) => n + x.count, 0)} new PDFs staged for review` : "No new PDFs found", r.length ? "success" : "info"); } }) : null)));
+        const fb = await call("files.base").catch(() => null);
+        if (fb) {
+          const reload = () => go("settings", { tab: "library" });
+          const setBase = async (thisComputer) => {
+            const p = await call("dialog.pick_folder", { title: thisComputer ? "Choose where the linked-files folder is on this computer" : "Choose the folder your linked files live in" });
+            if (!p) return;
+            try { const n = await call("files.set_base", { folder: p, this_computer: thisComputer }); toast(n ? `${n} links now relative to ${p}` : `Linked files are now found in ${p}`, "success"); reload(); } catch (e) { showError(e); }
+          };
+          const convert = async (to) => {
+            let folder = "";
+            if (to === "linked") {
+              folder = await call("dialog.pick_folder", { title: "Choose a folder to put the files in" });
+              if (!folder) return;
+            } else if (!(await confirmDialog("Copy files into the library", `Copy ${fb.linked} linked files into the library folder? The originals stay where they are. This uses disk space in the library folder.`, { ok: "Copy files" }))) return;
+            const t = toast(to === "managed" ? "Copying files into the library…" : "Copying files to the folder…", "info", { sticky: true });
+            try {
+              const r = await call("files.convert", { ids: [], to, folder });
+              t.remove();
+              toast(`${r.converted} files converted${r.failed.length ? `; ${r.failed.length} could not be (missing or changed)` : ""}. Undo is available.`, r.failed.length ? "warn" : "success");
+              reload();
+            } catch (e) { t.remove(); showError(e); }
+          };
+          body.append(card("File storage",
+            h("p.small.muted", "Managed files are copied into the library folder and travel with it. Linked files stay where you keep them. Linked files inside a base folder are stored relative to it, so the library still finds them when that folder is at a different place on another computer or drive."),
+            h("p.small", `${fb.managed} managed files • ${fb.linked} linked files, ${fb.relative} of them relative to the base folder`),
+            field("Base folder for linked files", h("div.row", h("input", { value: fb.library, placeholder: "None (links store full paths)", readOnly: true }), btn("Choose…", { onClick: () => setBase(false) }), fb.library ? btn("Clear", { onClick: async () => { await call("files.set_base", { folder: "" }); reload(); } }) : null)),
+            field("On this computer the base folder is at", h("div.row", h("input", { value: fb.this_computer, placeholder: fb.library ? "Same as above" : "Same as above (none set)", readOnly: true }), btn("Choose…", { onClick: () => setBase(true) }), fb.this_computer ? btn("Reset", { onClick: async () => { await call("files.set_base", { folder: "", this_computer: true }); reload(); } }) : null), "Use this when the shared folder sits at a different path here (for example another drive letter)."),
+            h("div.btn-row",
+              fb.linked ? btn("Copy all linked files into the library…", { small: true, onClick: () => convert("managed") }) : null,
+              fb.managed ? btn("Copy managed files out to a folder and link them…", { small: true, onClick: () => convert("linked") }) : null,
+              fb.effective && fb.linked > fb.relative ? btn("Make links relative", { small: true, onClick: async () => { const n = await call("files.make_relative"); toast(`${n} links made relative`, n ? "success" : "info"); reload(); } }) : null),
+            h("p.small.muted", "Converting copies files; nothing is deleted. A file that is missing or changed outside the program is left as it is and reported.")));
+        }
       }
       const bl = info ? await call("backup.list").catch(() => null) : null;
       body.append(card("This library", info ? h("div",

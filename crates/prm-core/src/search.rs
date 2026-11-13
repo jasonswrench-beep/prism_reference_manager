@@ -512,6 +512,11 @@ pub struct Results {
     pub scores: HashMap<String, f64>,
     /// Words that matched nothing and the close spellings searched instead.
     pub corrections: Vec<Correction>,
+    /// Raw matches kept so snippets can be built later for just the rows shown.
+    #[serde(skip)]
+    pub pending: Vec<Hit>,
+    #[serde(skip)]
+    pub terms: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -862,13 +867,22 @@ impl<'a> Eval<'a> {
     /// reference level; unattached notes stay as notes.
     fn lift(&mut self, s: HashSet<Key>) -> Result<HashSet<Key>> {
         let mut out = HashSet::new();
+        // Many matching PDF pages: read every attachment's owner once instead of one query each.
+        let page_count = s.iter().filter(|(e, _)| *e == "page").count();
+        let page_owner: HashMap<String, String> = if page_count > 64 {
+            let mut st = self.conn.prepare_cached("SELECT id, ref_id FROM attachments")?;
+            let m = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?.filter_map(|r| r.ok()).collect();
+            m
+        } else {
+            HashMap::new()
+        };
         for (e, id) in s {
             match e {
                 "ref" => {
                     out.insert((e, id));
                 }
                 _ => {
-                    let refs = owner_refs(self.conn, e, &id)?;
+                    let refs = if e == "page" && page_count > 64 { page_owner.get(&id).map(|r| vec![r.clone()]).unwrap_or_default() } else { owner_refs(self.conn, e, &id)? };
                     let sc = self.scores.get(&(e, id.clone())).copied().unwrap_or(0.0);
                     if refs.is_empty() {
                         out.insert((e, id));
@@ -893,7 +907,7 @@ fn owner_refs(conn: &Connection, entity: &str, id: &str) -> Result<Vec<String>> 
         "page" => "SELECT ref_id FROM attachments WHERE id=?1",
         _ => return Ok(vec![]),
     };
-    let mut st = conn.prepare(sql)?;
+    let mut st = conn.prepare_cached(sql)?;
     let v: Vec<String> = st.query_map(params![id], |r| r.get::<_, String>(0))?.filter_map(|r| r.ok()).collect();
     Ok(v)
 }
@@ -918,6 +932,15 @@ pub fn snippet(orig: &str, terms: &[String]) -> String {
 /// Run a query. `scope_project` restricts results to sources and notes of that project;
 /// `scope_refs` restricts to an explicit set (a collection).
 pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_refs: Option<&BTreeSet<String>>, limit: usize) -> Result<Results> {
+    let mut r = run_ids(conn, query, scope_project, scope_refs, limit)?;
+    let ids: Vec<String> = r.ref_ids.clone();
+    r.hits = hits_from(conn, &r, &ids, scope_project)?;
+    Ok(r)
+}
+
+/// The matching references, ranked, without building snippets (the expensive part for broad
+/// full-text matches). Use `hits_from` for the rows that are shown.
+pub fn run_ids(conn: &Connection, query: &str, scope_project: Option<&str>, scope_refs: Option<&BTreeSet<String>>, limit: usize) -> Result<Results> {
     let q = parse(query)?;
     let mut ev = Eval { conn, hits: HashMap::new(), rows: HashMap::new(), terms: Vec::new(), scores: HashMap::new(), best_row: HashMap::new(), corrections: Vec::new() };
     let keys = ev.eval(&q)?;
@@ -957,19 +980,41 @@ pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_re
     ref_ids.truncate(limit);
     let scores: HashMap<String, f64> = ref_ids.iter().map(|id| (id.clone(), ev.scores.get(&("ref", id.clone())).copied().unwrap_or(0.0))).collect();
     let corrections = std::mem::take(&mut ev.corrections);
-    let keep: HashSet<&String> = ref_ids.iter().collect();
     let terms = ev.terms.clone();
-    let mut hits: Vec<Hit> = Vec::new();
     let mut pending: Vec<Hit> = ev.hits.into_values().collect();
     for ((kind, id), row) in ev.rows {
         pending.push(Hit { entity: kind.to_string(), entity_id: id, ref_id: String::new(), field: String::new(), page: -1, snippet: String::new(), row });
     }
-    for mut h in pending {
-        if h.entity == "ref" {
-            if !keep.contains(&h.entity_id) {
-                continue;
+    Ok(Results { ref_ids, hits: vec![], truncated, scores, corrections, pending, terms })
+}
+
+/// Why each of `ids` matched (field, page and snippet), from a search already run.
+pub fn hits_from(conn: &Connection, res: &Results, ids: &[String], scope_project: Option<&str>) -> Result<Vec<Hit>> {
+    let keep: HashSet<&String> = ids.iter().collect();
+    let terms = &res.terms;
+    let mut hits: Vec<Hit> = Vec::new();
+    // Attachments of the requested sources, so page matches elsewhere are skipped without a query.
+    let mut page_owner: HashMap<String, String> = HashMap::new();
+    {
+        let mut st = conn.prepare_cached("SELECT id FROM attachments WHERE ref_id=?1")?;
+        for id in ids {
+            for a in st.query_map(params![id], |r| r.get::<_, String>(0))? {
+                page_owner.insert(a?, id.clone());
             }
+        }
+    }
+    for h in &res.pending {
+        if h.entity == "ref" && !keep.contains(&h.entity_id) {
+            continue;
+        }
+        if h.entity == "page" && !page_owner.contains_key(&h.entity_id) {
+            continue;
+        }
+        let mut h = h.clone();
+        if h.entity == "ref" {
             h.ref_id = h.entity_id.clone();
+        } else if h.entity == "page" {
+            h.ref_id = page_owner[&h.entity_id].clone();
         } else {
             if let Some(p) = scope_project {
                 if !p.is_empty() && (h.entity == "note" || h.entity == "annotation") {
@@ -997,11 +1042,11 @@ pub fn run(conn: &Connection, query: &str, scope_project: Option<&str>, scope_re
                 .unwrap_or_default();
             h.field = field;
             h.page = page;
-            h.snippet = snippet(&orig, &terms);
+            h.snippet = snippet(&orig, terms);
         }
         hits.push(h);
     }
-    Ok(Results { ref_ids, hits, truncated, scores, corrections })
+    Ok(hits)
 }
 
 /// Something the command palette can jump to besides a source.

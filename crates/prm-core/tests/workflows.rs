@@ -612,3 +612,78 @@ fn excel_export_is_a_workbook_with_the_csv_columns() {
     let all = format!("{sheet}{shared}");
     assert!(all.contains("Teaching with AI") && all.contains("container_title"), "title and header present");
 }
+
+#[test]
+fn notes_link_citekeys_merge_and_split() {
+    let (mut lib, _root) = open("notes2");
+    let p = lib.create_project("Notes", "apa-7", None).unwrap();
+    let mut r = article("Reflection in practice", 2020, &[("Lee", "Kim")]);
+    r.citekey = "lee2020".into();
+    let r = lib.add_reference(r, Some(&p.id)).unwrap();
+    let n = lib.save_note(Note { kind: "comment".into(), project_id: p.id.clone(), body: "As @lee2020 argues, and see @nobody1999.".into(), ..Default::default() }).unwrap();
+    assert_eq!(n.ref_ids, vec![r.id.clone()], "a known key links the source");
+    assert_eq!(n.unresolved_keys, vec!["nobody1999".to_string()], "an unknown key is reported");
+    let m = lib.save_note(Note { kind: "comment".into(), project_id: p.id.clone(), body: "Second thought.".into(), tags: vec!["method".into()], ..Default::default() }).unwrap();
+    let merged = lib.merge_notes(&n.id, &m.id).unwrap();
+    assert!(merged.body.contains("As @lee2020 argues") && merged.body.contains("Second thought."));
+    assert_eq!(merged.tags, vec!["method".to_string()]);
+    assert!(lib.store.must::<Note>(&m.id).unwrap().trashed_at.is_some(), "the merged-in note goes to the trash");
+    let at = merged.body.find("Second").unwrap();
+    let at_chars = merged.body[..at].chars().count();
+    let second = lib.split_note(&merged.id, at_chars).unwrap();
+    assert_eq!(second.body, "Second thought.");
+    assert_eq!(second.ref_ids, merged.ref_ids, "the new part keeps the sources");
+    assert!(!lib.store.must::<Note>(&merged.id).unwrap().body.contains("Second"));
+}
+
+#[test]
+fn linked_files_relative_paths_and_conversion() {
+    let (mut lib, root) = open("fil002");
+    let r = lib.add_reference(article("Linked and managed", 2020, &[("Ode", "Ife")]), None).unwrap();
+    let shared = root.join("Shared Papers");
+    std::fs::create_dir_all(shared.join("sub")).unwrap();
+    let f = shared.join("sub").join("paper.pdf");
+    std::fs::write(&f, minimal_pdf(1)).unwrap();
+    let a = lib.attach_file(&r.id, &f, "linked", "full-text").unwrap();
+    assert!(!a.path.starts_with("base:"), "no base folder yet: full path");
+
+    // Setting a base folder makes the existing link relative.
+    assert_eq!(lib.set_linked_base(&shared.to_string_lossy()).unwrap(), 1);
+    let a = lib.store.must::<Attachment>(&a.id).unwrap();
+    assert_eq!(a.path, "base:sub/paper.pdf");
+    assert!(lib.attachment_path(&a).exists());
+
+    // The folder moves (another drive on another computer): only this computer's base changes.
+    let moved = root.join("Elsewhere");
+    std::fs::rename(&shared, &moved).unwrap();
+    assert!(!lib.attachment_path(&a).exists());
+    lib.linked_base_override = Some(moved.clone());
+    assert!(lib.attachment_path(&a).exists());
+    assert!(lib.check_files(true).unwrap().iter().all(|c| c.state == "ok"));
+
+    // Linked -> managed copies the file in; the original stays.
+    let rep = lib.convert_storage(&[a.id.clone()], "managed", None).unwrap();
+    assert_eq!(rep.converted, 1);
+    let m = lib.store.must::<Attachment>(&a.id).unwrap();
+    assert_eq!(m.mode, "managed");
+    assert!(lib.attachment_path(&m).exists());
+    assert!(moved.join("sub").join("paper.pdf").exists());
+
+    // Undo restores the link.
+    lib.undo().unwrap();
+    assert_eq!(lib.store.must::<Attachment>(&a.id).unwrap().mode, "linked");
+    lib.convert_storage(&[a.id.clone()], "managed", None).unwrap();
+
+    // Managed -> linked copies out into a folder inside the base, stored relative.
+    let out = moved.join("out");
+    let rep = lib.convert_storage(&[a.id.clone()], "linked", Some(&out)).unwrap();
+    assert_eq!(rep.converted, 1, "{:?}", rep.failed);
+    let l = lib.store.must::<Attachment>(&a.id).unwrap();
+    assert_eq!(l.path, "base:out/paper.pdf");
+    assert!(lib.attachment_path(&l).exists());
+
+    // A missing file is reported, not converted.
+    std::fs::remove_file(out.join("paper.pdf")).unwrap();
+    let rep = lib.convert_storage(&[a.id.clone()], "managed", None).unwrap();
+    assert_eq!((rep.converted, rep.failed.len()), (0, 1));
+}

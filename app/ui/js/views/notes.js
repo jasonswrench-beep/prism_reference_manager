@@ -9,6 +9,14 @@ const KIND_LABEL = { quotation: "Direct quotation", paraphrase: "Paraphrase", su
 const KIND_ICON = { quotation: "quote", question: "question", task: "check", evidence: "checkCircle", summary: "list" };
 const N = { section: "", filterKind: "", sort: "newest", selected: "", search: "", libraryWide: false };
 
+// Built-in note templates; the person's own are kept in settings (layouts.note_templates).
+const TEMPLATES = [
+  { name: "Article summary", kind: "summary", body: "## Purpose\n\n## Method\n\n## Findings\n\n## Limits\n\n## How I will use it\n" },
+  { name: "Methods note", kind: "note", body: "Design:\nSample:\nMeasures:\nAnalysis:\nThreats to validity:\n" },
+  { name: "Argument map", kind: "note", body: "Claim:\n\nEvidence for:\n- \n\nEvidence against:\n- \n\nMy position:\n" },
+  { name: "Reading response", kind: "comment", body: "What it says:\n\nWhat I think:\n\nQuestions it raises:\n" },
+];
+
 registerView("notes", {
   async render(el, params) {
     if (!S.project) {
@@ -23,7 +31,7 @@ registerView("notes", {
     const searchBox = h("input", { type: "search", value: N.search, placeholder: "Search notes and evidence", "aria-label": "Search notes", "data-search": "1" });
     searchBox.addEventListener("input", () => { N.search = searchBox.value; drawItems(); });
     el.append(h("div.row", { style: { marginBottom: "12px" } }, h("h1.view-title.grow", { tabindex: "-1" }, "Notes and evidence"), h("div", { style: { width: "420px" } }, searchBox),
-      btn("New note", { kind: "primary", icon: "plus", onClick: () => newNote() })));
+      btn("New note", { kind: "primary", icon: "plus", onClick: () => newNote() }), btn("From template…", { onClick: () => fromTemplate() })));
     const outlinePane = h("div.pane", { style: { display: "flex", flexDirection: "column" } });
     const itemsPane = h("div.pane", { style: { display: "flex", flexDirection: "column" } });
     const editorPane = h("div.pane", { style: { display: "flex", flexDirection: "column" } });
@@ -135,6 +143,10 @@ registerView("notes", {
       const scope = select([[pid, "This project: " + S.project.project.title], ["", "Library-wide (visible in every project)"]], n.project_id, { "aria-label": "Note scope" });
       const exact = h("textarea", { rows: 4, value: n.exact_text, "aria-label": "Exact source text" });
       const body = h("textarea", { rows: 8, value: n.body, "aria-label": "Note text", placeholder: "Your own words. Markdown: **bold**, *italic*, - lists, [link](url), @citekey" });
+      // The caret position is kept so buttons that take the focus can still use it.
+      let lastCaret = null;
+      for (const ev of ["keyup", "mouseup", "select", "input"]) body.addEventListener(ev, () => (lastCaret = body.selectionStart));
+      body.addEventListener("blur", () => (lastCaret = body.selectionStart));
       const fmt = (pre, post = pre) => { const s = body.selectionStart, e2 = body.selectionEnd; body.setRangeText(pre + body.value.slice(s, e2) + post, s, e2, "end"); body.focus(); };
       const locLabel = select([["page", "Page"], ["paragraph", "Paragraph"], ["chapter", "Chapter"], ["section", "Section"], ["figure", "Figure"], ["table", "Table"], ["timestamp", "Time stamp"]], n.locator_label || "page", { "aria-label": "Locator type" });
       const loc = h("input", { value: n.locator, "aria-label": "Locator", style: { width: "110px" } });
@@ -153,7 +165,23 @@ registerView("notes", {
           drawEditor();
         } catch (e) { showError(e, editorPane); }
       };
+      // [[Title]] links between notes, and notes that mention this one.
+      const linkTitles = [...(n.body || "").matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1].trim());
+      const linksTo = linkTitles.map((t) => [t, notes.find((x) => x.id !== n.id && (x.title || "").trim().toLowerCase() === t.toLowerCase())]);
+      const mentionedIn = n.title ? notes.filter((x) => x.id !== n.id && (x.body || "").toLowerCase().includes(`[[${n.title.trim().toLowerCase()}]]`)) : [];
+      const openNote = (x) => h("a", { href: "#", on: { click: (e) => { e.preventDefault(); N.selected = x.id; drawItems(); drawEditor(); } } }, x.title || (x.body || "").slice(0, 40) || "Untitled note");
+      const linkBox = linksTo.length || mentionedIn.length ? h("div.small", { style: { margin: "6px 0" } },
+        linksTo.length ? h("div", h("strong", "Links to: "), ...linksTo.flatMap(([t, x], i) => [i ? "; " : "", x ? openNote(x) : h("span.status-review", `${t} (no note with this title)`)])) : null,
+        mentionedIn.length ? h("div", h("strong", "Mentioned in: "), ...mentionedIn.flatMap((x, i) => [i ? "; " : "", openNote(x)])) : null) : null;
+      const others = notes.filter((x) => x.id !== n.id);
+      const mergeSel = others.length ? select([["", "Merge another note into this one…"], ...others.map((x) => [x.id, x.title || (x.exact_text || x.body || "").slice(0, 50) || "Untitled note"])], "", { "aria-label": "Merge another note into this one", on: { change: async (e) => {
+        if (!e.target.value) return;
+        const other = others.find((x) => x.id === e.target.value);
+        if (!(await confirmDialog("Merge notes?", "The other note's text, sources and tags are added to this one, and the other note moves to the trash. Undo is available.", { ok: "Merge" }))) { e.target.value = ""; return; }
+        const m = await call("notes.merge", { keep: n.id, other: other.id }); Object.assign(n, m); go("notes");
+      } } }) : null;
       editorPane.append(
+        n.unresolved_keys?.length ? h("div.notice.warn", icon("warn"), `No source has the citation key ${n.unresolved_keys.map((k) => "@" + k).join(", ")}. Check the spelling, or add the source first.`) : null,
         h("div.card-head", h("h3", n.title || KIND_LABEL[n.kind] || "Note"), iconBtn("trash", "Delete note", async () => { await call("notes.trash", { id: n.id }); N.selected = ""; go("notes"); })),
         h("div", { style: { padding: "12px", overflow: "auto", flex: "1" } },
           ["ai", "agent"].includes(n.origin) ? h("div.notice.warn", icon("beaker"), h("div", `Created by ${n.origin === "ai" ? "an AI provider" : "a connected tool"} (${n.origin_detail || "unknown"}). It stays separate from your own items until you accept it.`, h("div.btn-row", btn("Accept as my note", { small: true, onClick: async () => { await call("notes.accept", { id: n.id }); go("notes"); } })))) : null,
@@ -178,7 +206,35 @@ registerView("notes", {
               if (r !== null) go("notes");
             } }) : null,
             N.section ? btn("Remove from this section", { onClick: async () => { await call("outline.unfile_note", { section_id: N.section, note_id: n.id }); go("notes"); } }) : null),
+          linkBox,
+          h("div.btn-row", { style: { marginTop: "8px" } },
+            btn("Split at cursor", { small: true, title: "The text after the cursor becomes a new note with the same sources", onClick: async () => {
+              try { const at = lastCaret ?? body.selectionStart; const b = await call("notes.split", { id: n.id, at }); N.selected = b.id; toast("Split into two notes", "success", { action: { label: "Undo", run: async () => { await call("undo"); go("notes"); } } }); go("notes"); } catch (e) { showError(e); }
+            } }),
+            mergeSel,
+            btn("Save as template", { small: true, kind: "ghost", onClick: async () => {
+              const name = await promptDialog("Save as template", "Template name", n.title || "", { ok: "Save" });
+              if (!name) return;
+              const list = [...(S.settings.layouts?.note_templates || []).filter((t) => t.name !== name), { name, kind: n.kind, body: body.value }];
+              S.settings = await call("settings.set", { settings: { layouts: { ...(S.settings.layouts || {}), note_templates: list } } });
+              toast(`Template “${name}” saved`, "success");
+            } })),
+          h("p.small.muted", "Write @citekey to link a source, and [[Note title]] to link another note."),
           h("p.small.muted", `Created ${fmtDate(n.created)} • updated ${fmtDate(n.modified)} • origin: ${n.origin || "user"}`)));
+    }
+
+    async function fromTemplate() {
+      const mine = S.settings.layouts?.note_templates || [];
+      const all = [...TEMPLATES, ...mine];
+      const sel = select(all.map((t, i) => [String(i), t.name + (i >= TEMPLATES.length ? " (yours)" : "")]), "0", { "aria-label": "Template" });
+      const preview = h("pre.small", { style: { whiteSpace: "pre-wrap", maxHeight: "220px", overflow: "auto", background: "var(--surface-2)", padding: "8px", borderRadius: "6px" } }, all[0].body);
+      sel.addEventListener("change", () => (preview.textContent = all[+sel.value].body));
+      const r = await modal("New note from a template", h("div", field("Template", sel), preview,
+        h("p.small.muted", "To keep your own template, write a note the way you like it and choose Save as template in the editor.")), { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Create note", kind: "primary", value: true }] }).done;
+      if (!r) return;
+      const t = all[+sel.value];
+      const n = await call("notes.save", { note: { kind: t.kind || "note", project_id: pid, title: "", body: t.body, ref_ids: [] } });
+      notes.unshift(n); N.selected = n.id; drawItems(); drawEditor();
     }
 
     async function newNote(forRef) {

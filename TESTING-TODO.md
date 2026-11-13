@@ -74,6 +74,13 @@ already pass are listed at the end for reference.
 - [ ] Find free full texts for a handful of real sources with DOIs (select them, Find free full
       texts). Check that each attached file is the right paper and that the version and licence
       shown are plausible; the open index's version labels are reported as given.
+- [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
+      from a synced folder, choose that folder as the base folder, then open the library on a
+      second computer where the folder is at another path. Set "On this computer the base folder
+      is at" there and confirm every file opens and Library health shows none missing.
+- [ ] Convert a few hundred real attachments both ways (copy linked files into the library, then
+      copy managed files out to a folder). Check the progress, that the originals are untouched,
+      and that Undo returns them to how they were. Try it on a library over 1 GB and time it.
 
 ## 2c. Search
 
@@ -245,6 +252,25 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
       matches about a third of the library; the slowest query ("faculty learning -assessment")
       reads three such word lists. Real libraries have more selective words. Confirm on the
       reference machine with nothing else running.
+- [ ] Rerun the release-gate measurements on the reference machine:
+      `cargo test -p prm-core --release --test bench_gates -- --ignored --nocapture --test-threads 1`.
+      Development machine, release build, 13 November 2026:
+
+      | Gate | Measured | Target |
+      |---|---|---|
+      | PRF-002 open a 100,000-record library, first page | 0.05 s | ≤ 3 s |
+      | PRF-005 full-text search over 20,000 PDFs (160,000 pages) | median 675 ms, p95 905 ms | ≤ 1,000 ms |
+      | PRF-006 indexing extracted page text | about 150,000 pages/minute | ≥ 2,000 pages/minute |
+      | PRF-007 import 1,000 into 100,000 with duplicate check | 4.5 s | ≤ 30 s |
+      | PRF-008 migrate 50,000 records | 0.4 min | ≤ 30 min |
+      | PRF-013 health report, main checks | 0.4 s | ≤ 60 s |
+      | Health report including the duplicate scan | 24.7 s | ≤ 60 s |
+      | PRF-015 one edit including the mirror write | p95 11.7 ms | ≤ 100 ms |
+
+      Full-text search uses a 64 MB database cache and memory-mapped reads (up to 256 MB of
+      address space); check idle memory against the 500 MB target with a large library open.
+      The benchmark's words are random, so a single word matches about half the PDFs; real text
+      is usually more selective. PDF text extraction (pdf.js) is not included in PRF-006.
 - [ ] Open a 500-page PDF and time the first page (target 2 seconds).
 - [ ] Index 20,000 PDFs (Settings › Library › Index all PDFs) and time it.
 - [ ] Warm start with a 100,000-reference library (target 3 seconds); idle memory (target 500 MB).

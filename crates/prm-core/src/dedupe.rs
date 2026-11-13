@@ -29,13 +29,21 @@ pub struct Prepared<'a> {
     pub doi: Option<String>,
     pub venue: String,
     pub preprint: bool,
+    /// pmid, pmcid, arxiv, isbn, trimmed and lower-cased (empty when absent).
+    pub ids: [String; 4],
+    pub title_len: usize,
 }
+
+const ID_KEYS: [(&str, &str); 4] = [("pmid", "Same PubMed ID"), ("pmcid", "Same PMC ID"), ("arxiv", "Same arXiv ID"), ("isbn", "Same ISBN")];
 
 impl<'a> Prepared<'a> {
     pub fn new(r: &'a Reference) -> Self {
+        let title = sort_key(r.title());
         Prepared {
             r,
-            title: sort_key(r.title()),
+            title_len: title.chars().count(),
+            title,
+            ids: ID_KEYS.map(|(k, _)| r.f(k).trim().to_lowercase()),
             surname: r.creators.first().map(|c| sort_key(&c.name.surname())).unwrap_or_default(),
             year: r.year(),
             doi: normalize_doi(r.f("doi")),
@@ -49,21 +57,43 @@ pub fn title_key(r: &Reference) -> String {
     sort_key(r.title())
 }
 
-/// Score two prepared records (no allocation). Returns (score, title similarity, identifier match).
+/// Score two prepared records. Returns (score, title similarity, identifier match).
 fn score(a: &Prepared, b: &Prepared) -> (f32, f32, Option<&'static str>) {
+    score_min(a, b, 0.0)
+}
+
+/// Like `score`, but when the pair cannot reach `floor` the title comparison (the expensive
+/// part) is skipped and a score below `floor` is returned.
+fn score_min(a: &Prepared, b: &Prepared, floor: f32) -> (f32, f32, Option<&'static str>) {
     if a.doi.is_some() && a.doi == b.doi {
         return (1.0, 1.0, Some("Same DOI"));
     }
-    for (k, label) in [("pmid", "Same PubMed ID"), ("pmcid", "Same PMC ID"), ("arxiv", "Same arXiv ID"), ("isbn", "Same ISBN")] {
-        if a.r.has(k) && a.r.f(k).trim().eq_ignore_ascii_case(b.r.f(k).trim()) {
+    for (i, (_, label)) in ID_KEYS.iter().enumerate() {
+        if !a.ids[i].is_empty() && a.ids[i] == b.ids[i] {
             return (0.98, 1.0, Some(label));
         }
     }
     if a.title.is_empty() || b.title.is_empty() {
         return (0.0, 0.0, None);
     }
+    let rest = rest_score(a, b);
+    if floor > 0.0 {
+        // Jaro-Winkler is at most (2 + shorter/longer) / 3 before the prefix bonus, which adds
+        // at most 0.4 of the remaining gap.
+        let (lo, hi) = (a.title_len.min(b.title_len) as f32, a.title_len.max(b.title_len).max(1) as f32);
+        let jaro = (2.0 + lo / hi) / 3.0;
+        let bound = jaro + 0.4 * (1.0 - jaro);
+        if rest + bound * 0.6 < floor {
+            return (0.0, 0.0, None);
+        }
+    }
     let ts = strsim::jaro_winkler(&a.title, &b.title) as f32;
-    let mut s = ts * 0.6;
+    ((ts * 0.6 + rest).clamp(0.0, 1.0), ts, None)
+}
+
+/// The part of the score that does not depend on the title.
+fn rest_score(a: &Prepared, b: &Prepared) -> f32 {
+    let mut s = 0.0;
     if !a.surname.is_empty() && a.surname == b.surname {
         s += 0.2;
     } else if !a.surname.is_empty() && !b.surname.is_empty() && strsim::jaro_winkler(&a.surname, &b.surname) > 0.92 {
@@ -80,7 +110,7 @@ fn score(a: &Prepared, b: &Prepared) -> (f32, f32, Option<&'static str>) {
     if a.doi.is_some() && b.doi.is_some() && a.doi != b.doi {
         s -= 0.15;
     }
-    (s.clamp(0.0, 1.0), ts, None)
+    s
 }
 
 /// Full comparison with reasons; used for the few pairs that pass the threshold.
@@ -175,7 +205,7 @@ pub fn find(refs: &[Reference], threshold: f32, decided: &BTreeSet<String>, file
         for x in 0..group.len() {
             for y in x + 1..group.len() {
                 let (i, j) = (group[x].min(group[y]), group[x].max(group[y]));
-                let (s, _, _) = score(&prepared[i], &prepared[j]);
+                let (s, _, _) = score_min(&prepared[i], &prepared[j], threshold);
                 if s >= threshold && compared.insert((i, j)) {
                     let (s, reasons, version) = explain(&prepared[i], &prepared[j]);
                     push(Candidate { a: refs[i].id.clone(), b: refs[j].id.clone(), score: s, kind: if version { "version".into() } else { "fuzzy".into() }, reasons }, &mut out);
