@@ -258,6 +258,7 @@ function registerCommands() {
   command("tools.terms", "Term lists (journals, authors, keywords)…", () => dialogs.termLists(), "", "Tools");
   command("tools.files", "Check attached files…", () => dialogs.checkFiles(), "", "Tools");
   command("tools.storage", "Storage report…", () => dialogs.storageReport(), "", "Tools");
+  command("tools.mirror", "Text mirror…", () => dialogs.textMirror(), "", "Tools");
   command("tools.trash", "Open trash", () => go("library", { view: "trash" }), "", "Tools");
   command("tools.history", "Change history…", () => dialogs.history(), "", "Tools");
   command("tools.network", "Network activity…", () => dialogs.network(), "", "Tools");

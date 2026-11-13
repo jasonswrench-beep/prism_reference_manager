@@ -87,6 +87,10 @@ already pass are listed at the end for reference.
 - [ ] Library format upgrade: open a library made by the previous installed build with this
       build, and confirm the upgrade message, the Format history, and that the earlier build
       can open the library again after "Return to the format before the last upgrade".
+- [ ] Edit a few files in the library's `mirror` folder with a text editor (a source's title, a
+      note's Markdown, delete one file, break one), then Tools › Text mirror. Check the preview,
+      apply some and decline others, and confirm Undo. On a large library, time the scan and
+      "Check that the mirror is complete".
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder

@@ -637,6 +637,13 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             open_with_shell(&l.root.to_string_lossy());
             ok(true)
         }
+        "library.reveal_mirror" => {
+            let l = lib_mut(st)?;
+            let d = l.store.mirror_dir();
+            let _ = std::fs::create_dir_all(&d);
+            open_with_shell(&d.to_string_lossy());
+            ok(true)
+        }
         "undo" => ok(lib_mut(st)?.undo().map_err(err)?),
         "redo" => ok(lib_mut(st)?.redo().map_err(err)?),
         "history" => ok(lib_mut(st)?.store.undo_history(100).map_err(err)?),
@@ -1368,6 +1375,38 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(json!({"dir": dir.to_string_lossy(), "backups": v}))
         }
         "health.run" => ok(prm_core::health::run(lib_mut(st)?).map_err(err)?),
+        "mirror.scan" => {
+            let l = lib_mut(st)?;
+            let _ = l.store.advance_mirror();
+            let scan = l.scan_mirror().map_err(err)?;
+            ok(json!({"dir": l.store.mirror_dir().to_string_lossy(), "scan": scan}))
+        }
+        "mirror.apply" => {
+            let apply: Vec<String> = arg(a, "apply")?;
+            let decline: Vec<String> = arg(a, "decline")?;
+            ok(lib_mut(st)?.apply_mirror(&apply, &decline).map_err(err)?)
+        }
+        // Rebuild a library from the mirror alone in a temporary folder and compare it with this
+        // one, record by record.
+        "mirror.verify" => {
+            let l = lib_mut(st)?;
+            l.store.advance_mirror().map_err(err)?;
+            let tmp = std::env::temp_dir().join(format!("prm-mirror-check-{}", prm_core::util::new_id()));
+            let res = prm_core::mirror::reconstruct(&l.store.mirror_dir(), &tmp).and_then(|s| {
+                let (a, b) = (l.store.canonical_dump()?, s.canonical_dump()?);
+                let mut differ = vec![];
+                for (t, rows) in &a {
+                    let other = b.get(t).cloned().unwrap_or_default();
+                    if rows != &other {
+                        differ.push(json!({"table": t, "library": rows.len(), "mirror": other.len()}));
+                    }
+                }
+                let records: usize = a.values().map(|v| v.len()).sum();
+                Ok(json!({"ok": differ.is_empty(), "records": records, "differ": differ}))
+            });
+            let _ = std::fs::remove_dir_all(&tmp);
+            ok(res.map_err(err)?)
+        }
         "diagnostics.preview" => ok(diagnostics(st, opt(a, "expanded"))),
         "diagnostics.save" => {
             let d = diagnostics(st, opt(a, "expanded"));

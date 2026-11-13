@@ -6,6 +6,7 @@
   library.lock          Present while the library is open (device, process, heartbeat)
   files/                Managed attachments: files/<hash[0:2]>/<hash[0:16]>/<original name>
   mirror/<table>/<id>.json   Canonical JSON for every entity (notes also as .md)
+  mirror/_external/          Outside edits kept for review when the program had to rewrite a file
   backups/              Scheduled backups (zip) and pre-migration copies (.db)
   backups/before-changes/    Copies taken before merges, bulk edits, imports and deletions
 ```
@@ -22,6 +23,22 @@ sorted). Tables: `refs`, `aliases`, `projects`, `project_sources`, `manuscripts`
 `events` holds one row per change: `seq, id, grp, time, device, actor, tbl, entity_id, before,
 after`. `undo_groups` holds undo steps. `fts` and `page_text` are rebuildable search caches.
 `meta` holds `schema_version`, `library_id`, `name` and `mirror_seq` (the mirror checkpoint).
+
+## The text mirror
+
+The mirror is written from committed events behind the `mirror_seq` checkpoint. `mirror_files`
+records the SHA-256 of every file as the program wrote it, so a file whose content differs was
+changed outside the program. Such changes are never taken in silently (Tools › Text mirror): each
+is checked by reading it into its record type, shown field by field, and applied only when
+chosen, as one undoable step; a deleted source file moves the source to the trash. Note Markdown
+edits change the title, quotation (`> ` lines) and body. Records the program keeps for itself
+(import batches, copy events, snapshots and similar) can only be put back. If the program has to
+rewrite a file that was changed outside, the outside version is first copied to
+`mirror/_external/` and listed for review.
+
+A library rebuilt from the mirror alone has the same records as the original
+(`prm_core::mirror::reconstruct`; Tools › Text mirror › Check that the mirror is complete).
+Search caches, page text and the change history are rebuilt, not part of the comparison.
 
 ## Format versions and upgrades
 

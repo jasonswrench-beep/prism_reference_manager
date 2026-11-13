@@ -142,6 +142,7 @@ fn connection_pragmas(conn: &Connection, writable: bool) -> Result<()> {
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS mirror_files(path TEXT PRIMARY KEY, hash TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS schema_history(
             version INTEGER NOT NULL, applied TEXT NOT NULL, label TEXT NOT NULL,
             backup TEXT NOT NULL, app_version TEXT NOT NULL);
@@ -515,39 +516,113 @@ impl Store {
         Ok(touched.len())
     }
 
-    fn mirror_path(&self, tbl: &str, id: &str) -> PathBuf {
+    pub fn mirror_path(&self, tbl: &str, id: &str) -> PathBuf {
         let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' }).collect();
         self.mirror_dir().join(tbl).join(format!("{safe}.json"))
     }
 
-    fn mirror_entity(&self, tbl: &str, id: &str) -> Result<()> {
-        let data: Option<String> = self
-            .conn
-            .query_row(&format!("SELECT data FROM {tbl} WHERE id=?1"), params![id], |r| r.get(0))
-            .optional()?;
-        let path = self.mirror_path(tbl, id);
-        let md = path.with_extension("md");
-        match data {
+    /// Path inside the mirror folder, with forward slashes.
+    pub fn mirror_rel(&self, path: &Path) -> String {
+        path.strip_prefix(self.mirror_dir()).unwrap_or(path).to_string_lossy().replace('\\', "/")
+    }
+
+    /// Hash of a mirror file as the program last wrote it.
+    pub fn mirror_recorded(&self, rel: &str) -> Option<String> {
+        self.conn.query_row("SELECT hash FROM mirror_files WHERE path=?1", params![rel], |r| r.get(0)).optional().ok().flatten()
+    }
+
+    pub fn mirror_record(&self, rel: &str, bytes: Option<&[u8]>) -> Result<()> {
+        if self.read_only {
+            return Ok(());
+        }
+        match bytes {
+            Some(b) => self.conn.execute("INSERT INTO mirror_files(path,hash) VALUES(?1,?2) ON CONFLICT(path) DO UPDATE SET hash=excluded.hash", params![rel, crate::util::sha256_hex(b)])?,
+            None => self.conn.execute("DELETE FROM mirror_files WHERE path=?1", params![rel])?,
+        };
+        Ok(())
+    }
+
+    /// The mirror text the program writes for one entity: JSON, and Markdown for notes.
+    pub fn mirror_text(&self, tbl: &str, id: &str) -> Result<Option<(String, Option<String>)>> {
+        let data: Option<String> = self.conn.query_row(&format!("SELECT data FROM {tbl} WHERE id=?1"), params![id], |r| r.get(0)).optional()?;
+        Ok(match data {
             Some(d) => {
                 let v: serde_json::Value = serde_json::from_str(&d)?;
-                write_atomic(&path, canonical_json_pretty(&v).as_bytes())?;
-                if tbl == "notes" {
-                    write_atomic(&md, note_markdown(&v).as_bytes())?;
-                }
+                Some((canonical_json_pretty(&v), if tbl == "notes" { Some(note_markdown(&v)) } else { None }))
             }
-            None => {
-                let _ = std::fs::remove_file(&path);
-                let _ = std::fs::remove_file(&md);
+            None => None,
+        })
+    }
+
+    /// Before the program overwrites or removes a mirror file, keep a copy if someone changed it
+    /// outside the program, so the change can still be reviewed (never silently lost).
+    fn keep_external(&self, path: &Path) -> Result<()> {
+        let Ok(disk) = std::fs::read(path) else { return Ok(()) };
+        let rel = self.mirror_rel(path);
+        if let Some(h) = self.mirror_recorded(&rel) {
+            if h != crate::util::sha256_hex(&disk) {
+                let dest = self.mirror_dir().join("_external").join(&rel);
+                write_atomic(&dest, &disk)?;
             }
         }
         Ok(())
     }
 
-    /// Rebuild the whole mirror from the store.
+    fn write_mirror_file(&self, path: &Path, text: &str) -> Result<()> {
+        let rel = self.mirror_rel(path);
+        if std::fs::read(path).ok().as_deref() == Some(text.as_bytes()) {
+            if self.mirror_recorded(&rel).is_none() {
+                self.mirror_record(&rel, Some(text.as_bytes()))?;
+            }
+            return Ok(());
+        }
+        self.keep_external(path)?;
+        write_atomic(path, text.as_bytes())?;
+        self.mirror_record(&rel, Some(text.as_bytes()))
+    }
+
+    fn remove_mirror_file(&self, path: &Path) -> Result<()> {
+        if path.exists() {
+            self.keep_external(path)?;
+            let _ = std::fs::remove_file(path);
+        }
+        self.mirror_record(&self.mirror_rel(path), None)
+    }
+
+    pub fn mirror_entity(&self, tbl: &str, id: &str) -> Result<()> {
+        let path = self.mirror_path(tbl, id);
+        let md = path.with_extension("md");
+        match self.mirror_text(tbl, id)? {
+            Some((json, note)) => {
+                self.write_mirror_file(&path, &json)?;
+                if let Some(n) = note {
+                    self.write_mirror_file(&md, &n)?;
+                }
+            }
+            None => {
+                self.remove_mirror_file(&path)?;
+                self.remove_mirror_file(&md)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Rebuild the whole mirror from the store. Files changed outside the program are kept
+    /// under `mirror/_external` for review first.
     pub fn rebuild_mirror(&self) -> Result<()> {
         let dir = self.mirror_dir();
         if dir.exists() {
-            std::fs::remove_dir_all(&dir)?;
+            for t in TABLES {
+                for e in std::fs::read_dir(dir.join(t)).into_iter().flatten().flatten() {
+                    let _ = self.keep_external(&e.path());
+                }
+            }
+            for t in TABLES {
+                let _ = std::fs::remove_dir_all(dir.join(t));
+            }
+        }
+        if !self.read_only {
+            self.conn.execute("DELETE FROM mirror_files", [])?;
         }
         for t in TABLES {
             let mut st = self.conn.prepare(&format!("SELECT id FROM {t}"))?;

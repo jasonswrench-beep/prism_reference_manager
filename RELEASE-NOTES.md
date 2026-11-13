@@ -70,6 +70,12 @@ a copy is saved and checked; if anything fails, nothing changes. Each upgrade is
 last one can be reversed to go back to an earlier program version. A library from a newer version
 opens read-only with an explanation.
 
+**Text mirror.** The plain-text copy of the library (JSON per record, Markdown for notes) can be
+checked: a library rebuilt from it alone must match. Files changed outside the program are listed
+with their changes field by field and taken in only when you apply them, as one undoable step;
+broken files are explained and put back. An outside edit is never overwritten without being kept
+for review.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

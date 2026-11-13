@@ -695,6 +695,53 @@ export async function storageReport() {
   draw().catch((e) => showError(e, body));
 }
 
+/** Review changes made to the text mirror outside the program, and check the mirror is complete. */
+export async function textMirror() {
+  const body = h("div", h("p.muted", "Checking the mirror…"));
+  modal("Text mirror", body, { size: "wide", buttons: [{ label: "Close" }] });
+  const kindLabel = { edited: "Changed", added: "New", deleted: "Deleted" };
+  const draw = async () => {
+    const { dir, scan } = await call("mirror.scan");
+    const checks = new Map();
+    const verifyOut = h("div");
+    clear(body,
+      h("p", "The library is also kept as plain text files: one JSON file per record, and Markdown for notes, in ", h("span.mono", dir), ". Other programs can read them. If a file is changed outside this program, the change is shown here and is only taken in when you apply it."),
+      h("div.btn-row", btn("Show the folder", { small: true, onClick: () => call("library.reveal_mirror").catch(() => call("library.reveal")) }), btn("Check that the mirror is complete", { small: true, onClick: async () => {
+        clear(verifyOut, h("p.small.muted", "Rebuilding a copy of the library from the mirror alone…"));
+        try {
+          const r = await call("mirror.verify");
+          clear(verifyOut, r.ok ? h("div.notice", icon("checkCircle"), `Complete: a library rebuilt from the mirror alone has the same ${r.records} records as this one.`)
+            : h("div.notice.warn", icon("warn"), "The mirror differs from the library in: ", r.differ.map((d) => `${d.table} (${d.library} in the library, ${d.mirror} in the mirror)`).join("; "), ". Review the changes below, or rebuild the mirror from the library."));
+        } catch (e) { clear(verifyOut); showError(e, verifyOut); }
+      } })), verifyOut,
+      h("h3", scan.changes.length ? `${scan.changes.length} change${scan.changes.length === 1 ? "" : "s"} made outside the program` : "No changes made outside the program"),
+      scan.changes.length ? h("div",
+        scan.changes.map((c) => {
+          const box = h("input", { type: "checkbox", checked: !c.problem && !c.superseded && c.kind !== "deleted", disabled: !!c.problem, "aria-label": "Apply this change" });
+          checks.set(c.key, box);
+          return h("div.card.pad", { style: { marginBottom: "8px" } },
+            h("div.row", box, h("span.badge.neutral", kindLabel[c.kind] || c.kind), h("strong.ellipsis", c.label || c.id), h("span.small.muted", c.table), h("span.grow"), h("span.small.mono", c.file)),
+            c.superseded ? h("p.small.status-review", icon("warn", 13), " The program changed this record after the outside edit; the library's version is current. Apply only if the outside version is the one you want.") : null,
+            c.kind === "deleted" ? h("p.small", c.table === "refs" ? "The file was deleted. Applying moves the source to the trash; declining writes the file again." : "The file was deleted. Applying deletes the record; declining writes the file again.") : null,
+            c.problem ? h("p.small.status-review", icon("warn", 13), " ", c.problem) : null,
+            c.fields.length ? h("table.table.small", h("thead", h("tr", h("th", "Field"), h("th", "In the library"), h("th", "In the file"))), h("tbody", c.fields.slice(0, 40).map((f) => h("tr", h("td.mono", f.field), h("td", f.before || h("span.muted", "(empty)")), h("td", f.after || h("span.muted", "(empty)")))))) : null);
+        }),
+        h("p.small.muted", "Applied changes become one step you can undo. Declined changes are replaced in the file by the library's version."),
+        h("div.btn-row",
+          btn("Apply the ticked changes", { kind: "primary", onClick: async () => {
+            const apply = [...checks].filter(([, b]) => b.checked).map(([k]) => k);
+            const decline = [...checks].filter(([, b]) => !b.checked).map(([k]) => k);
+            if (decline.length && !(await confirmDialog("Apply changes from the mirror", `Apply ${apply.length} change${apply.length === 1 ? "" : "s"} and decline ${decline.length}? Declined changes are replaced in their files by the library's version.`, { ok: "Apply and decline" }))) return;
+            try { const r = await call("mirror.apply", { apply, decline }); toast(`${r.applied} applied, ${r.declined} declined${r.failed.length ? `, ${r.failed.length} could not be applied` : ""}. Undo is available.`, r.failed.length ? "warn" : "success"); await refresh(); draw(); } catch (e) { showError(e); }
+          } }),
+          btn("Decline all", { onClick: async () => {
+            if (!(await confirmDialog("Decline all changes", "Replace every changed file with the library's version? The outside changes will be lost.", { ok: "Decline all", kind: "danger" }))) return;
+            const r = await call("mirror.apply", { apply: [], decline: [...checks.keys()] }); toast(`${r.declined} declined`, "success"); draw();
+          } }))) : h("p.small", `All ${scan.files_checked} files match the library.`));
+  };
+  draw().catch((e) => showError(e, body));
+}
+
 export async function history() {
   const list = await call("history");
   modal("Change history", h("div", h("p.muted", "Every change is an undo step, kept across sessions. Undo the latest step with Ctrl+Z."),
