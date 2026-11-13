@@ -99,6 +99,7 @@ registerView("settings", {
           h("div.btn-row", btn("Watch a folder…", { small: true, kind: "primary", onClick: async () => { try { const r = await call("watch.add", { project_id: S.project?.project.id || "", mirror: mirror.checked }); if (r && !r.cancelled) { toast(`Watching ${r.path}`, "success"); go("settings", { tab: "library" }); } } catch (e) { showError(e); } } }),
             watched.length ? btn("Check now", { small: true, onClick: async () => { const r = await call("watch.scan"); toast(r.length ? `${r.reduce((n, x) => n + x.count, 0)} new PDFs staged for review` : "No new PDFs found", r.length ? "success" : "info"); } }) : null)));
         const fb = await call("files.base").catch(() => null);
+        const fnPat = h("input", { value: S.settings.file_name_pattern || "", placeholder: "Keep the original name", "aria-label": "File name pattern", style: { width: "260px" } });
         if (fb) {
           const reload = () => go("settings", { tab: "library" });
           const setBase = async (thisComputer) => {
@@ -129,7 +130,9 @@ registerView("settings", {
               fb.linked ? btn("Copy all linked files into the library…", { small: true, onClick: () => convert("managed") }) : null,
               fb.managed ? btn("Copy managed files out to a folder and link them…", { small: true, onClick: () => convert("linked") }) : null,
               fb.effective && fb.linked > fb.relative ? btn("Make links relative", { small: true, onClick: async () => { const n = await call("files.make_relative"); toast(`${n} links made relative`, n ? "success" : "info"); reload(); } }) : null),
-            h("p.small.muted", "Converting copies files; nothing is deleted. A file that is missing or changed outside the program is left as it is and reported.")));
+            h("p.small.muted", "Converting copies files; nothing is deleted. A file that is missing or changed outside the program is left as it is and reported."),
+            field("Name files copied into the library", h("div.row", fnPat, btn("Save", { small: true, onClick: () => saveSettings({ file_name_pattern: fnPat.value.trim() }) })), "Tokens: [auth] [Auth] [year] [shorttitle] [title3] [citekey]. Empty keeps the downloaded name. The original name is always kept."),
+            h("div.btn-row", btn("Storage report…", { small: true, onClick: () => dialogs.storageReport() }), btn("Check attached files…", { small: true, onClick: () => dialogs.checkFiles() }))));
         }
       }
       const bl = info ? await call("backup.list").catch(() => null) : null;

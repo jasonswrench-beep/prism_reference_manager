@@ -85,6 +85,13 @@ already pass are listed at the end for reference.
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder
       is at" there and confirm every file opens and Library health shows none missing.
+- [ ] Rename and move some linked PDFs in Explorer, then Tools › Check attached files › Search their
+      old folders, and Search another folder on a large drive. Check what is found, the time it
+      takes, and that Undo reverses the relink.
+- [ ] Open Tools › Storage report on a real library: do the totals look right, and do the
+      duplicate and unused lists make sense? Delete unused files only on a backed-up copy.
+- [ ] Set a file name pattern (Settings › Library and backup › File storage) and attach a few
+      downloads with untidy names.
 - [ ] Convert a few hundred real attachments both ways (copy linked files into the library, then
       copy managed files out to a folder). Check the progress, that the originals are untouched,
       and that Undo returns them to how they were. Try it on a library over 1 GB and time it.

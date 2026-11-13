@@ -301,7 +301,16 @@ impl Library {
         let size = std::fs::metadata(src)?.len();
         let original_name = src.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
         let mime = mime_for(src).to_string();
-        let path = if mode == "linked" { self.link_path(src) } else { self.copy_into_store(src, &hash, &original_name)? };
+        // Files copied into the library can be named by a pattern; the original name is kept.
+        let stored_name = if mode != "linked" && !self.file_name_pattern.trim().is_empty() {
+            let r = self.store.must::<Reference>(ref_id)?;
+            let ext = Path::new(&original_name).extension().and_then(|e| e.to_str()).unwrap_or("pdf").to_string();
+            let base = crate::citekey::generate(&r, &self.file_name_pattern.replace("[citekey]", &r.citekey));
+            if base.trim().is_empty() { original_name.clone() } else { format!("{base}.{ext}") }
+        } else {
+            original_name.clone()
+        };
+        let path = if mode == "linked" { self.link_path(src) } else { self.copy_into_store(src, &hash, &stored_name)? };
         let mut a = Attachment {
             id: new_id(),
             ref_id: ref_id.into(),

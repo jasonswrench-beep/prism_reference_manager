@@ -306,6 +306,7 @@ fn open_library(st: &mut crate::AppState, path: &Path) -> Result<Value, CallErro
     lib.citekey_pattern = st.settings.citekey_pattern.clone();
     lib.protected_terms = st.settings.protected_terms.clone();
     lib.save_rules = st.settings.save_rules.clone();
+    lib.file_name_pattern = st.settings.file_name_pattern.clone();
     lib.network_allowed = st.settings.network_enabled;
     if let Some(b) = lib.info().ok().map(|i| i.id).and_then(|id| st.settings.linked_bases.get(&id).cloned()) {
         if !b.is_empty() {
@@ -565,6 +566,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
                 lib.citekey_pattern = st.settings.citekey_pattern.clone();
                 lib.protected_terms = st.settings.protected_terms.clone();
                 lib.save_rules = st.settings.save_rules.clone();
+                lib.file_name_pattern = st.settings.file_name_pattern.clone();
                 lib.network_allowed = st.settings.network_enabled;
             }
             settings::save(&st.config_dir, &st.settings).map_err(|e| CallError { message: "Settings could not be saved.".into(), detail: e.to_string() })?;
@@ -1001,6 +1003,30 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let v: Vec<Attachment> = l.store.all::<Attachment>().map_err(err)?.into_iter().filter(|x| x.mime == "application/pdf" && !x.superseded && !x.index_excluded && x.text_source != "ocr" && (x.state == "image-only" || thin.contains(&x.id))).collect();
             ok(v)
         }
+        "files.find_moved" => {
+            let folders: Vec<String> = arg(a, "folders")?;
+            let folders: Vec<PathBuf> = folders.into_iter().filter(|f| !f.trim().is_empty()).map(PathBuf::from).collect();
+            ok(lib_mut(st)?.find_moved_files(&folders, 200_000).map_err(err)?)
+        }
+        "files.relink_many" => {
+            #[derive(serde::Deserialize)]
+            struct P {
+                id: String,
+                path: String,
+            }
+            let pairs: Vec<P> = arg(a, "pairs")?;
+            let pairs: Vec<(String, PathBuf)> = pairs.into_iter().map(|p| (p.id, PathBuf::from(p.path))).collect();
+            ok(lib_mut(st)?.relink_many(&pairs).map_err(err)?)
+        }
+        "files.storage" => ok(lib_mut(st)?.storage_report().map_err(err)?),
+        "files.remove_duplicates" => ok(lib_mut(st)?.remove_duplicate_attachments(&s(a, "hash")).map_err(err)?),
+        "files.delete_unused" => {
+            if !opt::<bool>(a, "confirmed") {
+                return Err(user("Deleting unused files needs confirmation."));
+            }
+            let paths: Vec<String> = arg(a, "paths")?;
+            ok(lib_mut(st)?.delete_unused_files(&paths).map_err(err)?)
+        }
         "files.make_relative" => ok(lib_mut(st)?.make_links_relative().map_err(err)?),
         "files.convert" => {
             let ids: Vec<String> = arg(a, "ids")?;
@@ -1330,7 +1356,14 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "debug.attach" => {
             let p = PathBuf::from(s(a, "path"));
             remember(&p);
-            ok(lib_mut(st)?.attach_file(&s(a, "ref_id"), &p, "managed", "full-text").map_err(err)?)
+            let mode = if s(a, "mode") == "linked" { "linked" } else { "managed" };
+            ok(lib_mut(st)?.attach_file(&s(a, "ref_id"), &p, mode, "full-text").map_err(err)?)
+        }
+        #[cfg(debug_assertions)]
+        "debug.rename" => {
+            std::fs::create_dir_all(Path::new(&s(a, "to")).parent().unwrap_or(Path::new("."))).map_err(|e| user(&e.to_string()))?;
+            std::fs::rename(s(a, "from"), s(a, "to")).map_err(|e| user(&e.to_string()))?;
+            ok(true)
         }
         #[cfg(debug_assertions)]
         "debug.exit" => {

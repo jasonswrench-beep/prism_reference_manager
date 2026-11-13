@@ -625,6 +625,24 @@ export async function health() {
 export async function checkFiles() {
   const body = h("div", h("p.muted", "Checking files…"));
   modal("Attached files", body, { size: "wide", buttons: [{ label: "Close" }] });
+  const foundBox = h("div");
+  const findMoved = async (folders) => {
+    clear(foundBox, h("p.muted.small", "Searching…"));
+    try {
+      const r = await call("files.find_moved", { folders });
+      if (!r.found.length) { clear(foundBox, h("p.small", `None of the missing files were found in ${r.files_looked_at} files searched${r.truncated ? " (the search stopped at its limit; choose a smaller folder)" : ""}.`)); return; }
+      const boxes = r.found.map(() => h("input", { type: "checkbox", checked: true }));
+      clear(foundBox,
+        h("p.small", `${r.found.length} found${r.still_missing ? `, ${r.still_missing} still missing` : ""}. Each has the same content as the file that was attached.`),
+        h("table.table", h("thead", h("tr", h("th", ""), h("th", "Source"), h("th", "Was"), h("th", "Now"))), h("tbody", r.found.map((f, i) => h("tr",
+          h("td", boxes[i]), h("td.small", f.title || "Untitled"), h("td.small.mono", f.old_path), h("td.small", h("span.badge.neutral", f.how === "renamed" ? "Renamed" : "Moved"), " ", h("span.mono", f.new_path)))))),
+        btn("Relink selected", { kind: "primary", onClick: async () => {
+          const pairs = r.found.filter((_, i) => boxes[i].checked).map((f) => ({ id: f.attachment_id, path: f.new_path }));
+          if (!pairs.length) return;
+          try { const n = await call("files.relink_many", { pairs }); toast(`${n} files relinked. Undo is available.`, "success"); clear(foundBox); draw(false); } catch (e) { showError(e); }
+        } }));
+    } catch (e) { clear(foundBox); showError(e, foundBox); }
+  };
   const draw = async (rehash) => {
     const list = await call("files.check", { rehash });
     const bad = list.filter((f) => f.state !== "ok");
@@ -632,10 +650,49 @@ export async function checkFiles() {
     clear(body,
       h("p", `${list.length} files, ${bad.length} need attention.`), btn("Check contents (slower)", { small: true, onClick: () => draw(true) }),
       bad.length ? h("table.table", h("tbody", bad.map((f) => h("tr", h("td.small.mono", f.path), h("td", h("span.badge.attention", f.state)), h("td.small", f.message), h("td", btn("Relink…", { small: true, onClick: async () => { try { const r = await call("files.relink_pick", { id: f.attachment_id }); if (!r?.cancelled) { toast("Relinked", "success"); draw(false); } } catch (e) { showError(e); } } })))))) : h("div.notice", icon("checkCircle"), "All files were found."),
+      bad.some((f) => f.state === "missing") ? h("div", h("h3", "Find moved or renamed files"),
+        h("p.small.muted", "Files are recognized by their content, so a file is found whatever it is now called. Only files of the right size are read."),
+        h("div.btn-row", btn("Search their old folders", { small: true, kind: "primary", onClick: () => findMoved([]) }), btn("Search another folder…", { small: true, onClick: async () => { const p = await call("dialog.pick_folder", { title: "Choose a folder to search for the missing files" }); if (p) findMoved([p]); } })),
+        foundBox) : null,
       h("h3", "Moved a whole folder?"), h("div.grid2", field("Old folder", oldP), field("New folder", newP)),
       btn("Relink all", { kind: "primary", onClick: async () => { const [n, missing] = await call("files.relink_folder", { old_prefix: oldP.value, new_prefix: newP.value }); toast(`${n} files relinked; ${missing} still missing.`, n ? "success" : "info"); draw(false); } }));
   };
   draw(false).catch((e) => showError(e, body));
+}
+
+const mb = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+const files = (n) => `${n} file${n === 1 ? "" : "s"}`;
+
+/** Space used by files, the same file attached more than once, and files no source uses. */
+export async function storageReport() {
+  const body = h("div", h("p.muted", "Measuring…"));
+  modal("Storage report", body, { size: "wide", buttons: [{ label: "Close" }] });
+  const draw = async () => {
+    const r = await call("files.storage");
+    const dupRows = r.duplicates.map((d) => h("tr",
+      h("td.small", d.uses.map((u) => h("div", h("strong", u.title || "Untitled"), " ", h("span.muted", `${u.name} • ${u.mode}`)))),
+      h("td.small", mb(d.size)),
+      h("td", d.same_source ? btn("Keep one copy", { small: true, title: "Remove the extra attachments of this file; marks on them move to the copy kept", onClick: async () => { const n = await call("files.remove_duplicates", { hash: d.hash }); toast(`${n} extra ${n === 1 ? "copy" : "copies"} removed. Undo is available.`, "success"); draw(); } })
+        : btn("Review as duplicate sources", { small: true, onClick: () => duplicates() }))));
+    clear(body,
+      h("div.grid2",
+        h("div.card.pad", h("strong", "In the library folder"), h("p", `${files(r.managed_files)}, ${mb(r.managed_bytes)}`)),
+        h("div.card.pad", h("strong", "Linked from elsewhere"), h("p", `${files(r.linked_files)}, ${mb(r.linked_bytes)}`))),
+      r.earlier_versions ? h("p.small.muted", `Includes ${r.earlier_versions} earlier versions kept after a file was replaced (${mb(r.earlier_bytes)}). They keep older marks readable.`) : null,
+      h("h3", "The same file attached more than once"),
+      r.duplicates.length ? h("table.table", h("tbody", dupRows)) : h("p.small", "None. Every attached file is attached once."),
+      h("p.small.muted", "Files are compared by content. A file attached to two different sources often means the sources are duplicates."),
+      h("h3", "Files no source uses"),
+      r.unused.length ? h("div",
+        h("p.small", `${files(r.unused.length)} in the library folder (${mb(r.unused_bytes)}) ${r.unused.length === 1 ? "belongs" : "belong"} to no attachment, for example after a source was deleted permanently or its file was converted to a link.`),
+        h("details.small", h("summary", "Show files"), h("ul.mono", r.unused.slice(0, 200).map((u) => h("li", `${u.path} (${mb(u.size)})`)))),
+        btn("Delete unused files…", { kind: "danger", onClick: async () => {
+          if (!(await confirmDialog("Delete unused files", `Permanently delete ${r.unused.length} files (${mb(r.unused_bytes)}) that no source uses? This cannot be undone. Backups that include files still contain them.`, { ok: "Delete files", kind: "danger" }))) return;
+          const n = await call("files.delete_unused", { paths: r.unused.map((u) => u.path), confirmed: true });
+          toast(`${n} unused files deleted`, "success"); draw();
+        } })) : h("p.small", "None."));
+  };
+  draw().catch((e) => showError(e, body));
 }
 
 export async function history() {

@@ -47,7 +47,11 @@ made here. Large imports show progress and can be stopped without adding anythin
 **File storage.** Files can be managed (copied into the library) or linked (kept where they
 are). Linked files inside a chosen base folder are stored relative to it, and each computer can
 say where that folder is, so a synced folder at a different path still works. All files can be
-converted either way in one step; conversion copies, never deletes, and can be undone.
+converted either way in one step; conversion copies, never deletes, and can be undone. Files
+that were moved or renamed outside the program are found again by their content and relinked
+together. A storage report shows the space used, the same file attached more than once (with a
+one-click fix when it is one source) and files no source uses. Files copied into the library can
+be named by a pattern such as author and year; the original name is kept.
 
 **Scanned PDFs.** Text in scanned PDFs can be recognized on this computer, in any language
 installed in Windows, for one file or all scanned files at once, with progress and Stop. The

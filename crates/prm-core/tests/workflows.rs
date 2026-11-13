@@ -714,3 +714,56 @@ fn recognized_text_is_searchable_quotable_and_edits_are_recorded() {
     assert!(prm_core::search::run(&lib.store.conn, "elsewhere", None, None, 10).unwrap().ref_ids.is_empty());
     assert_eq!(lib.store.must::<Annotation>(&edited.id).unwrap().text, "Reflective Teaching", "marks keep their text");
 }
+
+#[test]
+fn moved_renamed_duplicate_and_unused_files() {
+    let (mut lib, root) = open("storage");
+    let r = lib.add_reference(article("Stored paper", 2021, &[("Ode", "Ife")]), None).unwrap();
+    let docs = root.join("Papers");
+    std::fs::create_dir_all(&docs).unwrap();
+    let mk = |name: &str, pages: u32| {
+        let p = docs.join(name);
+        std::fs::write(&p, minimal_pdf(pages)).unwrap();
+        p
+    };
+    let a1 = lib.attach_file(&r.id, &mk("one.pdf", 1), "linked", "full-text").unwrap();
+    let a2 = lib.attach_file(&r.id, &mk("two.pdf", 2), "linked", "full-text").unwrap();
+
+    // Renamed in place, and moved into a subfolder.
+    std::fs::rename(docs.join("one.pdf"), docs.join("one renamed.pdf")).unwrap();
+    std::fs::create_dir_all(docs.join("sub")).unwrap();
+    std::fs::rename(docs.join("two.pdf"), docs.join("sub").join("two.pdf")).unwrap();
+    let rep = lib.find_moved_files(&[], 10_000).unwrap();
+    assert_eq!(rep.found.len(), 2, "{rep:?}");
+    let how: std::collections::BTreeMap<_, _> = rep.found.iter().map(|f| (f.attachment_id.clone(), f.how.clone())).collect();
+    assert_eq!(how[&a1.id], "renamed");
+    assert_eq!(how[&a2.id], "moved");
+    let pairs: Vec<(String, PathBuf)> = rep.found.iter().map(|f| (f.attachment_id.clone(), PathBuf::from(&f.new_path))).collect();
+    assert_eq!(lib.relink_many(&pairs).unwrap(), 2);
+    assert!(lib.check_files(true).unwrap().iter().all(|c| c.state == "ok"));
+    assert_eq!(lib.store.must::<Attachment>(&a1.id).unwrap().old_names, vec!["one.pdf".to_string()]);
+
+    // The same file attached twice to one source is reported and can be reduced to one.
+    let dup = lib.attach_file(&r.id, &docs.join("one renamed.pdf"), "managed", "full-text").unwrap();
+    let ann = lib.save_annotation(Annotation { attachment_id: dup.id.clone(), kind: "highlight".into(), text: "kept".into(), ..Default::default() }).unwrap();
+    let s = lib.storage_report().unwrap();
+    assert_eq!(s.duplicates.len(), 1);
+    assert!(s.duplicates[0].same_source);
+    assert_eq!((s.managed_files, s.linked_files), (1, 2));
+    assert_eq!(lib.remove_duplicate_attachments(&dup.hash).unwrap(), 1);
+    assert!(lib.store.get::<Attachment>(&dup.id).unwrap().is_none(), "the newer copy goes");
+    assert_eq!(lib.store.must::<Annotation>(&ann.id).unwrap().attachment_id, a1.id, "its marks move to the kept copy");
+
+    // The managed copy is now unused; it is reported and can be deleted, nothing else.
+    let s = lib.storage_report().unwrap();
+    assert_eq!(s.unused.len(), 1, "{:?}", s.unused);
+    assert_eq!(lib.delete_unused_files(&[s.unused[0].path.clone(), "../library.db".into()]).unwrap(), 1);
+    assert!(lib.storage_report().unwrap().unused.is_empty());
+    assert!(root.join("lib").join("library.db").exists());
+
+    // Files copied in can be named by a pattern; the original name is kept.
+    lib.file_name_pattern = "[Auth][year]".into();
+    let named = lib.attach_file(&r.id, &mk("download (3).pdf", 3), "managed", "full-text").unwrap();
+    assert!(named.path.ends_with("/Ode2021.pdf"), "{}", named.path);
+    assert_eq!(named.original_name, "download (3).pdf");
+}

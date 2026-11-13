@@ -3,6 +3,7 @@
 
 mod cite;
 mod files;
+mod storage;
 mod imports;
 mod notes;
 mod projects;
@@ -14,6 +15,7 @@ pub use custom::{applies as custom_applies, check_value as check_custom_value, K
 
 pub use cite::*;
 pub use files::*;
+pub use storage::*;
 pub use imports::*;
 pub use notes::*;
 pub use projects::*;
@@ -45,6 +47,9 @@ pub struct Library {
     /// This computer's base folder for relative linked files, when it differs from the
     /// library's own setting (a synced folder can sit at a different path on each computer).
     pub linked_base_override: Option<PathBuf>,
+    /// Name pattern for files copied into the library ([auth], [year], [shorttitle], ...);
+    /// empty keeps the original name.
+    pub file_name_pattern: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -89,6 +94,7 @@ impl Library {
             save_rules: Default::default(),
             network_allowed: true,
             linked_base_override: None,
+            file_name_pattern: String::new(),
         };
         if lib.store.meta("name").is_none() && !lib.store.read_only {
             let name = root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "My Library".into());

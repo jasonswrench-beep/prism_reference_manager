@@ -99,6 +99,8 @@ pub struct Settings {
     pub linked_bases: std::collections::BTreeMap<String, String>,
     /// Last language chosen for text recognition.
     pub ocr_lang: String,
+    /// Name pattern for files copied into the library; empty keeps the original name.
+    pub file_name_pattern: String,
 }
 
 impl Default for Settings {
@@ -145,6 +147,7 @@ impl Default for Settings {
             health_last: String::new(),
             linked_bases: Default::default(),
             ocr_lang: String::new(),
+            file_name_pattern: String::new(),
         }
     }
 }
