@@ -3,7 +3,7 @@
  "specVersion": "1.5",
  "version": 1,
  "metadata": {
-  "timestamp": "2026-11-13T03:58:30.889097+00:00",
+  "timestamp": "2026-11-13T12:55:35.717698+00:00",
   "component": {
    "type": "application",
    "name": "Prism Reference Manager",
@@ -806,6 +806,17 @@
   {
    "type": "library",
    "name": "hashbrown",
+   "version": "0.17.1",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/hashbrown@0.17.1"
+  },
+  {
+   "type": "library",
+   "name": "hashbrown",
    "version": "0.12.3",
    "licenses": [
     {
@@ -824,17 +835,6 @@
     }
    ],
    "purl": "pkg:cargo/hashbrown@0.14.5"
-  },
-  {
-   "type": "library",
-   "name": "hashbrown",
-   "version": "0.17.1",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/hashbrown@0.17.1"
   },
   {
    "type": "library",
@@ -1268,17 +1268,6 @@
   {
    "type": "library",
    "name": "miniz_oxide",
-   "version": "0.8.9",
-   "licenses": [
-    {
-     "expression": "MIT OR Zlib OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/miniz_oxide@0.8.9"
-  },
-  {
-   "type": "library",
-   "name": "miniz_oxide",
    "version": "0.9.1",
    "licenses": [
     {
@@ -1286,6 +1275,17 @@
     }
    ],
    "purl": "pkg:cargo/miniz_oxide@0.9.1"
+  },
+  {
+   "type": "library",
+   "name": "miniz_oxide",
+   "version": "0.8.9",
+   "licenses": [
+    {
+     "expression": "MIT OR Zlib OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/miniz_oxide@0.8.9"
   },
   {
    "type": "library",
@@ -1543,17 +1543,6 @@
   {
    "type": "library",
    "name": "quick-xml",
-   "version": "0.36.2",
-   "licenses": [
-    {
-     "expression": "MIT"
-    }
-   ],
-   "purl": "pkg:cargo/quick-xml@0.36.2"
-  },
-  {
-   "type": "library",
-   "name": "quick-xml",
    "version": "0.42.0",
    "licenses": [
     {
@@ -1561,6 +1550,17 @@
     }
    ],
    "purl": "pkg:cargo/quick-xml@0.42.0"
+  },
+  {
+   "type": "library",
+   "name": "quick-xml",
+   "version": "0.36.2",
+   "licenses": [
+    {
+     "expression": "MIT"
+    }
+   ],
+   "purl": "pkg:cargo/quick-xml@0.36.2"
   },
   {
    "type": "library",
@@ -1774,13 +1774,13 @@
   {
    "type": "library",
    "name": "schemars",
-   "version": "0.8.22",
+   "version": "0.9.0",
    "licenses": [
     {
      "expression": "MIT"
     }
    ],
-   "purl": "pkg:cargo/schemars@0.8.22"
+   "purl": "pkg:cargo/schemars@0.9.0"
   },
   {
    "type": "library",
@@ -1796,13 +1796,13 @@
   {
    "type": "library",
    "name": "schemars",
-   "version": "0.9.0",
+   "version": "0.8.22",
    "licenses": [
     {
      "expression": "MIT"
     }
    ],
-   "purl": "pkg:cargo/schemars@0.9.0"
+   "purl": "pkg:cargo/schemars@0.8.22"
   },
   {
    "type": "library",
@@ -2093,17 +2093,6 @@
   {
    "type": "library",
    "name": "syn",
-   "version": "2.0.119",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/syn@2.0.119"
-  },
-  {
-   "type": "library",
-   "name": "syn",
    "version": "3.0.10",
    "licenses": [
     {
@@ -2111,6 +2100,17 @@
     }
    ],
    "purl": "pkg:cargo/syn@3.0.10"
+  },
+  {
+   "type": "library",
+   "name": "syn",
+   "version": "2.0.119",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/syn@2.0.119"
   },
   {
    "type": "library",
@@ -2236,17 +2236,6 @@
   {
    "type": "library",
    "name": "thiserror",
-   "version": "1.0.69",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/thiserror@1.0.69"
-  },
-  {
-   "type": "library",
-   "name": "thiserror",
    "version": "2.0.21",
    "licenses": [
     {
@@ -2257,14 +2246,14 @@
   },
   {
    "type": "library",
-   "name": "thiserror-impl",
-   "version": "2.0.21",
+   "name": "thiserror",
+   "version": "1.0.69",
    "licenses": [
     {
      "expression": "MIT OR Apache-2.0"
     }
    ],
-   "purl": "pkg:cargo/thiserror-impl@2.0.21"
+   "purl": "pkg:cargo/thiserror@1.0.69"
   },
   {
    "type": "library",
@@ -2276,6 +2265,17 @@
     }
    ],
    "purl": "pkg:cargo/thiserror-impl@1.0.69"
+  },
+  {
+   "type": "library",
+   "name": "thiserror-impl",
+   "version": "2.0.21",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/thiserror-impl@2.0.21"
   },
   {
    "type": "library",
@@ -2599,17 +2599,6 @@
   {
    "type": "library",
    "name": "webpki-roots",
-   "version": "1.0.12",
-   "licenses": [
-    {
-     "expression": "CDLA-Permissive-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/webpki-roots@1.0.12"
-  },
-  {
-   "type": "library",
-   "name": "webpki-roots",
    "version": "0.26.11",
    "licenses": [
     {
@@ -2617,6 +2606,17 @@
     }
    ],
    "purl": "pkg:cargo/webpki-roots@0.26.11"
+  },
+  {
+   "type": "library",
+   "name": "webpki-roots",
+   "version": "1.0.12",
+   "licenses": [
+    {
+     "expression": "CDLA-Permissive-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/webpki-roots@1.0.12"
   },
   {
    "type": "library",
@@ -2797,17 +2797,6 @@
   {
    "type": "library",
    "name": "windows-sys",
-   "version": "0.52.0",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/windows-sys@0.52.0"
-  },
-  {
-   "type": "library",
-   "name": "windows-sys",
    "version": "0.61.2",
    "licenses": [
     {
@@ -2815,6 +2804,17 @@
     }
    ],
    "purl": "pkg:cargo/windows-sys@0.61.2"
+  },
+  {
+   "type": "library",
+   "name": "windows-sys",
+   "version": "0.52.0",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/windows-sys@0.52.0"
   },
   {
    "type": "library",
