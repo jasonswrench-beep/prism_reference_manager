@@ -44,6 +44,7 @@ pub const TABLES: &[&str] = &[
 const INDEXES: &[(&str, &str, &str)] = &[
     ("refs", "trashed", "$.trashed_at"),
     ("refs", "doi", "$.fields.doi"),
+    ("refs", "work_id", "$.work_id"),
     ("project_sources", "project_id", "$.project_id"),
     ("project_sources", "ref_id", "$.ref_id"),
     ("manuscripts", "project_id", "$.project_id"),

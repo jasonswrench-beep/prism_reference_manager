@@ -130,6 +130,8 @@ pub struct Context<'a> {
     pub manuscript_id: String,
     /// True when no manuscript is chosen and the set is just the cited items.
     pub standalone: bool,
+    /// Words that title case must leave exactly as written (Settings › Citation keys and terms).
+    pub protected_terms: Vec<String>,
 }
 
 /// Style descriptor and assurance.
@@ -178,7 +180,7 @@ pub fn fingerprint(style: &str, refs: &[&Reference], ctx: &Context) -> String {
     let mut cited: Vec<String> = refs.iter().map(|r| format!("{}@{}", r.id, r.revision)).collect();
     cited.sort();
     let s = format!(
-        "{}|{}|{}|{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}",
         style,
         apa::style_hash(),
         PROCESSOR,
@@ -186,7 +188,8 @@ pub fn fingerprint(style: &str, refs: &[&Reference], ctx: &Context) -> String {
         ctx.locale,
         ctx.revision,
         parts.join(","),
-        cited.join(",")
+        cited.join(","),
+        ctx.protected_terms.join(";")
     );
     crate::util::sha256_hex(s.as_bytes())[..16].to_string()
 }

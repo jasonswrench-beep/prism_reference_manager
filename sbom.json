@@ -3,7 +3,7 @@
  "specVersion": "1.5",
  "version": 1,
  "metadata": {
-  "timestamp": "2026-11-13T15:12:34.510424+00:00",
+  "timestamp": "2026-11-13T15:13:40.173291+00:00",
   "component": {
    "type": "application",
    "name": "Prism Reference Manager",
@@ -91,17 +91,6 @@
   {
    "type": "library",
    "name": "base64",
-   "version": "0.23.1",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/base64@0.23.1"
-  },
-  {
-   "type": "library",
-   "name": "base64",
    "version": "0.22.1",
    "licenses": [
     {
@@ -109,6 +98,17 @@
     }
    ],
    "purl": "pkg:cargo/base64@0.22.1"
+  },
+  {
+   "type": "library",
+   "name": "base64",
+   "version": "0.23.1",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/base64@0.23.1"
   },
   {
    "type": "library",
@@ -850,13 +850,13 @@
   {
    "type": "library",
    "name": "getrandom",
-   "version": "0.4.3",
+   "version": "0.2.17",
    "licenses": [
     {
      "expression": "MIT OR Apache-2.0"
     }
    ],
-   "purl": "pkg:cargo/getrandom@0.4.3"
+   "purl": "pkg:cargo/getrandom@0.2.17"
   },
   {
    "type": "library",
@@ -872,13 +872,13 @@
   {
    "type": "library",
    "name": "getrandom",
-   "version": "0.2.17",
+   "version": "0.4.3",
    "licenses": [
     {
      "expression": "MIT OR Apache-2.0"
     }
    ],
-   "purl": "pkg:cargo/getrandom@0.2.17"
+   "purl": "pkg:cargo/getrandom@0.4.3"
   },
   {
    "type": "library",
@@ -890,6 +890,17 @@
     }
    ],
    "purl": "pkg:cargo/glob@0.3.4"
+  },
+  {
+   "type": "library",
+   "name": "hashbrown",
+   "version": "0.12.3",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/hashbrown@0.12.3"
   },
   {
    "type": "library",
@@ -912,17 +923,6 @@
     }
    ],
    "purl": "pkg:cargo/hashbrown@0.17.1"
-  },
-  {
-   "type": "library",
-   "name": "hashbrown",
-   "version": "0.12.3",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/hashbrown@0.12.3"
   },
   {
    "type": "library",
@@ -1884,17 +1884,6 @@
   {
    "type": "library",
    "name": "schemars",
-   "version": "1.2.3",
-   "licenses": [
-    {
-     "expression": "MIT"
-    }
-   ],
-   "purl": "pkg:cargo/schemars@1.2.3"
-  },
-  {
-   "type": "library",
-   "name": "schemars",
    "version": "0.9.0",
    "licenses": [
     {
@@ -1902,6 +1891,17 @@
     }
    ],
    "purl": "pkg:cargo/schemars@0.9.0"
+  },
+  {
+   "type": "library",
+   "name": "schemars",
+   "version": "1.2.3",
+   "licenses": [
+    {
+     "expression": "MIT"
+    }
+   ],
+   "purl": "pkg:cargo/schemars@1.2.3"
   },
   {
    "type": "library",
@@ -2764,17 +2764,6 @@
   {
    "type": "library",
    "name": "webpki-roots",
-   "version": "1.0.12",
-   "licenses": [
-    {
-     "expression": "CDLA-Permissive-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/webpki-roots@1.0.12"
-  },
-  {
-   "type": "library",
-   "name": "webpki-roots",
    "version": "0.26.11",
    "licenses": [
     {
@@ -2782,6 +2771,17 @@
     }
    ],
    "purl": "pkg:cargo/webpki-roots@0.26.11"
+  },
+  {
+   "type": "library",
+   "name": "webpki-roots",
+   "version": "1.0.12",
+   "licenses": [
+    {
+     "expression": "CDLA-Permissive-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/webpki-roots@1.0.12"
   },
   {
    "type": "library",
@@ -3248,17 +3248,6 @@
   {
    "type": "library",
    "name": "zip",
-   "version": "2.6.1",
-   "licenses": [
-    {
-     "expression": "MIT"
-    }
-   ],
-   "purl": "pkg:cargo/zip@2.6.1"
-  },
-  {
-   "type": "library",
-   "name": "zip",
    "version": "9.5.1",
    "licenses": [
     {
@@ -3266,6 +3255,17 @@
     }
    ],
    "purl": "pkg:cargo/zip@9.5.1"
+  },
+  {
+   "type": "library",
+   "name": "zip",
+   "version": "2.6.1",
+   "licenses": [
+    {
+     "expression": "MIT"
+    }
+   ],
+   "purl": "pkg:cargo/zip@2.6.1"
   },
   {
    "type": "library",

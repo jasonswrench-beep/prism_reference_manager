@@ -81,7 +81,9 @@ function creatorRow(c, onChange, onRemove, onMove) {
     person.hidden = k !== "person";
     lit.hidden = k === "person";
     c.role = role.value;
-    c.name = k === "person" ? { kind: k, family: family.value.trim(), given: given.value.trim(), particle: particle.value.trim(), suffix: suffix.value.trim() } : { kind: k, literal: literal.value.trim() };
+    // Keep fields this row does not edit (alternative-script variants and any future parts).
+    const { kind: _k, family: _f, given: _g, particle: _p, suffix: _s, literal: _l, ...kept } = c.name;
+    c.name = k === "person" ? { ...kept, kind: k, family: family.value.trim(), given: given.value.trim(), particle: particle.value.trim(), suffix: suffix.value.trim() } : { ...kept, kind: k, literal: literal.value.trim() };
     onChange();
   };
   [kind, role, family, given, particle, suffix, literal].forEach((x) => x.addEventListener("input", sync));

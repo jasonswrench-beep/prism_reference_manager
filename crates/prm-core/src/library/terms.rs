@@ -163,7 +163,7 @@ impl Library {
 
     /// Write a project's (or the library's) BibTeX/biblatex file. Used for the automatically
     /// refreshed bibliography file for writing tools.
-    pub fn write_bib_file(&self, project_id: &str, path: &std::path::Path, biblatex: bool) -> Result<usize> {
+    pub fn write_bib_file(&self, project_id: &str, path: &std::path::Path, biblatex: bool, exclude_fields: &[String]) -> Result<usize> {
         let refs: Vec<Reference> = if project_id.is_empty() {
             crate::store::list_in(&self.store.conn, "WHERE trashed IS NULL", &[])?
         } else {
@@ -172,7 +172,7 @@ impl Library {
         };
         let mut rr: Vec<&Reference> = refs.iter().collect();
         rr.sort_by(|a, b| a.citekey.cmp(&b.citekey));
-        let text = crate::formats::bibtex::export(&rr, biblatex, &[]);
+        let text = crate::formats::bibtex::export(&rr, biblatex, exclude_fields);
         // Rewrite only when the content changed, so file watchers in writing tools stay quiet.
         if std::fs::read_to_string(path).map(|s| s == text).unwrap_or(false) {
             return Ok(rr.len());

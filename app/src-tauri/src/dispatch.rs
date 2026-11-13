@@ -437,9 +437,10 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let pid = s(a, "project_id");
             let Some(p) = save_file(app, "bibtex", "references.bib", "Choose where to keep the BibTeX file") else { return ok(json!({"cancelled": true})) };
             let biblatex: bool = opt(a, "biblatex");
-            let n = lib_mut(st)?.write_bib_file(&pid, &p, biblatex).map_err(err)?;
+            let exclude_fields: Vec<String> = opt(a, "exclude_fields");
+            let n = lib_mut(st)?.write_bib_file(&pid, &p, biblatex, &exclude_fields).map_err(err)?;
             st.settings.bib_exports.retain(|b| b.path != p.to_string_lossy());
-            st.settings.bib_exports.push(settings::BibExport { project_id: pid, path: p.to_string_lossy().to_string(), biblatex });
+            st.settings.bib_exports.push(settings::BibExport { project_id: pid, path: p.to_string_lossy().to_string(), biblatex, exclude_fields });
             let _ = settings::save(&st.config_dir, &st.settings);
             ok(json!({"path": p.to_string_lossy(), "count": n}))
         }

@@ -323,3 +323,70 @@ fn g08_pdf_annotation_round_trip_without_duplicates() {
     assert_eq!(lib.export_annotated_pdf(&att.id, "", &flat, true).unwrap(), 6);
     assert!(prm_core::pdf::read_annotations(&flat).unwrap().0.is_empty());
 }
+
+#[test]
+fn project_rating_drives_rating_sort_in_project_scope() {
+    let (mut lib, _root) = open("rating");
+    let p = lib.create_project("Ratings", "apa-7", None).unwrap();
+    let a = lib.add_reference(article("Alpha study", 2020, &[("Adams", "A")]), Some(&p.id)).unwrap();
+    let b = lib.add_reference(article("Beta study", 2021, &[("Brown", "B")]), Some(&p.id)).unwrap();
+    // Library-wide ratings say A > B; the project's own ratings say B > A.
+    lib.set_rating(&[a.id.clone()], 5).unwrap();
+    lib.set_rating(&[b.id.clone()], 1).unwrap();
+    for (id, r) in [(&a.id, 2u8), (&b.id, 4u8)] {
+        let mut m = lib.membership(&p.id, id).unwrap().unwrap();
+        m.rating = r;
+        lib.update_membership(m).unwrap();
+    }
+    let q = prm_core::library::ListQuery { project_id: p.id.clone(), sort: "rating".into(), desc: true, limit: 10, ..Default::default() };
+    let rows = lib.list_references(&q).unwrap().rows;
+    assert_eq!(rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec![b.id.clone(), a.id.clone()], "project ratings must decide the order");
+    // Library scope still sorts by the library rating.
+    let q = prm_core::library::ListQuery { sort: "rating".into(), desc: true, limit: 10, ..Default::default() };
+    let rows = lib.list_references(&q).unwrap().rows;
+    assert_eq!(rows[0].id, a.id);
+}
+
+#[test]
+fn protected_terms_survive_in_text_title_case() {
+    let (mut lib, _root) = open("protected");
+    let mut r = article("teaching with ebooks in class", 2024, &[]);
+    r.creators.clear();
+    let r = lib.add_reference(r, None).unwrap();
+    let plain = cite(&lib, "", &r.id);
+    assert!(plain.contains("Ebooks"), "{plain}");
+    lib.protected_terms = vec!["ebooks".into()];
+    let kept = cite(&lib, "", &r.id);
+    assert!(kept.contains("ebooks") && !kept.contains("Ebooks"), "{kept}");
+}
+
+#[test]
+fn citing_a_version_uses_the_one_marked_to_cite() {
+    let (mut lib, _root) = open("versions");
+    let mut pre = article("Generative tutors in first-year writing", 2023, &[("Ortiz", "Ana")]);
+    pre.rtype = "preprint".into();
+    let pre = lib.add_reference(pre, None).unwrap();
+    let publ = lib.add_reference(article("Generative tutors in first-year writing", 2024, &[("Ortiz", "Ana")]), None).unwrap();
+    lib.link_versions(&[pre.id.clone(), publ.id.clone()], &publ.id).unwrap();
+    let req = CiteRequest { items: vec![CiteItem { ref_id: pre.id.clone(), ..Default::default() }], mode: OutputMode::Parenthetical, ..Default::default() };
+    let out = lib.render(&req).unwrap();
+    assert_eq!(out.text, "(Ortiz, 2024)");
+    assert!(out.warnings.iter().any(|w| w.code == "preferred-version"), "the swap must be explained");
+    let exact = lib.render(&CiteRequest { exact_version: true, ..req }).unwrap();
+    assert_eq!(exact.text, "(Ortiz, 2023)");
+    // A bibliography that lists both versions keeps one entry.
+    let bib = lib.render(&CiteRequest { mode: OutputMode::Bibliography, set: "selected".into(), ref_ids: vec![pre.id.clone(), publ.id.clone()], ..Default::default() }).unwrap();
+    assert_eq!(bib.paragraphs.len(), 1, "{}", bib.text);
+}
+
+#[test]
+fn kept_bib_file_honors_excluded_fields() {
+    let (mut lib, root) = open("bibex");
+    let mut r = article("Reflective practice", 2022, &[("Lee", "Kim")]);
+    r.fields.insert("abstract".into(), "A long abstract that should stay out.".into());
+    lib.add_reference(r, None).unwrap();
+    let path = root.join("refs.bib");
+    lib.write_bib_file("", &path, false, &["abstract".into()]).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("Reflective practice") && !text.to_lowercase().contains("abstract"), "{text}");
+}

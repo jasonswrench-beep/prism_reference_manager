@@ -16,7 +16,8 @@ pub fn title_case(s: &str, protected: &[String]) -> String {
             continue;
         }
         let bare: String = word.chars().filter(|c| c.is_alphanumeric()).collect();
-        let is_protected = protected.iter().any(|p| p == word || p == &bare);
+        // Protected terms match regardless of case and keep the title's own spelling.
+        let is_protected = protected.iter().any(|p| p.to_lowercase() == word.to_lowercase() || p.to_lowercase() == bare.to_lowercase());
         let has_inner_caps = word.chars().skip(1).any(|c| c.is_uppercase());
         let letters = bare.chars().count();
         let lower = bare.to_lowercase();
@@ -57,5 +58,7 @@ mod tests {
     fn basic() {
         assert_eq!(title_case("teaching with generative AI: a guide for the classroom", &[]), "Teaching With Generative AI: A Guide for the Classroom");
         assert_eq!(title_case("self-report of iPhone use", &[]), "Self-Report of iPhone Use");
+        // A protected term is left as written, even when it would otherwise be capitalized.
+        assert_eq!(title_case("teaching with ebooks in class", &["ebooks".into()]), "Teaching With ebooks in Class");
     }
 }

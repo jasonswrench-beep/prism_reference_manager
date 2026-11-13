@@ -291,7 +291,7 @@ fn suffix_letter(i: usize) -> String {
 // ---- in-text ---------------------------------------------------------------------------------
 
 /// In-text author element. `and` is "&" in parentheses and "and" in narrative text.
-fn intext_author(r: &Reference, d: &Disambig, and: &str, out: &mut Out) -> bool {
+fn intext_author(r: &Reference, d: &Disambig, and: &str, protected: &[String], out: &mut Out) -> bool {
     let (names, _) = author_position(r);
     if names.is_empty() {
         // Title in the author position, title case; quotation marks for parts of works,
@@ -300,7 +300,7 @@ fn intext_author(r: &Reference, d: &Disambig, and: &str, out: &mut Out) -> bool 
         if t.is_empty() {
             return false;
         }
-        let tc = title_case(t, &[]);
+        let tc = title_case(t, protected);
         if standalone(&r.rtype) {
             out.i(&tc);
         } else {
@@ -442,7 +442,7 @@ pub fn cite(items: &[CiteItem], narrative: bool, refs: &[&Reference], ctx: &Cont
             if r.rtype == "personal-communication" {
                 personal_comm(r, item, true, &mut out);
             } else {
-                if !item.suppress_author && !intext_author(r, &d, "and", &mut out) {
+                if !item.suppress_author && !intext_author(r, &d, "and", &ctx.protected_terms, &mut out) {
                     out.t("Anonymous");
                 }
                 out.t(" (");
@@ -462,7 +462,7 @@ pub fn cite(items: &[CiteItem], narrative: bool, refs: &[&Reference], ctx: &Cont
         let mut prev_author: Option<String> = None;
         for (idx, (item, r)) in ordered.iter().enumerate() {
             let mut a = Out::default();
-            let has_author = if r.rtype == "personal-communication" { false } else { intext_author(r, &d, "&", &mut a) };
+            let has_author = if r.rtype == "personal-communication" { false } else { intext_author(r, &d, "&", &ctx.protected_terms, &mut a) };
             let akey = a.text();
             let combinable = prev_author.as_deref() == Some(akey.as_str()) && item.prefix.is_empty() && item.locator.is_empty() && idx > 0;
             if idx > 0 {
@@ -1007,7 +1007,7 @@ pub fn run_fixture(f: &Fixture) -> FixtureResult {
     let refs: Vec<&Reference> = f.references.iter().collect();
     let mut set: Vec<&Reference> = f.references.iter().collect();
     set.extend(f.context.iter());
-    let ctx = Context { set, locale: "en-US".into(), revision: 0, manuscript_id: "fixture".into(), standalone: false };
+    let ctx = Context { set, locale: "en-US".into(), revision: 0, manuscript_id: "fixture".into(), standalone: false, protected_terms: vec![] };
     let rendered = match f.mode.as_str() {
         "parenthetical" => cite(&f.cite, false, &refs, &ctx),
         "narrative" => cite(&f.cite, true, &refs, &ctx),

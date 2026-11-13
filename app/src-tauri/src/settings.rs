@@ -28,6 +28,8 @@ pub struct BibExport {
     pub project_id: String,
     pub path: String,
     pub biblatex: bool,
+    /// Fields left out of every rewrite (for example abstract, file, note).
+    pub exclude_fields: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

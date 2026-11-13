@@ -23,6 +23,9 @@ pub struct CiteRequest {
     pub set: String,
     #[serde(default)]
     pub ref_ids: Vec<String>,
+    /// Cite exactly these records, even when another version of the work is marked to cite.
+    #[serde(default)]
+    pub exact_version: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -96,6 +99,24 @@ fn short_label(r: &Reference) -> String {
 }
 
 impl Library {
+    /// When `id` is one version of a work and another version is marked to cite, use that one.
+    fn version_to_cite(&self, id: &str, notes: &mut Vec<render::Warning>) -> Result<String> {
+        let Some(r) = self.store.get::<Reference>(id)? else { return Ok(id.to_string()) };
+        if r.work_id.is_empty() || r.preferred_version {
+            return Ok(id.to_string());
+        }
+        let chosen = self.store.by::<Reference>("work_id", &r.work_id)?.into_iter().find(|v| v.preferred_version && v.trashed_at.is_none() && v.id != r.id);
+        let Some(v) = chosen else { return Ok(id.to_string()) };
+        let label = |x: &Reference| if x.version_label.is_empty() { "the other version".to_string() } else { format!("the {} version", x.version_label.to_lowercase()) };
+        notes.push(render::Warning {
+            ref_id: v.id.clone(),
+            level: "info".into(),
+            code: "preferred-version".into(),
+            message: format!("Cited {} of “{}”, the version marked to cite, instead of {}.", label(&v), super::refs::short(v.title()), label(&r)),
+        });
+        Ok(v.id)
+    }
+
     /// The manuscript's reference set (everything not excluded).
     pub fn context_refs(&self, manuscript_id: &str) -> Result<Vec<Reference>> {
         if manuscript_id.is_empty() {
@@ -129,9 +150,25 @@ impl Library {
             _ => req.items.iter().map(|i| i.ref_id.clone()).collect(),
         };
         let mut items = req.items.clone();
+        let mut version_notes: Vec<render::Warning> = vec![];
         for it in &mut items {
             it.ref_id = self.resolve_id(&it.ref_id)?;
+            if !req.exact_version {
+                it.ref_id = self.version_to_cite(&it.ref_id, &mut version_notes)?;
+            }
         }
+        let bib_ids: Vec<String> = if req.exact_version {
+            bib_ids
+        } else {
+            let mut out: Vec<String> = vec![];
+            for id in bib_ids {
+                let id = self.version_to_cite(&self.resolve_id(&id)?, &mut version_notes)?;
+                if !out.contains(&id) {
+                    out.push(id);
+                }
+            }
+            out
+        };
         let cited = self.references(&bib_ids)?;
         if cited.is_empty() {
             return Err(Error::user("Choose at least one source."));
@@ -143,10 +180,10 @@ impl Library {
                 set.push(r);
             }
         }
-        let ctx = Context { set, locale: locale.clone(), revision, manuscript_id: req.manuscript_id.clone(), standalone };
+        let ctx = Context { set, locale: locale.clone(), revision, manuscript_id: req.manuscript_id.clone(), standalone, protected_terms: self.protected_terms.clone() };
         let mut block_quote = false;
         let mut locator_fragment = String::new();
-        let rendered: Rendered = match req.mode {
+        let mut rendered: Rendered = match req.mode {
             OutputMode::Parenthetical => render::cite(&style, &items, false, &cited_refs, &ctx),
             OutputMode::Narrative => {
                 let r = render::cite(&style, &items, true, &cited_refs, &ctx);
@@ -185,6 +222,11 @@ impl Library {
         let html = if is_bib { serialize::html_paragraphs(&rendered.paragraphs) } else { serialize::html_inline(&rendered.runs) };
         let rtf = if is_bib { serialize::rtf_paragraphs(&rendered.paragraphs, None) } else { serialize::rtf_inline(&rendered.runs) };
         let markdown = if is_bib { serialize::markdown_paragraphs(&rendered.paragraphs) } else { serialize::markdown_runs(&rendered.runs) };
+        for n in version_notes {
+            if !rendered.warnings.iter().any(|w| w.code == n.code && w.ref_id == n.ref_id) {
+                rendered.warnings.push(n);
+            }
+        }
         let checks = self.checks(&cited, &rendered, &sinfo, standalone, req.mode == OutputMode::Citekey);
         Ok(CiteOutput {
             text: rendered.text.clone(),
@@ -364,6 +406,7 @@ impl Library {
                 quote: c.quote.clone(),
                 set: "selected".into(),
                 ref_ids: c.items.iter().map(|i| i.ref_id.clone()).collect(),
+                exact_version: false,
             };
             if !c.manuscript_id.is_empty() && self.store.get::<Manuscript>(&c.manuscript_id)?.is_none() {
                 continue;
@@ -534,7 +577,7 @@ impl Library {
     /// Evidence-based issues for a set of sources, with a concrete suggested action.
     pub fn style_issues(&self, refs: &[Reference], copies: &[CopyEvent]) -> Result<Vec<StyleIssue>> {
         let mut out = Vec::new();
-        let ctx = Context { set: refs.iter().collect(), locale: "en-US".into(), revision: 0, manuscript_id: String::new(), standalone: false };
+        let ctx = Context { set: refs.iter().collect(), locale: "en-US".into(), revision: 0, manuscript_id: String::new(), standalone: false, protected_terms: self.protected_terms.clone() };
         let rr: Vec<&Reference> = refs.iter().collect();
         let bib = render::bibliography("apa-7", &rr, &ctx);
         for w in bib.warnings.iter().filter(|w| w.level != "info" || w.code == "no-date") {

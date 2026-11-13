@@ -221,7 +221,16 @@ impl Library {
             }
             wh.push("x.id IN (SELECT id FROM list_ids)".into());
         }
+        // In a project the list shows the project's rating (falling back to the library rating),
+        // so sort by the same value.
+        let project_rating;
         let col = match q.sort.as_str() {
+            "rating" if !q.project_id.is_empty() => {
+                // A quoted literal, not a bound parameter: the count query shares `args`.
+                let p = format!("'{}'", q.project_id.replace('\'', "''"));
+                project_rating = format!("COALESCE(NULLIF((SELECT CAST(json_extract(ps.data,'$.rating') AS INTEGER) FROM project_sources ps WHERE ps.project_id={p} AND ps.ref_id=x.id), 0), x.rating)");
+                project_rating.as_str()
+            }
             "year" => "x.year_key",
             "title" => "x.title_key",
             "container" => "x.container_key",
