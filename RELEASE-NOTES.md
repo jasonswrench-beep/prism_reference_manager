@@ -49,6 +49,12 @@ are). Linked files inside a chosen base folder are stored relative to it, and ea
 say where that folder is, so a synced folder at a different path still works. All files can be
 converted either way in one step; conversion copies, never deletes, and can be undone.
 
+**Scanned PDFs.** Text in scanned PDFs can be recognized on this computer, in any language
+installed in Windows, for one file or all scanned files at once, with progress and Stop. The
+recognized text is searchable, shown beside the page for checking, and used for quotations from
+Area marks; a quality estimate warns about poor scans. The PDF is never changed, and an edited
+quotation keeps the original recognized text.
+
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
 "Mueller" and "Müller" find each other; Chinese, Japanese and Korean words match as words. Date,

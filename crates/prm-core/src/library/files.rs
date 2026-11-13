@@ -68,6 +68,24 @@ fn safe_name(s: &str) -> String {
     if t.is_empty() { "file".into() } else { t }
 }
 
+/// Share of recognized words that look like words or numbers (see the window's OCR module).
+pub fn word_quality(toks: &[String]) -> f32 {
+    let toks: Vec<&str> = toks.iter().map(|t| t.trim_matches(|c: char| ".,;:!?()[]\"'“”‘’«»-–—".contains(c))).filter(|t| !t.is_empty()).collect();
+    if toks.is_empty() {
+        return 0.0;
+    }
+    let good = toks
+        .iter()
+        .filter(|t| {
+            let n = t.chars().count();
+            let letters = t.chars().filter(|c| c.is_alphabetic()).count();
+            let digits = t.chars().filter(|c| c.is_ascii_digit()).count();
+            letters == n || digits == n || (t.contains('-') && letters + 1 >= n)
+        })
+        .count();
+    good as f32 / toks.len() as f32
+}
+
 /// Prefix marking a linked path stored relative to the base folder.
 pub const BASE_PREFIX: &str = "base:";
 
@@ -414,6 +432,75 @@ impl Library {
         Ok(())
     }
 
+    /// Store text recognized from page images (OCR). `pages` holds each page's text and its
+    /// words with positions (a JSON array). The original file is not touched; the previous
+    /// text, if any, is replaced. Quality is the mean over pages with text.
+    pub fn set_ocr_text(&mut self, attachment_id: &str, pages: &[(String, String)], lang: &str) -> Result<Attachment> {
+        let mut a = self.store.must::<Attachment>(attachment_id)?;
+        let texts: Vec<String> = pages.iter().map(|p| p.0.clone()).collect();
+        crate::search::index_pages(&self.store.conn, attachment_id, &texts)?;
+        self.store.conn.execute("DELETE FROM ocr_words WHERE attachment_id=?1", [attachment_id])?;
+        let mut qs = vec![];
+        for (i, (_, words)) in pages.iter().enumerate() {
+            self.store.conn.execute("INSERT INTO ocr_words(attachment_id,page,words) VALUES(?1,?2,?3)", rusqlite::params![attachment_id, i as i64, words])?;
+            let v: Vec<serde_json::Value> = serde_json::from_str(words).unwrap_or_default();
+            let toks: Vec<String> = v.iter().filter_map(|w| w.get("t").and_then(|t| t.as_str()).map(|t| t.to_string())).collect();
+            if !toks.is_empty() {
+                qs.push(word_quality(&toks));
+            }
+        }
+        a.indexed = true;
+        a.text_source = "ocr".into();
+        a.ocr_lang = lang.into();
+        a.ocr_quality = Some(if qs.is_empty() { 0.0 } else { qs.iter().sum::<f32>() / qs.len() as f32 });
+        a.ocr_date = now();
+        let aa = a.clone();
+        self.write("Recognize text", |tx| tx.put(&aa))?;
+        Ok(a)
+    }
+
+    /// Remove recognized text, for example to recognize again in another language.
+    pub fn clear_ocr_text(&mut self, attachment_id: &str) -> Result<()> {
+        let mut a = self.store.must::<Attachment>(attachment_id)?;
+        if a.text_source != "ocr" {
+            return Ok(());
+        }
+        crate::search::index_pages(&self.store.conn, attachment_id, &[])?;
+        self.store.conn.execute("DELETE FROM ocr_words WHERE attachment_id=?1", [attachment_id])?;
+        a.text_source.clear();
+        a.ocr_lang.clear();
+        a.ocr_quality = None;
+        a.ocr_date.clear();
+        a.indexed = false;
+        self.write("Remove recognized text", |tx| tx.put(&a))
+    }
+
+    /// Recognized words with positions on one page (a JSON array), or "[]".
+    pub fn ocr_words(&self, attachment_id: &str, page_index: u32) -> Result<String> {
+        Ok(self
+            .store
+            .conn
+            .query_row("SELECT words FROM ocr_words WHERE attachment_id=?1 AND page=?2", rusqlite::params![attachment_id, page_index as i64], |r| r.get(0))
+            .unwrap_or_else(|_| "[]".into()))
+    }
+
+    /// Recognized text inside page-relative rectangles, in reading order: a word belongs to a
+    /// rectangle when its centre lies inside it.
+    pub fn ocr_text_in(&self, attachment_id: &str, page_index: u32, rects: &[Rect]) -> Result<String> {
+        let v: Vec<serde_json::Value> = serde_json::from_str(&self.ocr_words(attachment_id, page_index)?).unwrap_or_default();
+        let f = |w: &serde_json::Value, k: &str| w.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
+        let mut out: Vec<String> = vec![];
+        for w in &v {
+            let (cx, cy) = (f(w, "x") + f(w, "w") / 2.0, f(w, "y") + f(w, "h") / 2.0);
+            if rects.iter().any(|r| cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
+                if let Some(t) = w.get("t").and_then(|t| t.as_str()) {
+                    out.push(t.to_string());
+                }
+            }
+        }
+        Ok(out.join(" "))
+    }
+
     pub fn page_text(&self, attachment_id: &str) -> Result<Vec<String>> {
         let mut st = self.store.conn.prepare("SELECT text FROM page_text WHERE attachment_id=?1 ORDER BY page")?;
         let v: Vec<String> = st.query_map([attachment_id], |r| r.get(0))?.filter_map(|r| r.ok()).collect();
@@ -624,6 +711,18 @@ impl Library {
         if a.anchor_state.is_empty() {
             a.anchor_state = "matched".into();
         }
+        // An edit to extracted text is recorded: the original extraction is kept and the mark is
+        // no longer presented as exact.
+        if let Some(old) = self.store.get::<Annotation>(&a.id)? {
+            let original = if old.extracted_text.is_empty() { old.text.clone() } else { old.extracted_text.clone() };
+            if old.text_origin != "typed" && !original.is_empty() {
+                a.extracted_text = original.clone();
+                a.text_edited = a.text != original;
+                if a.text_origin.is_empty() {
+                    a.text_origin = old.text_origin.clone();
+                }
+            }
+        }
         a.modified = t;
         let aa = a.clone();
         let label = format!("{} on page {}", match a.kind.as_str() {
@@ -734,6 +833,9 @@ impl Library {
                         links: vec![],
                         anchor_state: "matched".into(),
                         external_key: key,
+                        text_origin: String::new(),
+                        extracted_text: String::new(),
+                        text_edited: false,
                         author: e.author.clone(),
                         created: t.clone(),
                         modified: t.clone(),

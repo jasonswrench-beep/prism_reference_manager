@@ -38,7 +38,9 @@ switch per kind) and logged in Tools › Network activity with what was sent.
 | Check web addresses (when asked) | Each source's own site | A request for that address |
 | Update check (not set up in this version; see `docs/updates.md`) | The update feed | The program's version and Windows architecture |
 
-PDF contents, notes, annotations and quotations are never sent anywhere. A project can block all
+PDF contents, notes, annotations and quotations are never sent anywhere. Text recognition for
+scanned PDFs uses the recognizer built into Windows on this computer; page images stay in memory
+and are not saved or sent. The recognized text is stored in `library.db`, never in the PDF. A project can block all
 outbound requests (Settings › Network and privacy). Administrators can turn network use off for
 everyone with `policy.json` (`{"network_enabled": false}`).
 

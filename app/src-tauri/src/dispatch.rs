@@ -331,6 +331,12 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
     match method {
         "dialog.pick_file" => return ok(pick_file(app, &s(&a, "kind"), &s(&a, "title")).map(|p| p.to_string_lossy().to_string())),
         "dialog.pick_files" => return ok(pick_files(app, &s(&a, "kind"), &s(&a, "title")).iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>()),
+        "ocr.languages" => return ok(crate::ocr::languages().map_err(|e| user(&e))?),
+        "ocr.page" => {
+            use base64::Engine as _;
+            let img = base64::engine::general_purpose::STANDARD.decode(s(&a, "image").as_bytes()).map_err(|_| user("The page image could not be read."))?;
+            return ok(crate::ocr::recognize(img, s(&a, "lang")).map_err(|e| user(&e))?);
+        }
         "dialog.pick_folder" => return ok(pick_folder(app, &s(&a, "title")).map(|p| p.to_string_lossy().to_string())),
         "system.open_url" => {
             let url = s(&a, "url");
@@ -965,6 +971,35 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             } else {
                 ok(lib_mut(st)?.set_linked_base(&folder).map_err(err)?)
             }
+        }
+        "files.set_ocr_text" => {
+            #[derive(serde::Deserialize)]
+            struct P {
+                text: String,
+                #[serde(default)]
+                words: Value,
+            }
+            let pages: Vec<P> = arg(a, "pages")?;
+            let pages: Vec<(String, String)> = pages.into_iter().map(|p| (p.text, if p.words.is_null() { "[]".into() } else { p.words.to_string() })).collect();
+            ok(lib_mut(st)?.set_ocr_text(&s(a, "id"), &pages, &s(a, "lang")).map_err(err)?)
+        }
+        "files.clear_ocr" => ok(lib_mut(st)?.clear_ocr_text(&s(a, "id")).map_err(err)?),
+        "files.ocr_words" => ok(lib_mut(st)?.ocr_words(&s(a, "id"), opt::<u32>(a, "page")).map_err(err)?),
+        "files.ocr_text_in" => {
+            let rects: Vec<prm_core::model::Rect> = arg(a, "rects")?;
+            ok(lib_mut(st)?.ocr_text_in(&s(a, "id"), opt::<u32>(a, "page"), &rects).map_err(err)?)
+        }
+        // PDFs whose text layer is missing or nearly empty and that have no recognized text.
+        "files.scanned" => {
+            let l = lib_mut(st)?;
+            let thin: std::collections::HashSet<String> = l
+                .store
+                .conn
+                .prepare("SELECT attachment_id FROM page_text GROUP BY attachment_id HAVING SUM(length(trim(text))) < 25 * COUNT(*)")
+                .and_then(|mut q| q.query_map([], |r| r.get::<_, String>(0)).map(|it| it.filter_map(|r| r.ok()).collect()))
+                .unwrap_or_default();
+            let v: Vec<Attachment> = l.store.all::<Attachment>().map_err(err)?.into_iter().filter(|x| x.mime == "application/pdf" && !x.superseded && !x.index_excluded && x.text_source != "ocr" && (x.state == "image-only" || thin.contains(&x.id))).collect();
+            ok(v)
         }
         "files.make_relative" => ok(lib_mut(st)?.make_links_relative().map_err(err)?),
         "files.convert" => {

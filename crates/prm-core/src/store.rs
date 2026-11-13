@@ -107,6 +107,9 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
          CREATE TABLE IF NOT EXISTS page_text(
             attachment_id TEXT NOT NULL, page INTEGER NOT NULL, text TEXT NOT NULL,
             PRIMARY KEY(attachment_id, page));
+         CREATE TABLE IF NOT EXISTS ocr_words(
+            attachment_id TEXT NOT NULL, page INTEGER NOT NULL, words TEXT NOT NULL,
+            PRIMARY KEY(attachment_id, page));
          CREATE TABLE IF NOT EXISTS network_log(
             seq INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT NOT NULL, kind TEXT NOT NULL,
             host TEXT NOT NULL, purpose TEXT NOT NULL, sent TEXT NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL);

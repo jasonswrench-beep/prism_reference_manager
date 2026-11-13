@@ -687,3 +687,30 @@ fn linked_files_relative_paths_and_conversion() {
     let rep = lib.convert_storage(&[a.id.clone()], "managed", None).unwrap();
     assert_eq!((rep.converted, rep.failed.len()), (0, 1));
 }
+
+#[test]
+fn recognized_text_is_searchable_quotable_and_edits_are_recorded() {
+    let (mut lib, root) = open("ocr");
+    let r = lib.add_reference(article("Scanned", 2019, &[("Ode", "Ife")]), None).unwrap();
+    let f = root.join("scan.pdf");
+    std::fs::write(&f, minimal_pdf(1)).unwrap();
+    let before = std::fs::read(&f).unwrap();
+    let a = lib.attach_file(&r.id, &f, "linked", "full-text").unwrap();
+    let words = r#"[{"t":"Reflective","x":0.1,"y":0.2,"w":0.2,"h":0.03},{"t":"teaching","x":0.32,"y":0.2,"w":0.2,"h":0.03},{"t":"Elsewhere","x":0.1,"y":0.6,"w":0.2,"h":0.03}]"#;
+    let a = lib.set_ocr_text(&a.id, &[("Reflective teaching\nElsewhere".into(), words.into())], "en-US").unwrap();
+    assert_eq!((a.text_source.as_str(), a.ocr_lang.as_str()), ("ocr", "en-US"));
+    assert!(a.ocr_quality.unwrap() > 0.9);
+    assert_eq!(std::fs::read(&f).unwrap(), before, "the PDF itself is never changed");
+    let hits = prm_core::search::run(&lib.store.conn, "reflective", None, None, 10).unwrap();
+    assert_eq!(hits.ref_ids, vec![r.id.clone()]);
+    let quote = lib.ocr_text_in(&a.id, 0, &[Rect { x: 0.0, y: 0.15, w: 1.0, h: 0.1 }]).unwrap();
+    assert_eq!(quote, "Reflective teaching");
+    let ann = lib.save_annotation(Annotation { attachment_id: a.id.clone(), kind: "region".into(), text: quote.clone(), text_origin: "ocr".into(), ..Default::default() }).unwrap();
+    assert!(!ann.text_edited);
+    let edited = lib.save_annotation(Annotation { text: "Reflective Teaching".into(), ..ann.clone() }).unwrap();
+    assert!(edited.text_edited);
+    assert_eq!(edited.extracted_text, quote);
+    lib.clear_ocr_text(&a.id).unwrap();
+    assert!(prm_core::search::run(&lib.store.conn, "elsewhere", None, None, 10).unwrap().ref_ids.is_empty());
+    assert_eq!(lib.store.must::<Annotation>(&edited.id).unwrap().text, "Reflective Teaching", "marks keep their text");
+}

@@ -790,6 +790,18 @@ pub struct Attachment {
     pub index_excluded: bool,
     #[serde(default)]
     pub old_names: Vec<String>,
+    /// Where the searchable text came from: empty or "pdf" for the file's own text layer,
+    /// "ocr" for local text recognition. The file itself is never changed.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text_source: String,
+    /// Recognition language tag, for example "en-US".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ocr_lang: String,
+    /// 0..1 estimate of the recognized text's quality.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ocr_quality: Option<f32>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ocr_date: String,
     pub created: String,
 }
 entity!(Attachment, "attachments");
@@ -861,6 +873,16 @@ pub struct Annotation {
     pub external_key: String,
     #[serde(default)]
     pub author: String,
+    /// Where `text` came from: empty for the PDF's text layer, "ocr" for recognized text,
+    /// "typed" for text the person entered.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text_origin: String,
+    /// The text exactly as first extracted, kept when the person edits `text`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub extracted_text: String,
+    /// True once `text` differs from the extraction; it is then not presented as exact.
+    #[serde(default)]
+    pub text_edited: bool,
     pub created: String,
     pub modified: String,
 }

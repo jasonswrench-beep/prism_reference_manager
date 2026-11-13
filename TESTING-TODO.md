@@ -74,6 +74,13 @@ already pass are listed at the end for reference.
 - [ ] Find free full texts for a handful of real sources with DOIs (select them, Find free full
       texts). Check that each attached file is the right paper and that the version and licence
       shown are plausible; the open index's version labels are reported as given.
+- [ ] Recognize text in real scanned PDFs (open one in the Reader, or Settings › Library and
+      backup › Full-text search › Recognize text in scanned PDFs): a clean scan, a skewed or
+      low-contrast photocopy, two-column pages, and a non-English text with that language
+      installed in Windows. Check the recognized text against the page (Recognized text tab), that
+      the quality warning appears for the poor scan, the time per page, and that Stop leaves the
+      remaining files untouched. The quality figure is an estimate; note scans it rates wrongly.
+- [ ] On a computer without any recognition language installed, the program says how to add one.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder
@@ -287,7 +294,6 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 These are specified for the first release but not implemented in this build. Each needs either
 work that could not be verified here or an owner decision.
 
-- Optional local OCR for scanned PDFs (FIL-010).
 - Journal abbreviation lists (QLT-009).
 - Global quick-copy launcher with a system-wide shortcut (WRT-019).
 - Side-by-side reading of two documents (part of RDR-001).
@@ -296,7 +302,6 @@ work that could not be verified here or an owner decision.
   bundled styles change only with a program update, and imported files are versioned by hash.
 - Copying references between two libraries (LIB-017); link scheme for opening items from other
   programs (EXT-013).
-- Text recognition (OCR) for scanned PDFs (FIL-010).
 
 ## Automated checks that pass in this build
 

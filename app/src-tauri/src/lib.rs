@@ -9,6 +9,7 @@ mod api;
 mod capture;
 mod clipboard;
 mod dispatch;
+mod ocr;
 mod settings;
 
 use prm_core::library::Library;

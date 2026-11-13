@@ -123,6 +123,79 @@ async function extractText(pdf, onProgress) {
   return pages;
 }
 
+/** Render one page to a PNG (base64) for recognition: about 200 dots per inch, longest side at
+ *  most 3000 pixels, on white. */
+async function pageImage(page) {
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(200 / 72, 3000 / Math.max(base.width, base.height));
+  const vp = page.getViewport({ scale });
+  const c = document.createElement("canvas");
+  c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: g, viewport: vp }).promise;
+  const url = c.toDataURL("image/png");
+  c.width = c.height = 0;
+  return url.slice(url.indexOf(",") + 1);
+}
+
+/** Recognize the text of a scanned PDF on this computer and store it for search and quotation.
+ *  The file is not changed. Returns the updated attachment, or null when stopped. */
+export async function recognizePdf(att, { lang = "", onProgress, stop } = {}) {
+  const data = await readAttachment(att.id);
+  const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, cMapUrl: "vendor/pdfjs/cmaps/", cMapPacked: true, standardFontDataUrl: "vendor/pdfjs/standard_fonts/" }).promise;
+  const pages = [];
+  let used = lang;
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (stop && stop()) return null;
+      onProgress && onProgress(i - 1, pdf.numPages);
+      const page = await pdf.getPage(i);
+      const r = await call("ocr.page", { image: await pageImage(page), lang });
+      used = used || r.lang;
+      pages.push({ text: r.text, words: r.words });
+      page.cleanup();
+    }
+  } finally { await pdf.destroy(); }
+  onProgress && onProgress(pdf.numPages, pdf.numPages);
+  return await call("files.set_ocr_text", { id: att.id, pages, lang: used });
+}
+
+/** Ask for a recognition language, then recognize one or more PDFs with progress and Stop. */
+export async function recognizeDialog(atts, onDone) {
+  const langs = await call("ocr.languages").catch(() => []);
+  if (!langs.length) { toast("Text recognition is not available: no recognition language is installed in Windows (Settings › Time and language › Language).", "warn"); return; }
+  const sel = select(langs.map((l) => [l.tag, l.name]), S.settings.ocr_lang && langs.some((l) => l.tag === S.settings.ocr_lang) ? S.settings.ocr_lang : langs[0].tag, { "aria-label": "Language of the text" });
+  const ok = await modal(atts.length === 1 ? "Recognize text" : `Recognize text in ${atts.length} scanned PDFs`, h("div",
+      h("p", "Text is recognized on this computer by Windows; nothing is sent anywhere. The PDF itself is not changed: the recognized text is stored in the library for search and quotations."),
+      field("Language of the text", sel, "Languages come from Windows. To add one, install it with its optical character recognition feature in Windows Settings."),
+      h("p.small.muted", "Recognized text can contain errors. Check quotations against the page before citing them.")),
+    { buttons: [{ label: "Recognize", kind: "primary", value: true }, { label: "Cancel", value: false }] }).done;
+  if (!ok) return;
+  call("settings.set", { settings: { ocr_lang: sel.value } }).then(() => (S.settings.ocr_lang = sel.value)).catch(() => {});
+  let stopped = false, done = 0, low = 0;
+  const t = toast("Recognizing text…", "info", { sticky: true, action: { label: "Stop", run: () => (stopped = true) } });
+  const line = t.querySelector(".grow div") || t;
+  try {
+    for (const a of atts) {
+      if (stopped) break;
+      const r = await recognizePdf(a, { lang: sel.value, stop: () => stopped, onProgress: (i, n) => (line.textContent = `Recognizing text: ${atts.length > 1 ? `file ${done + 1} of ${atts.length}, ` : ""}page ${Math.min(i + 1, n)} of ${n}`) });
+      if (!r) break;
+      done++;
+      if ((r.ocr_quality ?? 1) < 0.75) low++;
+    }
+    t.remove();
+    toast(stopped ? `Stopped. ${done} files recognized; the rest were left as they were.` : `Text recognized in ${done} file${done === 1 ? "" : "s"}.${low ? ` ${low} may be of poor quality; check them.` : ""}`, low ? "warn" : "success");
+  } catch (e) { t.remove(); showError(e); }
+  onDone && onDone(done);
+}
+
+export function qualityText(att) {
+  if (att.text_source !== "ocr") return "";
+  const q = Math.round((att.ocr_quality ?? 0) * 100);
+  return `Text recognized on this computer (${att.ocr_lang || "language not recorded"}); about ${q}% of words look clean.${q < 75 ? " The scan may be poor: check quotations against the page." : ""}`;
+}
+
 /** Index every attached PDF that is not yet in the full-text index (runs in the reader context). */
 export async function indexAll(onProgress, { pace = 0, stop } = {}) {
   const list = await call("files.unindexed");
@@ -175,7 +248,14 @@ registerView("reader", {
     const docTabs = h("div.doc-tabs", { role: "tablist", "aria-label": "Open documents" }, R.docs.map((x, i) => h("div.doc-tab", { role: "tab", "aria-selected": String(i === R.active), tabindex: "0", on: { click: () => { R.active = i; go("reader"); }, keydown: (e) => e.key === "Enter" && (R.active = i, go("reader")) } },
       icon("pdf", 16), h("span.ellipsis", x.title), iconBtn("x", "Close " + x.title, (e) => { e.stopPropagation(); R.docs.splice(i, 1); R.active = Math.max(0, Math.min(R.active, R.docs.length - 1)); R.pdfKey = ""; go("reader"); }))));
     el.append(docTabs);
-    if (d.att.state && d.att.state !== "ok" && d.att.state !== "large") {
+    if (d.att.text_source === "ocr") {
+      el.append(h("div.notice" + ((d.att.ocr_quality ?? 1) < 0.75 ? ".warn" : ""), { style: { marginBottom: "8px" } }, icon("info"), h("span.grow", qualityText(d.att)),
+        btn("Recognize again…", { small: true, onClick: () => recognizeDialog([d.att], async () => { const r = await call("refs.get", { id: d.ref.id }); d.att = r.attachments.find((x) => x.id === d.att.id) || d.att; go("reader"); }) })));
+    } else if (d.att.state === "image-only" || R.noText === d.att.id) {
+      el.append(h("div.notice.warn", { style: { marginBottom: "8px" } }, icon("warn"), h("span.grow", "This looks like a scanned PDF without a text layer, so its words cannot be selected, quoted or searched. Recognize the text on this computer to make them available. You can still use Area, Draw and Comment marks."),
+        btn("Recognize text…", { small: true, kind: "primary", onClick: () => recognizeDialog([d.att], async () => { const r = await call("refs.get", { id: d.ref.id }); d.att = r.attachments.find((x) => x.id === d.att.id) || d.att; R.panelTab = "text"; go("reader"); }) })));
+    }
+    if (d.att.state && d.att.state !== "ok" && d.att.state !== "large" && d.att.state !== "image-only") {
       const msg = { protected: "This PDF is password-protected or encrypted. You can read it if pdf.js can open it; marks are kept in the library layer and an annotated copy may not be possible.", malformed: "The PDF structure is damaged. It may still render; the file is kept unchanged.", "image-only": "This looks like a scanned PDF without a text layer. Text selection, quotation capture and search need OCR, which is planned as an optional local step. You can still use Area, Draw and Comment marks.", placeholder: "The file is a cloud placeholder. Make it available offline in your sync program, then reopen it.", missing: "The file is missing. Relink it from Tools › Check attached files." }[d.att.state];
       if (msg) el.append(h("div.notice.warn", { style: { marginBottom: "8px" } }, icon("warn"), msg));
     }
@@ -210,9 +290,15 @@ registerView("reader", {
     R.anns = await call("ann.list", { attachment_id: d.att.id, project_id: project });
     // Index text in the background the first time a document is opened.
     if (!d.att.indexed) {
-      extractText(pdf).then(async (pages) => { R.pageText = pages; await call("files.set_page_text", { id: d.att.id, pages }); d.att.indexed = true; }).catch(() => {});
+      extractText(pdf).then(async (pages) => { R.pageText = pages; await call("files.set_page_text", { id: d.att.id, pages }); d.att.indexed = true; noTextCheck(pages); }).catch(() => {});
     } else {
-      call("files.page_text", { id: d.att.id }).then((p) => (R.pageText = p)).catch(() => {});
+      call("files.page_text", { id: d.att.id }).then((p) => { R.pageText = p; noTextCheck(p); }).catch(() => {});
+    }
+    // A PDF whose pages carry almost no text is a scan: offer recognition once.
+    function noTextCheck(pages) {
+      if (d.att.text_source === "ocr" || d.att.state === "image-only" || R.noText === d.att.id || !pages.length) return;
+      const chars = pages.reduce((n, x) => n + x.trim().length, 0);
+      if (chars < 25 * pages.length) { R.noText = d.att.id; go("reader"); }
     }
 
     function setTool(k) {
@@ -379,7 +465,11 @@ registerView("reader", {
           else paintAnnotations(n);
         } else if (ghost.dataset.rect) {
           const rect = JSON.parse(ghost.dataset.rect);
-          if (rect.w > 0.005 && rect.h > 0.005) await saveNew({ kind: R.tool === "region" ? "region" : "ellipse", rects: [rect], page_index: n - 1, text: R.tool === "region" ? textInRect(n, rect) : "" });
+          if (rect.w > 0.005 && rect.h > 0.005) {
+            let text = R.tool === "region" ? textInRect(n, rect) : "", origin = "";
+            if (R.tool === "region" && d.att.text_source === "ocr") { text = await call("files.ocr_text_in", { id: d.att.id, page: n - 1, rects: [rect] }).catch(() => ""); origin = text ? "ocr" : ""; }
+            await saveNew({ kind: R.tool === "region" ? "region" : "ellipse", rects: [rect], page_index: n - 1, text, text_origin: origin });
+          }
           else paintAnnotations(n);
         }
       };
@@ -499,10 +589,13 @@ registerView("reader", {
     // ---- annotation panel ---------------------------------------------------------------------
     function drawPanel() {
       clear(side);
-      const t = tabs([["annotations", `Annotations (${R.anns.length})`], ["notes", "Notes"]], R.panelTab, (k) => { R.panelTab = k; drawPanel(); }, { label: "Annotation panel" });
+      const ocr = d.att.text_source === "ocr";
+      if (R.panelTab === "text" && !ocr) R.panelTab = "annotations";
+      const t = tabs([["annotations", `Annotations (${R.anns.length})`], ["notes", "Notes"], ...(ocr ? [["text", "Recognized text"]] : [])], R.panelTab, (k) => { R.panelTab = k; drawPanel(); }, { label: "Annotation panel" });
       const body = h("div", { style: { padding: "12px", overflow: "auto", flex: "1" } });
       side.append(t, body);
       if (R.panelTab === "notes") return drawNotesTab(body);
+      if (R.panelTab === "text") return drawTextTab(body).catch((e) => showError(e, body));
       body.append(h("h2", { style: { fontSize: "18px", margin: "0 0 6px" } }, "Project notes"),
         S.project ? h("span.chip", icon("folder", 14), S.project.project.title) : h("span.chip", "Library-wide (no project chosen)"));
       const filt = select([["", "All marks"], ...TOOLS.slice(1).map(([k, l]) => [k, l]), ["review", "Needs review"]], R.filter, { "aria-label": "Filter marks by kind", on: { change: (e) => { R.filter = e.target.value; drawPanel(); } } });
@@ -525,6 +618,18 @@ registerView("reader", {
         h("div.btn-row", { style: { marginTop: "6px" } }, btn("Flattened copy", { small: true, onClick: () => exportPdf(true) }), btn("Import marks from another reader…", { small: true, onClick: importExternal }), btn("Replace file version…", { small: true, onClick: replaceVersion })));
     }
 
+    async function drawTextTab(body) {
+      const n = R.page || 1;
+      const pages = await call("files.page_text", { id: d.att.id }).catch(() => []);
+      const txt = pages[n - 1] || "";
+      body.append(h("h2", { style: { fontSize: "18px", margin: "0 0 6px" } }, `Recognized text, page ${n}`),
+        h("p.small.muted", qualityText(d.att)),
+        h("div.row.small", btn("Previous page", { small: true, disabled: n <= 1, onClick: () => { R.page = n - 1; go("reader"); } }), btn("Next page", { small: true, disabled: n >= pdf.numPages, onClick: () => { R.page = n + 1; go("reader"); } })),
+        txt ? h("pre.mono.small", { tabindex: "0", "aria-label": `Recognized text of page ${n}`, style: { whiteSpace: "pre-wrap", userSelect: "text", border: "1px solid var(--border)", padding: "8px", borderRadius: "6px" } }, txt) : h("p.muted", "No text was recognized on this page."),
+        h("p.small.muted", "Compare with the page on the left. To quote a passage, draw an Area mark around it: its text is taken from the recognized words and can be corrected."),
+        h("div.btn-row", btn("Remove recognized text", { small: true, kind: "danger", onClick: async () => { if (await confirmDialog("Remove recognized text", "Remove the recognized text of this file from search? Marks keep their text. You can recognize it again later.", { ok: "Remove" })) { await call("files.clear_ocr", { id: d.att.id }); const r = await call("refs.get", { id: d.ref.id }); d.att = r.attachments.find((x) => x.id === d.att.id) || d.att; R.panelTab = "annotations"; go("reader"); } } })));
+    }
+
     function annCard(a, full) {
       const pageCount = pdf.numPages;
       const card = h("div.ann-card" + (full ? ".selected" : ""));
@@ -533,7 +638,15 @@ registerView("reader", {
         a.anchor_state && a.anchor_state !== "matched" ? h("span.badge.attention", a.anchor_state === "uncertain" ? "Check position" : "Not found in new version") : null,
         full ? null : btn("Open", { small: true, kind: "ghost", onClick: () => selectAnn(a.id) })));
       if (a.text) card.append(h("div.body", { style: { fontSize: "15px" } }, a.kind === "freetext" ? a.text : "“" + a.text + "”"));
+      const origin = a.text_edited ? h("span.badge.attention", { title: "The text was changed after it was extracted; the original extraction is kept." }, "Edited text") : a.text_origin === "ocr" && a.text ? h("span.badge.neutral", { title: "Recognized from the page image; check it against the page." }, "Recognized text") : null;
+      if (origin) card.append(h("div.body.small", origin));
       if (!full) { if (a.comment) card.append(h("div.body.small.muted", a.comment)); return card; }
+      if (a.text && a.kind !== "freetext") {
+        const qt = h("textarea", { rows: 3, value: a.text, "aria-label": "Quotation text" });
+        qt.addEventListener("change", () => update({ text: qt.value }));
+        card.append(h("div.body", field("Quotation text", qt, a.text_origin === "ocr" ? "Recognized from the page image. Correct it against the page; the change is recorded and the original kept." : "Exactly as extracted. A change is recorded and the original kept."),
+          a.text_edited && a.extracted_text ? h("details.small", h("summary", "Original extraction"), h("p.mono", a.extracted_text), btn("Restore original", { small: true, onClick: () => update({ text: a.extracted_text }) })) : null));
+      }
       const meaningSel = select([["", "No type"], ...MEANINGS], a.meaning || "", { "aria-label": "Type of mark", on: { change: (e) => update({ meaning: e.target.value }) } });
       const locInput = h("input", { value: a.locator || "", style: { width: "90px" }, "aria-label": "Citation page" });
       const conf = a.locator_confirmed ? h("span.status-ok.small", icon("check", 13), " Confirmed") : h("span.status-review.small", icon("warn", 13), " Not confirmed");

@@ -86,7 +86,9 @@ registerView("settings", {
         const ai = h("input", { type: "checkbox", id: "auto-index", checked: S.settings.auto_index !== false, on: { change: async (e) => { await saveSettings({ auto_index: e.target.checked }); if (e.target.checked) autoIndex(); } } });
         body.append(card("Full-text search",
           h("label.row", { for: "auto-index" }, ai, "Read the text of PDFs in the background so full-text search finds them"),
-          h("p.small.muted", "One PDF at a time, with a pause between files. Scanned PDFs without a text layer cannot be read this way. A file can be left out of search from its Files tab.")));
+          h("p.small.muted", "One PDF at a time, with a pause between files. A file can be left out of search from its Files tab."),
+          h("p.small", "Scanned PDFs have no text to read. Their text can be recognized on this computer by Windows (nothing is sent anywhere, and the files are not changed)."),
+          h("div.btn-row", btn("Recognize text in scanned PDFs…", { small: true, onClick: async () => { const list = await call("files.scanned"); if (!list.length) { toast("No scanned PDFs without recognized text were found. PDFs are checked when their text is first read.", "info"); return; } const { recognizeDialog } = await import("./reader.js"); await recognizeDialog(list); } }))));
         const watched = await call("watch.list").catch(() => []);
         const mirror = h("input", { type: "checkbox", id: "w-mirror" });
         body.append(card("Watched folders",

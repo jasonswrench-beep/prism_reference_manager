@@ -109,6 +109,16 @@ Off by default, loopback only, per-client tokens with scopes, approval in the wi
 revocation, and an activity log. Requests carrying a web-page origin are refused. Items created
 by API clients are marked as machine-created.
 
+## D7a. Text recognition (OCR)
+
+Scanned PDFs are recognized with the optical character recognizer that ships with Windows 10 and
+11: it is local, needs no download or account, and adds no third-party code. Languages are the
+ones installed in Windows. pdf.js renders each page at about 200 dots per inch; the recognizer
+returns lines and word boxes. It reports no confidence, so the program estimates quality as the
+share of tokens that look like words or numbers and warns below 75%. Recognized text never goes
+into the PDF; it is stored with the attachment and can be removed or redone. Quotations taken
+from recognized words are labelled as such, and an edit keeps the original extraction.
+
 ## D8. Administrator policy and portable mode
 
 `policy.json` next to the program or in `%ProgramData%\Prism Reference Manager` locks setting

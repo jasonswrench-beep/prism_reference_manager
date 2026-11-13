@@ -40,6 +40,13 @@ copy of the database is written to `backups/`.
   `path` is either a full path or `base:` followed by a path relative to the base folder, with
   forward slashes. The library's base folder is the `linked_base` key in `meta`; each computer
   may override it in its own settings.
+- An attachment whose text was recognized from page images has `text_source` `ocr`, with
+  `ocr_lang`, `ocr_quality` (0 to 1, an estimate) and `ocr_date`. Its page text is in
+  `page_text` like any other; the `ocr_words` table holds each page's words with page-relative
+  positions so an Area mark can take the words inside it. The PDF file is not changed.
+- An annotation's `text_origin` says where its text came from (empty for the PDF's text layer,
+  `ocr`, or `typed`). When the person edits extracted text, `extracted_text` keeps the original and
+  `text_edited` is true.
 
 ## Export package
 
