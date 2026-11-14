@@ -25,12 +25,12 @@ macro_rules! t {
 }
 
 pub static TYPES: &[RefType] = &[
-    t!("article-journal", "Journal article", "Articles", "An article in a scholarly journal. Enter the article number separately from page ranges.", ["container_title", "volume", "issue", "page", "article_number", "issn", "pmid", "pmcid"], ["author", "translator"], "JOUR", "article", "article-journal"),
+    t!("article-journal", "Journal article", "Articles", "An article in a scholarly journal. Enter the article number separately from page ranges.", ["container_title", "container_title_short", "volume", "issue", "page", "article_number", "issn", "pmid", "pmcid"], ["author", "translator"], "JOUR", "article", "article-journal"),
     t!("article-magazine", "Magazine article", "Articles", "An article in a magazine.", ["container_title", "volume", "issue", "page"], ["author"], "MGZN", "article", "article-magazine"),
     t!("article-newspaper", "Newspaper article", "Articles", "An article in a newspaper, print or online.", ["container_title", "section", "page", "publisher_place"], ["author"], "NEWS", "article", "article-newspaper"),
     t!("preprint", "Preprint", "Articles", "A manuscript posted to a preprint server before or instead of journal publication. Link it to the published version when one exists.", ["publisher", "number", "arxiv", "version"], ["author"], "UNPB", "misc", "article"),
-    t!("review", "Review", "Articles", "A review of a book, film or other work.", ["container_title", "volume", "issue", "page", "reviewed_title"], ["author", "reviewed-author"], "JOUR", "article", "review"),
-    t!("editorial", "Editorial", "Articles", "An editorial or commentary in a journal or newspaper.", ["container_title", "volume", "issue", "page"], ["author"], "JOUR", "article", "article-journal"),
+    t!("review", "Review", "Articles", "A review of a book, film or other work.", ["container_title", "container_title_short", "volume", "issue", "page", "reviewed_title"], ["author", "reviewed-author"], "JOUR", "article", "review"),
+    t!("editorial", "Editorial", "Articles", "An editorial or commentary in a journal or newspaper.", ["container_title", "container_title_short", "volume", "issue", "page"], ["author"], "JOUR", "article", "article-journal"),
     t!("book", "Book", "Books", "An authored book. Use Edited book when the book has editors instead of authors.", ["publisher", "publisher_place", "edition", "volume", "number_of_volumes", "isbn", "collection_title"], ["author", "translator", "editor"], "BOOK", "book", "book"),
     t!("edited-book", "Edited book", "Books", "A book with editors rather than authors.", ["publisher", "publisher_place", "edition", "volume", "isbn", "collection_title"], ["editor", "translator"], "EDBOOK", "book", "book"),
     t!("chapter", "Chapter in an edited book", "Books", "A chapter in an edited book. Enter the book's editors with the Editor role.", ["container_title", "publisher", "publisher_place", "edition", "volume", "page", "isbn"], ["author", "editor", "translator"], "CHAP", "incollection", "chapter"),
@@ -91,6 +91,7 @@ pub fn field_label(f: &str) -> &'static str {
         "title" => "Title",
         "short_title" => "Short title",
         "container_title" => "Published in",
+        "container_title_short" => "Journal abbreviation",
         "volume" => "Volume",
         "issue" => "Issue",
         "page" => "Pages",

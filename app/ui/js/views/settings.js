@@ -309,7 +309,7 @@ registerView("settings", {
         const form = select([["", "As each style says"], ["full", "Always full"], ["abbreviated", "Always abbreviated"]], js.default, { "aria-label": "Journal names by default", on: { change: async (e) => { await call("journals.set_default", { form: e.target.value }); toast("Saved. Manuscripts that chose their own form keep it; copies made before are listed under Changed since copying.", "success"); } } });
         const q = h("input", { type: "search", placeholder: "Find a journal", "aria-label": "Find a journal" });
         const found = h("div");
-        const look = async () => { const v = q.value.trim(); if (v.length < 2) { clear(found); return; } const l = await call("journals.list", { query: v }); clear(found, l.length ? h("table.table.small", h("tbody", l.slice(0, 30).map((j) => h("tr", h("td", j.full), h("td.mono", j.abbrev), h("td.muted", j.source === "imported" ? "imported list" : "from your sources"))))) : h("p.small.muted", "Not in the list.")); };
+        const look = async () => { const v = q.value.trim(); if (v.length < 2) { clear(found); return; } const l = await call("journals.list", { query: v }); clear(found, l.length ? h("table.table.small", h("tbody", l.slice(0, 30).map((j) => h("tr", h("td", j.full), h("td.mono", j.abbrev), h("td.muted", j.source === "imported" ? "imported list" : j.source === "user" ? "you entered" : "from your sources"))))) : h("p.small.muted", "Not in the list.")); };
         q.addEventListener("input", look);
         body.append(card("Journal names",
           h("p.small.muted", "Journal abbreviations come from your sources (a source that has both forms teaches the pair) and from abbreviation lists you import. No list is built in."),

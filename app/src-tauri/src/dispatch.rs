@@ -1296,6 +1296,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let (records, imported) = prm_core::journals::count(&l.store.conn);
             ok(json!({"records": records, "imported": imported, "default": l.store.meta("journal_names").unwrap_or_default()}))
         }
+        "journals.abbrev" => ok(prm_core::journals::abbreviation(&lib_mut(st)?.store.conn, &s(a, "full"))),
         "journals.list" => ok(prm_core::journals::list(&lib_mut(st)?.store.conn, &s(a, "query"), 200).map_err(err)?),
         "journals.learn" => {
             let l = lib_mut(st)?;

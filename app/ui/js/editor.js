@@ -2,13 +2,13 @@
 // absence, citation key and provenance. Used for manual entry, editing and staged records.
 
 import { call } from "./api.js";
-import { h, clear, icon, iconBtn, modal, select, field, confirmDialog, toast } from "./dom.js";
+import { h, clear, icon, iconBtn, btn, modal, select, field, confirmDialog, toast } from "./dom.js";
 import { S } from "./app.js";
 
 const ROLES = [["author", "Author"], ["editor", "Editor"], ["translator", "Translator"], ["director", "Director"], ["producer", "Producer"], ["host", "Host"], ["guest", "Guest"], ["inventor", "Inventor"], ["interviewer", "Interviewer"], ["recipient", "Recipient"], ["contributor", "Contributor"], ["series-editor", "Series editor"], ["composer", "Composer"], ["performer", "Performer"], ["chair", "Chair"], ["reviewed-author", "Reviewed author"]];
 const MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const FIELD_LABELS = {
-  title: "Title", short_title: "Short title", container_title: "Published in", volume: "Volume", issue: "Issue", page: "Pages",
+  title: "Title", short_title: "Short title", container_title: "Published in", container_title_short: "Journal abbreviation", volume: "Volume", issue: "Issue", page: "Pages",
   article_number: "Article number", doi: "DOI", url: "URL", publisher: "Publisher", publisher_place: "Place", edition: "Edition",
   isbn: "ISBN", issn: "ISSN", pmid: "PubMed ID", pmcid: "PMC ID", arxiv: "arXiv ID", abstract: "Abstract", language: "Language",
   note: "Extra", keywords: "Keywords", genre: "Genre or degree", medium: "Medium or format", number: "Number", version: "Version",
@@ -23,6 +23,7 @@ const HELP = {
   article_number: "For journals that number articles (for example e1042) instead of pages.",
   doi: "Without the https://doi.org/ prefix. A missing DOI does not make a reference incomplete.",
   title: "Enter the title as it should appear in reference lists (sentence case for APA).",
+  container_title_short: "The standard short form, for example J. Appl. Psychol. Used only by styles that abbreviate journal names; APA uses the full name.",
 };
 export const fieldLabel = (f) => FIELD_LABELS[f] || f;
 
@@ -182,6 +183,7 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
       const big = f === "abstract" || f === "note" || f === "title";
       const inp = big ? h("textarea", { value: r.fields[f] || "", rows: f === "title" ? 2 : 4 }) : h("input", { value: r.fields[f] || "" });
       if (SUGGEST.includes(f)) suggestFor(inp, f);
+      inp.dataset.fieldName = f;
       inp.addEventListener("input", () => { if (inp.value.trim()) r.fields[f] = inp.value; else delete r.fields[f]; });
       const prov = r.provenance?.[f];
       const helpTxt = [HELP[f], prov ? `From ${sourceLabel(prov.source)}${prov.confidence != null ? `, ${Math.round(prov.confidence * 100)}% confidence` : ""}${needsCheck(prov) ? ": check this value" : prov.review === "reviewed" && prov.confidence != null ? ", checked" : ""}` : ""].filter(Boolean).join(" · ");
@@ -190,6 +192,7 @@ export async function sourceEditor(ref, { mode = "edit", projectId = "", title }
       if (f === "doi" || f === "page") fl.append(absentToggle(f === "doi" ? "doi" : "page", f === "doi" ? "Has no DOI (confirmed)" : "Has no pages (confirmed)"));
       if (big) fl.style.gridColumn = "1 / -1";
       grid.append(fl);
+      if (f === "container_title_short") abbrevHint(fl, inp);
     }
     // English translation of a non-English title (shown in brackets after the title).
     const tr = h("input", { value: r.translations?.title?.en || "", placeholder: "Only for titles not in English" });
@@ -312,4 +315,27 @@ export function confidenceBadge(p) {
   if (!p || p.confidence == null) return null;
   const pct = Math.round(p.confidence * 100);
   return h("span.badge." + (needsCheck(p) ? "attention" : "neutral"), { title: "How sure the automatic source is about this value" + (p.review === "reviewed" ? "; you checked it" : "") }, `${pct}%${p.review === "reviewed" ? " ✓" : ""}`);
+}
+
+/** Under the journal abbreviation: offer the abbreviation the journal list knows for the journal
+ *  name, when the field is empty; refreshed when the journal name changes. */
+function abbrevHint(fl, inp) {
+  const box = h("div.small", { "aria-live": "polite" });
+  fl.append(box);
+  const full = () => fl.closest(".grid2")?.querySelector("[data-field-name='container_title']")?.value || "";
+  const refresh = async () => {
+    clear(box);
+    const name = full().trim();
+    if (inp.value.trim() || !name) return;
+    try {
+      const a = await call("journals.abbrev", { full: name });
+      if (a && !inp.value.trim()) box.append(btn(`Use “${a}”`, { small: true, kind: "ghost", title: "From the journal list", onClick: () => { inp.value = a; inp.dispatchEvent(new Event("input")); clear(box); } }));
+    } catch (_) {}
+  };
+  setTimeout(() => {
+    const j = fl.closest(".grid2")?.querySelector("[data-field-name='container_title']");
+    j?.addEventListener("change", refresh);
+    refresh();
+  }, 0);
+  inp.addEventListener("input", () => { if (inp.value.trim()) clear(box); });
 }

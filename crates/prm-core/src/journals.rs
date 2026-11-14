@@ -36,18 +36,18 @@ pub struct JournalName {
     pub source: String,
 }
 
-/// Record a pair. A pair learned from the person's sources never replaces one they imported.
+/// Record a pair. Sources: "user" (typed by the person; replaces anything), "imported" (from a
+/// list file), "records" (learned from sources; never replaces the other two).
 pub fn put(conn: &Connection, full: &str, abbrev: &str, source: &str) -> Result<bool> {
     let (full, abbrev) = (full.trim(), abbrev.trim());
     if full.is_empty() || abbrev.is_empty() || key(full) == key(abbrev) {
         return Ok(false);
     }
     let k = key(full);
-    if source == "records" {
-        let existing: Option<String> = conn.query_row("SELECT source FROM journal_names WHERE key=?1", [&k], |r| r.get(0)).optional()?;
-        if existing.as_deref() == Some("imported") {
-            return Ok(false);
-        }
+    let existing: Option<String> = conn.query_row("SELECT source FROM journal_names WHERE key=?1", [&k], |r| r.get(0)).optional()?;
+    match (source, existing.as_deref()) {
+        ("records", Some("imported" | "user")) | ("imported", Some("user")) => return Ok(false),
+        _ => {}
     }
     conn.execute(
         "INSERT INTO journal_names(key,full,abbrev,abbrev_key,source) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(key) DO UPDATE SET full=excluded.full, abbrev=excluded.abbrev, abbrev_key=excluded.abbrev_key, source=excluded.source",
@@ -132,7 +132,7 @@ pub fn list(conn: &Connection, query: &str, limit: usize) -> Result<Vec<JournalN
 
 pub fn count(conn: &Connection) -> (i64, i64) {
     let c = |s: &str| conn.query_row("SELECT COUNT(*) FROM journal_names WHERE source=?1", [s], |r| r.get(0)).unwrap_or(0);
-    (c("records"), c("imported"))
+    (c("records") + c("user"), c("imported"))
 }
 
 pub fn clear_imported(conn: &Connection) -> Result<usize> {

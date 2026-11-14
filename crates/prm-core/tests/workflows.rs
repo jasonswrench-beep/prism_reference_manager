@@ -860,9 +860,21 @@ fn journal_names_full_or_abbreviated_per_manuscript() {
     let mut b = article("Second study", 2021, &[("Lee", "K.")]);
     b.fields.insert("container_title".into(), "Medical Education".into());
     let b = lib.add_reference(b, Some(&p.id)).unwrap();
-    // The list learns from sources that carry both forms, and takes imported lists.
+    // A source saved with both forms teaches the list at once (as typed by the person, so a
+    // later learning pass or an imported list does not replace it).
+    assert_eq!(prm_core::journals::abbreviation(&lib.store.conn, "Journal of Teaching Practice").as_deref(), Some("J. Teach. Pract."));
     let all: Vec<Reference> = lib.store.all().unwrap();
-    assert_eq!(prm_core::journals::learn(&lib.store.conn, &all).unwrap(), 1);
+    assert_eq!(prm_core::journals::learn(&lib.store.conn, &all).unwrap(), 0);
+    prm_core::journals::import_list(&lib.store.conn, "Journal of Teaching Practice = J Teach Pract").unwrap();
+    assert_eq!(prm_core::journals::abbreviation(&lib.store.conn, "Journal of Teaching Practice").as_deref(), Some("J. Teach. Pract."), "an imported list does not override what the person typed");
+    // Correcting the abbreviation on a source updates the list.
+    let mut fix = lib.reference(&a.id).unwrap();
+    fix.fields.insert("container_title_short".into(), "J Teach Pract".into());
+    lib.update_reference(fix, "user").unwrap();
+    assert_eq!(prm_core::journals::abbreviation(&lib.store.conn, "Journal of Teaching Practice").as_deref(), Some("J Teach Pract"));
+    let mut back = lib.reference(&a.id).unwrap();
+    back.fields.insert("container_title_short".into(), "J. Teach. Pract.".into());
+    lib.update_reference(back, "user").unwrap();
     prm_core::journals::import_list(&lib.store.conn, "Medical Education = Med. Educ.").unwrap();
     let props = lib.propose_journal_names(&[a.id.clone(), b.id.clone()]).unwrap();
     assert_eq!(props.len(), 1);

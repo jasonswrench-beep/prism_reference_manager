@@ -424,6 +424,9 @@ impl Library {
             }
             Ok(())
         })?;
+        if r.has("container_title") && r.has("container_title_short") {
+            let _ = crate::journals::put(&self.store.conn, r.f("container_title"), r.f("container_title_short"), if r.origin == "user" { "user" } else { "records" });
+        }
         Ok(r)
     }
 
@@ -511,6 +514,10 @@ impl Library {
         let rr = r.clone();
         self.write(&format!("Edit “{}”", short(r.title())), |tx| tx.put(&rr))?;
         self.recompute_copies(None)?;
+        // An abbreviation the person types teaches the journal list.
+        if changed.iter().any(|f| f == "container_title_short" || f == "container_title") && r.has("container_title") && r.has("container_title_short") {
+            let _ = crate::journals::put(&self.store.conn, r.f("container_title"), r.f("container_title_short"), if source == "user" { "user" } else { "records" });
+        }
         Ok(r)
     }
 
