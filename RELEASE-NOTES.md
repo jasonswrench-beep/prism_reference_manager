@@ -2,7 +2,7 @@
 
 ## 0.1.0 (first build, not released)
 
-First complete build for internal testing. Unsigned; not published.
+First complete build for internal testing. Signed and timestamped (Jason Wrench); not published.
 
 **Projects and library.** Projects with manuscripts, separate reading decisions, notes and
 outlines over one shared library. Collections, smart collections, labels, ratings, trash with

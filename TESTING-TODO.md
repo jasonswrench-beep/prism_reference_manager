@@ -11,8 +11,10 @@ already pass are listed at the end for reference.
       its licence reviewed first.
 
 - [x] **Shipping license.** Apache-2.0, approved by the owner on 2026-11-13.
-- [ ] **Code signing.** Approved in principle: sign once there is a working version. Until then
-      builds stay unsigned (Windows SmartScreen will warn).
+- [x] **Code signing.** Set up 2026-11-13 with the owner's existing cloud signing account (the one his
+      other programs use): `toolsuild-release.ps1 -Sign`. The program, the installer's parts, the
+      uninstaller, the setup and the portable program are signed by "Jason Wrench" and timestamped.
+      A new publisher can still meet a SmartScreen notice until downloads build reputation.
 - [ ] **Contribution terms.** CONTRIBUTING.md uses the license's own terms (inbound equals
       outbound) with a sign-off line on each commit. Confirm, or choose a contributor agreement.
 - [ ] **Security contact.** SECURITY.md points to the repository's private vulnerability

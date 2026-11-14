@@ -47,7 +47,11 @@ powershell -ExecutionPolicy Bypass -File tools\build-release.ps1
 
 The release script runs the tests, regenerates `THIRD-PARTY.md` and `sbom.json` (stopping on an
 unreviewed license), builds the per-user installer, and assembles a portable zip. Output goes to
-`dist\`. Builds are unsigned until a signing certificate is approved.
+`dist\`. With `-Sign` the program, the installer and the portable program are signed and
+timestamped with the owner's cloud signing account (`tools\sign_windows.py`; the account names come
+from `OPENSTAGE_SIGN_*` environment variables, never from the repository), and
+`tools\check_signatures.py` checks the setup, everything inside it and the portable zip before the
+checksums are written. Without `-Sign` the build is unsigned.
 
 ## Running tests
 
