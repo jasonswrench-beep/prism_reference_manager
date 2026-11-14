@@ -4,3 +4,4 @@
 /app/ui/vendor
 /dist
 *.tmp-*
+__pycache__/
