@@ -190,3 +190,38 @@ fn benchmark_100k_references() {
     println!("BENCH citation render (200-source context) median={m3:.2}ms p95={p3:.2}ms (target <= 500 ms)");
     println!("BENCH duplicate scan {:.1}s, {d} candidates (target <= 60 s)", dup.as_secs_f64());
 }
+
+#[test]
+fn deeply_nested_pdf_objects_do_not_overflow_the_stack() {
+    // A stack overflow ends the program outright (it is not a panic), so the parser itself must
+    // stop at a sensible depth. A well-formed PDF whose catalog holds arrays or dictionaries
+    // nested 20,000 deep (about twice what the published proof of concept needs).
+    let dir = std::env::temp_dir().join(format!("prm-deep-pdf-{}", prm_core::util::new_id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let depth = 20_000;
+    for (name, open, close) in [("arrays.pdf", "[", "]"), ("dicts.pdf", "<< /A ", ">>")] {
+        let nested = format!("{}{}", open.repeat(depth), close.repeat(depth));
+        let objects = [
+            format!("<< /Type /Catalog /Pages 2 0 R /X {nested} >>"),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>".to_string(),
+        ];
+        let mut pdf = String::from("%PDF-1.4\n");
+        let mut offsets = vec![];
+        for (n, o) in objects.iter().enumerate() {
+            offsets.push(pdf.len());
+            pdf.push_str(&format!("{} 0 obj\n{o}\nendobj\n", n + 1));
+        }
+        let xref = pdf.len();
+        pdf.push_str(&format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1));
+        for off in offsets {
+            pdf.push_str(&format!("{off:010} 00000 n \n"));
+        }
+        pdf.push_str(&format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1));
+        let p = dir.join(name);
+        std::fs::write(&p, pdf).unwrap();
+        let info = prm_core::pdf::inspect(&p);
+        assert!(!info.state.is_empty());
+        let _ = prm_core::pdf::read_annotations(&p);
+    }
+}

@@ -116,7 +116,8 @@ network shares; "Open in default app" opens only unchanged documents; a database
 cannot run its own SQL; programs connected through the local connection cannot open, move or
 delete files; CSV cells cannot become formulas; online lookups start off and each request follows
 its own switch; requests cannot reach this computer or the local network; only web addresses
-become links in copied text.
+become links in copied text. The PDF and XML readers were updated to versions without known
+issues, so a crafted PDF cannot crash the program by nesting objects deeply.
 
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.

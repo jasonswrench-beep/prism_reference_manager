@@ -134,7 +134,7 @@ fn page_text(doc: &Document, pages: &std::collections::BTreeMap<u32, ObjectId>, 
     let mut out = String::new();
     for n in numbers {
         let id = pages.get(n)?;
-        let Ok(bytes) = doc.get_page_content(*id) else { continue };
+        let bytes = doc.get_page_content(*id);
         let Ok(content) = lopdf::content::Content::decode(&bytes) else { continue };
         for op in content.operations {
             match op.operator.as_str() {
