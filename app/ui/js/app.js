@@ -69,6 +69,17 @@ export function autoIndex() {
   })();
 }
 
+/** Online lookups start off; ask once whether to allow them. */
+async function firstRunNetworkQuestion() {
+  if (S.settings.network_asked || S.info?.test_run || "network_enabled" in (S.info?.policy?.locked || {})) return;
+  const yes = await modal("Online lookups", h("div",
+    h("p", "Prism Reference Manager can look up a source's details from its DOI, PubMed, arXiv or ISBN number, and find free copies of articles, using open scholarly services."),
+    h("p", "A lookup sends only the identifier (or, when you ask it to find a missing DOI, the title, first author and year). Your library, PDFs and notes are never sent. Every request is listed under Tools › Network activity."),
+    h("p.small.muted", "You can change this, and turn off each kind of request, in Settings › Network.")),
+    { size: "narrow", buttons: [{ label: "Keep lookups off", value: false }, { label: "Allow lookups", kind: "primary", value: true }] }).done;
+  await saveSettings({ network_enabled: yes === true, network_asked: true });
+}
+
 let upgradeShown = "";
 export async function loadInfo() {
   const info = await call("app.info");
@@ -507,6 +518,7 @@ export async function start() {
     showError(e);
   }
   await render();
+  firstRunNetworkQuestion();
   window.addEventListener("beforeunload", () => saveWorkspace());
   setTimeout(autoIndex, 4000);
   // Started from a prism-rm:// link.

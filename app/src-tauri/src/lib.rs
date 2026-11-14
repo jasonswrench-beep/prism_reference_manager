@@ -62,7 +62,7 @@ async fn call(app: tauri::AppHandle, state: tauri::State<'_, Shared>, method: St
 async fn read_attachment(state: tauri::State<'_, Shared>, id: String) -> Result<tauri::ipc::Response, CallError> {
     let shared = state.inner().clone();
     let r = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, CallError> {
-        let st = shared.lock().unwrap();
+        let st = shared.lock().unwrap_or_else(|e| e.into_inner());
         let lib = st.lib.as_ref().ok_or(CallError { message: "No library is open.".into(), detail: String::new() })?;
         let a = lib.store.must::<prm_core::model::Attachment>(&id).map_err(dispatch::err)?;
         let p = lib.attachment_path(&a);
@@ -77,7 +77,7 @@ async fn read_attachment(state: tauri::State<'_, Shared>, id: String) -> Result<
 #[tauri::command]
 async fn read_picked(path: String) -> Result<tauri::ipc::Response, CallError> {
     let p = PathBuf::from(&path);
-    if !dispatch::picked_paths().lock().unwrap().contains(&p) {
+    if !dispatch::picked_paths().lock().unwrap_or_else(|e| e.into_inner()).contains(&p) {
         return Err(CallError { message: "Only files chosen in a dialog can be read.".into(), detail: String::new() });
     }
     let bytes = std::fs::read(&p).map_err(|e| CallError { message: "The file could not be read.".into(), detail: e.to_string() })?;

@@ -184,7 +184,7 @@ impl Library {
             let mut na = a.clone();
             if a.mode == "managed" {
                 // A managed file found elsewhere is copied back into the library.
-                let dest = self.files_dir().join(&a.path);
+                let dest = self.inside_files(&a.path)?;
                 if let Some(parent) = dest.parent() {
                     std::fs::create_dir_all(parent)?;
                 }

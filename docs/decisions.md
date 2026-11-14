@@ -133,9 +133,17 @@ from recognized words are labelled as such, and an edit keeps the original extra
 
 ## D8. Administrator policy and portable mode
 
-`policy.json` next to the program or in `%ProgramData%\Prism Reference Manager` locks setting
-values (for example `network_enabled`, `api_enabled`, `auto_backup`). A `portable.txt` file next
-to the program keeps settings and the default library beside it.
+`%ProgramData%\Prism Reference Manager\policy.json` locks setting values (for example
+`network_enabled`, `auto_backup`), but only when an administrator made it: the folder and the file
+must be owned by Administrators, SYSTEM or TrustedInstaller, and no other account may change the
+file or replace it (any account can create folders in ProgramData). A file that fails this is
+ignored and named in the diagnostic bundle. A `policy.json` beside the program is no longer read.
+
+Policy can only restrict: it may never set `api_clients`, `watched_folders`, `linked_bases`,
+`backup_dir`, `api_port`, recent libraries, exports kept up to date, layouts or shortcuts, and it
+may set `api_enabled`, `backup_include_files`, `update_check` and `auto_index` only to false. The
+same filter applies to Group Policy. A `portable.txt` file next to the program keeps settings and
+the default library beside it.
 
 Group Policy: values under `Software\Policies\Prism Reference Manager` lock the setting of the
 same name, in HKCU and HKLM (computer policy wins over user policy, and both over

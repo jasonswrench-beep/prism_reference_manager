@@ -131,7 +131,28 @@ fn table_ok(t: &str) -> Result<()> {
 }
 
 /// Connection settings; they cannot change inside a transaction, so they run first.
+/// A library database may come from someone else (a folder they shared, a restored backup).
+/// Defensive mode stops SQL from corrupting the file through its own structure, the schema is not
+/// trusted to run functions, and any trigger or view is removed: the program makes neither, so
+/// one found here was added by someone else and would run on later edits.
+pub fn harden(conn: &Connection, writable: bool) -> Result<()> {
+    conn.set_db_config(rusqlite::config::DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+    conn.execute_batch("PRAGMA trusted_schema=OFF;")?;
+    if writable {
+        let extra: Vec<(String, String)> = {
+            let mut st = conn.prepare("SELECT type, name FROM sqlite_master WHERE type IN ('trigger','view')")?;
+            let v = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(|r| r.ok()).collect();
+            v
+        };
+        for (kind, name) in extra {
+            conn.execute_batch(&format!("DROP {} IF EXISTS \"{}\"", if kind == "trigger" { "TRIGGER" } else { "VIEW" }, name.replace('"', "\"\"")))?;
+        }
+    }
+    Ok(())
+}
+
 fn connection_pragmas(conn: &Connection, writable: bool) -> Result<()> {
+    harden(conn, writable)?;
     if writable {
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")?;
     }
@@ -505,7 +526,11 @@ impl Store {
         let mut last = checkpoint;
         for r in rows {
             let (seq, tbl, id) = r?;
-            touched.insert((tbl, id));
+            // A change record naming a table the program does not have is ignored: its name would
+            // otherwise become a folder name in the mirror.
+            if table_ok(&tbl).is_ok() {
+                touched.insert((tbl, id));
+            }
             last = seq;
         }
         for (tbl, id) in &touched {
@@ -545,6 +570,7 @@ impl Store {
 
     /// The mirror text the program writes for one entity: JSON, and Markdown for notes.
     pub fn mirror_text(&self, tbl: &str, id: &str) -> Result<Option<(String, Option<String>)>> {
+        table_ok(tbl)?;
         let data: Option<String> = self.conn.query_row(&format!("SELECT data FROM {tbl} WHERE id=?1"), params![id], |r| r.get(0)).optional()?;
         Ok(match data {
             Some(d) => {
@@ -591,6 +617,7 @@ impl Store {
     }
 
     pub fn mirror_entity(&self, tbl: &str, id: &str) -> Result<()> {
+        table_ok(tbl)?;
         let path = self.mirror_path(tbl, id);
         let md = path.with_extension("md");
         match self.mirror_text(tbl, id)? {

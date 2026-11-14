@@ -21,7 +21,7 @@ fn metadata_accuracy_corpus() {
             reviewed += 1;
         }
         let doi = e["doi"].as_str().unwrap();
-        let res = prm_core::lookup::resolve("doi", doi, &mut |_, _, _, _, _| {});
+        let res = prm_core::lookup::resolve("doi", doi, &|_| true, &mut |_, _, _, _, _| {});
         let Some(c) = res.candidate else {
             abstained += 1;
             println!("ABSTAIN {doi}: {}", res.message);

@@ -18,9 +18,24 @@ removed by the uninstaller.
 
 ## What leaves the computer
 
-Nothing, unless the person uses an optional online lookup or checks for updates. There is no telemetry, no account and
-no background synchronization. Each outbound request is listed in Settings › Network (with a
-switch per kind) and logged in Tools › Network activity with what was sent.
+Online lookups are off until the person allows them: the program asks once, on first start, and
+the answer can be changed in Settings › Network. There is no telemetry, no account and no
+background synchronization. Each kind of request has its own switch in Settings › Network, every
+request is checked against its own switch (including the second DOI check below), and each one
+is logged in Tools › Network activity with what was sent.
+
+With lookups allowed, requests happen:
+
+- when the person asks: looking up an identifier or web page, finding a free copy, finding a
+  missing DOI or abstract, checking saved web addresses;
+- when a browser capture arrives without enough details, for the identifier it carries;
+- when PDFs are imported, only if the person ticks "Look up the DOIs and arXiv identifiers found
+  in the files online" in that import (remembered as the default for the next one);
+- for PDFs that appear in a watched folder, only if "Look up identifiers found in new PDFs online"
+  is ticked in Settings › Library and backup › Watched folders (off by default).
+
+Only secure (https) web pages are looked up and only https free copies are downloaded. No request,
+and no redirect, may reach this computer itself or an address on the local network.
 
 | Kind | Service | Sent |
 |---|---|---|
@@ -42,7 +57,7 @@ PDF contents, notes, annotations and quotations are never sent anywhere. Text re
 scanned PDFs uses the recognizer built into Windows on this computer; page images stay in memory
 and are not saved or sent. The recognized text is stored in `library.db`, never in the PDF. A project can block all
 outbound requests (Settings › Network and privacy). Administrators can turn network use off for
-everyone with `policy.json` (`{"network_enabled": false}`).
+everyone with Group Policy or an administrator-owned `policy.json` (`{"network_enabled": false}`).
 
 ## Local connections
 

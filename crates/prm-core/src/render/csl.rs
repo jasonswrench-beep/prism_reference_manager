@@ -120,6 +120,11 @@ pub struct ParsedStyle {
 
 /// Parse a .csl file. Dependent styles are resolved against `lookup` (CSL id → parent style).
 pub fn parse_style(xml: &str, lookup: &dyn Fn(&str) -> Option<IndependentStyle>) -> Result<ParsedStyle, String> {
+    // Real citation styles are well under 1 MB; a larger file is refused before the XML reader
+    // sees it (that reader's version has a memory-exhaustion bug with huge inputs).
+    if xml.len() > 2 * 1024 * 1024 {
+        return Err("This file is too large to be a citation style (over 2 MB).".into());
+    }
     let style = Style::from_xml(xml).map_err(|e| format!("This is not a valid CSL style file: {e}"))?;
     let hash = hash_of(xml);
     let (independent, forced_locale, info, parent) = match style {

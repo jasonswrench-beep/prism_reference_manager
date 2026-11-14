@@ -115,6 +115,17 @@ pub fn parse(text: &str, mapping: Option<&BTreeMap<String, String>>) -> ParseOut
     out
 }
 
+/// A cell a spreadsheet would read as a formula (it starts with =, +, -, @, a tab or a carriage
+/// return) gets a leading apostrophe, so titles, notes and links from imported records cannot run
+/// as formulas when the file is opened.
+pub fn inert(cell: &str) -> std::borrow::Cow<'_, str> {
+    if cell.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        std::borrow::Cow::Owned(format!("'{cell}"))
+    } else {
+        std::borrow::Cow::Borrowed(cell)
+    }
+}
+
 /// Export the main fields as CSV, one row per reference, with the stable id first so a
 /// spreadsheet edit can be matched back.
 pub fn export(refs: &[&Reference]) -> crate::Result<String> {
@@ -122,14 +133,14 @@ pub fn export(refs: &[&Reference]) -> crate::Result<String> {
     let mut w = csv::Writer::from_writer(vec![]);
     w.write_record(&head)?;
     for r in rows {
-        w.write_record(&r)?;
+        w.write_record(r.iter().map(|c| inert(c).into_owned()))?;
     }
     let bytes = w.into_inner().map_err(|e| crate::Error::user(e.to_string()))?;
     // A byte-order mark helps spreadsheet programs detect UTF-8.
     Ok(format!("\u{feff}{}", String::from_utf8_lossy(&bytes)))
 }
 
-/// The same table as an Excel workbook: bold header row, frozen, with a filter and sensible widths.
+/// The same table as a spreadsheet (.xlsx): bold header row, frozen, with a filter and sensible widths.
 pub fn export_xlsx(refs: &[&Reference]) -> crate::Result<Vec<u8>> {
     use rust_xlsxwriter::{Format, Workbook};
     let (head, rows) = table(refs);
@@ -160,7 +171,7 @@ pub fn export_xlsx(refs: &[&Reference]) -> crate::Result<Vec<u8>> {
     wb.save_to_buffer().map_err(x)
 }
 
-/// Header and rows shared by the CSV and Excel exports.
+/// Header and rows shared by the CSV and spreadsheet exports.
 pub fn table(refs: &[&Reference]) -> (Vec<String>, Vec<Vec<String>>) {
     let custom: Vec<String> = refs.iter().flat_map(|r| r.custom.keys().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
     let mut head: Vec<String> = ["id", "citekey", "type", "authors", "editors", "year", "date", "title", "container_title", "volume", "issue", "page", "article_number", "doi", "url", "publisher", "publisher_place", "edition", "isbn", "issn", "abstract", "keywords", "language", "note"].iter().map(|s| s.to_string()).collect();
@@ -206,4 +217,18 @@ pub fn table(refs: &[&Reference]) -> (Vec<String>, Vec<Vec<String>>) {
         ].into_iter().map(|s| s.to_string()).chain(cv.into_iter()).collect::<Vec<String>>());
     }
     (head, rows)
+}
+
+#[cfg(test)]
+mod formula_tests {
+    #[test]
+    fn formula_cells_are_made_inert() {
+        let mut r = crate::model::Reference { id: "a".into(), rtype: "book".into(), ..Default::default() };
+        r.fields.insert("title".into(), "=1+1".into());
+        r.fields.insert("note".into(), "@SUM(A1)".into());
+        let csv = super::export(&[&r]).unwrap();
+        assert!(csv.contains("'=1+1") && csv.contains("'@SUM(A1)"), "{csv}");
+        assert_eq!(super::inert("Ordinary title"), "Ordinary title");
+        assert_eq!(super::inert("-5 degrees"), "'-5 degrees");
+    }
 }

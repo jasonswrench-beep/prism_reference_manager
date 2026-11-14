@@ -168,7 +168,12 @@ fn page_text(doc: &Document, pages: &std::collections::BTreeMap<u32, ObjectId>, 
     if out.trim().is_empty() { None } else { Some(out) }
 }
 
+/// Inspect a PDF. A file built to crash the PDF reader gives a "malformed" result instead.
 pub fn inspect(path: &Path) -> PdfInfo {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| inspect_inner(path))).unwrap_or_else(|_| PdfInfo { state: "malformed".into(), ..Default::default() })
+}
+
+fn inspect_inner(path: &Path) -> PdfInfo {
     let mut info = PdfInfo { state: "ok".into(), ..Default::default() };
     let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     let bytes = match std::fs::read(path) {
@@ -390,6 +395,15 @@ fn draw_ops(a: &Annotation, quads: &[[f32; 4]], c: [f32; 3]) -> String {
 /// Write `annotations` as standard PDF annotation objects into a copy of `src` at `dest`.
 /// With `flatten`, marks are drawn into page content instead (a display-only copy).
 pub fn export_annotated(src: &Path, dest: &Path, annotations: &[Annotation], flatten: bool) -> Result<usize> {
+    unpanic(|| export_annotated_inner(src, dest, annotations, flatten))
+}
+
+/// Run PDF work so that a malformed file the PDF library cannot handle gives an error, not a crash.
+fn unpanic<T>(f: impl FnOnce() -> Result<T>) -> Result<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| Err(Error::user("This PDF's structure could not be read.")))
+}
+
+fn export_annotated_inner(src: &Path, dest: &Path, annotations: &[Annotation], flatten: bool) -> Result<usize> {
     if src == dest {
         return Err(Error::user("Choose a different file name; the original PDF is never overwritten."));
     }
@@ -580,6 +594,10 @@ pub struct ExternalAnnotation {
 
 /// Read annotations from a PDF made in another reader. Unsupported subtypes are reported by name.
 pub fn read_annotations(path: &Path) -> Result<(Vec<ExternalAnnotation>, Vec<String>)> {
+    unpanic(|| read_annotations_inner(path))
+}
+
+fn read_annotations_inner(path: &Path) -> Result<(Vec<ExternalAnnotation>, Vec<String>)> {
     let doc = Document::load(path)?;
     let mut out = Vec::new();
     let mut unsupported = Vec::new();

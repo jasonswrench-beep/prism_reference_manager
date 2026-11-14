@@ -103,6 +103,12 @@ pub struct Settings {
     pub file_name_pattern: String,
     /// System-wide shortcut for the quick-copy launcher; empty keeps it off.
     pub quick_copy_shortcut: String,
+    /// The person has answered the first-run question about online lookups.
+    pub network_asked: bool,
+    /// Look up identifiers found in imported PDFs (asked in the import dialog).
+    pub pdf_lookups: bool,
+    /// Look up identifiers found in PDFs that appear in watched folders.
+    pub watch_lookups: bool,
 }
 
 impl Default for Settings {
@@ -117,7 +123,7 @@ impl Default for Settings {
             reduce_motion: false,
             citekey_pattern: prm_core::citekey::DEFAULT_PATTERN.into(),
             protected_terms: vec![],
-            network_enabled: true,
+            network_enabled: false,
             network_disabled_kinds: vec![],
             auto_backup: true,
             backup_interval_hours: 24,
@@ -151,16 +157,102 @@ impl Default for Settings {
             ocr_lang: String::new(),
             file_name_pattern: String::new(),
             quick_copy_shortcut: String::new(),
+            network_asked: false,
+            pdf_lookups: false,
+            watch_lookups: false,
         }
     }
 }
 
-/// Administrator policy: values here override and lock the matching settings. Read from
-/// `policy.json` next to the program, then from `%ProgramData%\Prism Reference Manager`.
+/// Administrator policy: values here override and lock the matching settings (see `load_policy`
+/// for where it comes from and what it may set).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Policy {
     pub source: String,
     pub locked: serde_json::Map<String, Value>,
+    /// Policy files that were found but not trusted, and why (shown in diagnostics).
+    #[serde(default)]
+    pub ignored: Vec<String>,
+}
+
+/// Accounts that may own or change a policy file: Administrators, SYSTEM, TrustedInstaller.
+pub const TRUSTED_SIDS: &[&str] = &["S-1-5-32-544", "S-1-5-18", "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"];
+/// Rights that let an account change a file or folder, or replace what is inside a folder.
+const WRITE_RIGHTS: u32 = 0x0000_0002 | 0x0000_0004 | 0x0000_0010 | 0x0000_0040 | 0x0000_0100 | 0x0001_0000 | 0x0004_0000 | 0x0008_0000 | 0x1000_0000 | 0x4000_0000;
+/// For a folder, adding a file (0x2) or a subfolder (0x4) does not let anyone change a file an
+/// administrator put there; deleting or replacing it does.
+const FOLDER_WRITE_RIGHTS: u32 = WRITE_RIGHTS & !(0x0000_0002 | 0x0000_0004 | 0x0000_0010 | 0x0000_0100 | 0x4000_0000);
+
+/// Decide from an object's owner and its access-allowed entries (SID, rights, inherit-only)
+/// whether only trusted accounts can change it.
+pub fn only_trusted_can_write(owner: &str, aces: &[(String, u32, bool)], is_dir: bool) -> Result<(), String> {
+    if !TRUSTED_SIDS.contains(&owner) {
+        return Err(format!("it is owned by {owner}, not by an administrator"));
+    }
+    let rights = if is_dir { FOLDER_WRITE_RIGHTS } else { WRITE_RIGHTS };
+    for (sid, mask, inherit_only) in aces {
+        if !inherit_only && mask & rights != 0 && !TRUSTED_SIDS.contains(&sid.as_str()) {
+            return Err(format!("{sid} can change it"));
+        }
+    }
+    Ok(())
+}
+
+/// Read a file's or folder's owner and access list from Windows and check it.
+#[cfg(windows)]
+pub fn admin_only(path: &Path) -> Result<(), String> {
+    use windows::core::{HSTRING, PWSTR};
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Authorization::{ConvertSidToStringSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT};
+    use windows::Win32::Security::{GetAce, ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, DACL_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID};
+    unsafe fn sid_string(sid: PSID) -> String {
+        let mut out = PWSTR::null();
+        if unsafe { ConvertSidToStringSidW(sid, &mut out) }.is_err() {
+            return "an unknown account".into();
+        }
+        let s = unsafe { out.to_string() }.unwrap_or_default();
+        unsafe {
+            let _ = LocalFree(Some(HLOCAL(out.0 as _)));
+        }
+        s
+    }
+    let mut owner = PSID::default();
+    let mut dacl: *mut ACL = std::ptr::null_mut();
+    let mut sd = PSECURITY_DESCRIPTOR::default();
+    let err = unsafe { GetNamedSecurityInfoW(&HSTRING::from(path.as_os_str()), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Some(&mut owner), None, Some(&mut dacl), None, &mut sd) };
+    if err.0 != 0 {
+        return Err(format!("its permissions could not be read (error {})", err.0));
+    }
+    let result = (|| {
+        if dacl.is_null() {
+            return Err("it has no access list, so everyone can change it".to_string());
+        }
+        let owner_s = unsafe { sid_string(owner) };
+        let mut aces = vec![];
+        for i in 0..unsafe { (*dacl).AceCount } as u32 {
+            let mut ace: *mut core::ffi::c_void = std::ptr::null_mut();
+            if unsafe { GetAce(dacl, i, &mut ace) }.is_err() {
+                return Err("its access list could not be read".to_string());
+            }
+            let header = unsafe { &*(ace as *const ACE_HEADER) };
+            if header.AceType != 0 {
+                continue; // only access-allowed entries grant rights
+            }
+            let allowed = unsafe { &*(ace as *const ACCESS_ALLOWED_ACE) };
+            let sid = PSID(&allowed.SidStart as *const u32 as *mut _);
+            aces.push((unsafe { sid_string(sid) }, allowed.Mask, header.AceFlags & 0x08 != 0));
+        }
+        only_trusted_can_write(&owner_s, &aces, path.is_dir())
+    })();
+    unsafe {
+        let _ = LocalFree(Some(HLOCAL(sd.0 as _)));
+    }
+    result
+}
+
+#[cfg(not(windows))]
+pub fn admin_only(_path: &Path) -> Result<(), String> {
+    Err("policy files are read only on Windows".into())
 }
 
 pub fn exe_dir() -> PathBuf {
@@ -201,21 +293,47 @@ pub fn save(dir: &Path, s: &Settings) -> std::io::Result<()> {
     prm_core::util::write_atomic(&dir.join("settings.json"), serde_json::to_string_pretty(s).unwrap_or_default().as_bytes())
 }
 
+/// Settings policy may never set, from any source: they would let whoever writes the policy
+/// reach the person's library (a local API client, a backup folder, watched folders, link bases).
+pub const POLICY_NEVER: &[&str] = &["api_clients", "watched_folders", "linked_bases", "backup_dir", "api_port", "recent_libraries", "last_library", "bib_exports", "layouts", "layout", "shortcuts"];
+/// Settings policy may only switch off.
+pub const POLICY_OFF_ONLY: &[&str] = &["api_enabled", "backup_include_files", "update_check", "auto_index"];
+
+/// Keep only what policy may lock: known settings of the right type, never the keys in
+/// `POLICY_NEVER`, and the keys in `POLICY_OFF_ONLY` only when they switch something off.
+pub fn policy_filter(m: serde_json::Map<String, Value>) -> serde_json::Map<String, Value> {
+    let defaults = serde_json::to_value(Settings::default()).unwrap_or_default();
+    m.into_iter()
+        .filter(|(k, v)| {
+            let Some(target) = defaults.get(k) else { return false };
+            if POLICY_NEVER.contains(&k.as_str()) || std::mem::discriminant(v) != std::mem::discriminant(target) {
+                return false;
+            }
+            !POLICY_OFF_ONLY.contains(&k.as_str()) || v == &Value::Bool(false)
+        })
+        .collect()
+}
+
 /// Locked settings, from (highest first) Group Policy for the computer, Group Policy for the user,
-/// and a `policy.json` next to the program or in `%ProgramData%\Prism Reference Manager`.
+/// and `%ProgramData%\Prism Reference Manager\policy.json`. The file counts only when an
+/// administrator made it: the folder and the file must be owned by Administrators, SYSTEM or
+/// TrustedInstaller, and no other account may change them (any account can create folders in
+/// ProgramData, so a file someone else planted is ignored). Policy can only restrict.
 pub fn load_policy() -> Policy {
     let mut p = Policy::default();
     let mut sources = vec![];
-    let mut candidates = vec![exe_dir().join("policy.json")];
     if let Ok(pd) = std::env::var("ProgramData") {
-        candidates.push(PathBuf::from(pd).join("Prism Reference Manager").join("policy.json"));
-    }
-    for c in candidates {
-        if let Ok(s) = std::fs::read_to_string(&c) {
-            if let Ok(Value::Object(m)) = serde_json::from_str::<Value>(&s) {
-                sources.push(c.to_string_lossy().to_string());
-                p.locked = m;
-                break;
+        let dir = PathBuf::from(pd).join("Prism Reference Manager");
+        let file = dir.join("policy.json");
+        if file.is_file() {
+            match admin_only(&dir).and_then(|_| admin_only(&file)) {
+                Ok(()) => {
+                    if let Ok(Value::Object(m)) = std::fs::read_to_string(&file).map_err(|e| e.to_string()).and_then(|s| serde_json::from_str::<Value>(&s).map_err(|e| e.to_string())) {
+                        sources.push(file.to_string_lossy().to_string());
+                        p.locked = policy_filter(m);
+                    }
+                }
+                Err(why) => p.ignored.push(format!("{} was ignored: {why}", file.display())),
             }
         }
     }
@@ -225,7 +343,7 @@ pub fn load_policy() -> Policy {
             continue;
         }
         sources.push(label);
-        for (k, v) in policy_values(&values) {
+        for (k, v) in policy_filter(policy_values(&values)) {
             p.locked.insert(k, v);
         }
     }
@@ -324,7 +442,7 @@ mod policy_tests {
         assert!(!m.contains_key("not_a_setting") && !m.contains_key("api_enabled"));
         // Applied over the person's settings, the locked values win.
         let mut s = Settings { network_enabled: true, ..Default::default() };
-        apply_policy(&mut s, &Policy { source: "test".into(), locked: m });
+        apply_policy(&mut s, &Policy { source: "test".into(), locked: m, ignored: vec![] });
         assert!(!s.network_enabled && s.backup_interval_hours == 12);
     }
 }
@@ -361,5 +479,78 @@ mod secret_tests {
             assert!(!text.contains(word), "settings must not store {word}");
         }
         assert!(text.contains("\"token_hash\""));
+    }
+}
+
+#[cfg(test)]
+mod policy_trust_tests {
+    use super::*;
+    const ADMIN: &str = "S-1-5-32-544";
+    const SYSTEM: &str = "S-1-5-18";
+    const USER: &str = "S-1-5-21-1-2-3-1001";
+    const USERS: &str = "S-1-5-32-545";
+
+    #[test]
+    fn a_policy_file_counts_only_when_administrators_control_it() {
+        let read = 0x0012_00a9;
+        let full = 0x001f_01ff;
+        // An administrator's file: only Administrators and SYSTEM can change it; Users can read.
+        assert!(only_trusted_can_write(ADMIN, &[(ADMIN.into(), full, false), (SYSTEM.into(), full, false), (USERS.into(), read, false)], false).is_ok());
+        // A file another account created (it owns it) is ignored.
+        assert!(only_trusted_can_write(USER, &[(USER.into(), full, false)], false).is_err());
+        // An administrator's file that ordinary users may change is ignored.
+        assert!(only_trusted_can_write(ADMIN, &[(ADMIN.into(), full, false), (USERS.into(), 0x0012_019f, false)], false).is_err());
+        // A folder where users may add files but not delete or replace them is acceptable.
+        assert!(only_trusted_can_write(ADMIN, &[(ADMIN.into(), full, false), (USERS.into(), 0x0000_0006 | read, false)], true).is_ok());
+        // ...but not one where they may delete what is inside.
+        assert!(only_trusted_can_write(ADMIN, &[(USERS.into(), 0x0000_0040, false)], true).is_err());
+        // An entry that only applies to files created later does not count for this one.
+        assert!(only_trusted_can_write(ADMIN, &[(USER.into(), full, true)], false).is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_file_the_current_user_made_is_not_trusted() {
+        let p = std::env::temp_dir().join(format!("prm-policy-test-{}.json", std::process::id()));
+        std::fs::write(&p, "{}").unwrap();
+        let r = admin_only(&p);
+        let _ = std::fs::remove_file(&p);
+        assert!(r.is_err(), "a file in the user's own temp folder must not count as policy");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_file_only_the_system_controls_is_trusted() {
+        let p = std::path::PathBuf::from(std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into())).join("System32").join("notepad.exe");
+        if p.exists() {
+            assert_eq!(admin_only(&p), Ok(()), "a system file is owned by TrustedInstaller and only trusted accounts can change it");
+        }
+    }
+
+    #[test]
+    fn policy_only_restricts() {
+        let m: serde_json::Map<String, Value> = serde_json::from_value(serde_json::json!({
+            "network_enabled": false,
+            "api_enabled": true,
+            "api_clients": [{"id": "x", "name": "planted", "token_hash": "ab"}],
+            "backup_dir": "//server/share",
+            "backup_include_files": true,
+            "watched_folders": [],
+            "linked_bases": {},
+            "update_check": false,
+            "trash_retention_days": 30,
+            "no_such_setting": 1
+        }))
+        .unwrap();
+        let f = policy_filter(m);
+        assert_eq!(f.get("network_enabled"), Some(&Value::Bool(false)), "switching lookups off still works");
+        assert_eq!(f.get("update_check"), Some(&Value::Bool(false)));
+        assert!(f.contains_key("trash_retention_days"));
+        for k in ["api_enabled", "api_clients", "backup_dir", "backup_include_files", "watched_folders", "linked_bases", "no_such_setting"] {
+            assert!(!f.contains_key(k), "{k} must not come from policy");
+        }
+        let mut s = Settings::default();
+        apply_policy(&mut s, &Policy { source: "test".into(), locked: f, ignored: vec![] });
+        assert!(s.api_clients.is_empty() && !s.api_enabled);
     }
 }

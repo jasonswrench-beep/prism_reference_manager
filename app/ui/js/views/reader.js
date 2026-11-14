@@ -391,7 +391,7 @@ registerView("reader", {
     let pdf;
     try { pdf = await loadDoc(d); }
     catch (e) {
-      clear(pagesEl, h("div.empty", h("h3", "This PDF could not be opened"), h("p", e.message), h("div.btn-row", { style: { justifyContent: "center" } }, btn("Open in default app", { onClick: () => call("files.open_external", { id: d.att.id }) }), btn("Check files", { onClick: () => import("../dialogs.js").then((m) => m.checkFiles()) }))));
+      clear(pagesEl, h("div.empty", h("h3", "This PDF could not be opened"), h("p", e.message), h("div.btn-row", { style: { justifyContent: "center" } }, btn("Open in default app", { onClick: () => call("files.open_external", { id: d.att.id }).catch((e) => showError(e)) }), btn("Check files", { onClick: () => import("../dialogs.js").then((m) => m.checkFiles()) }))));
       return;
     }
     R.anns = await call("ann.list", { attachment_id: d.att.id, project_id: project });

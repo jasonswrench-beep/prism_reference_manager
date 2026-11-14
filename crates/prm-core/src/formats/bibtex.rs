@@ -199,8 +199,13 @@ impl<'a> Lexer<'a> {
         String::from_utf8_lossy(&self.s[st.min(self.s.len())..]).to_string()
     }
     fn value(&mut self, strings: &BTreeMap<String, String>) -> String {
-        let mut parts = Vec::new();
+        let mut parts: Vec<String> = Vec::new();
         loop {
+            // Strings that refer to each other can double in size each time; a field value is never
+            // longer than this.
+            if parts.iter().map(|p| p.len()).sum::<usize>() > VALUE_LIMIT {
+                break;
+            }
             self.ws();
             if self.i >= self.s.len() {
                 break;
@@ -244,9 +249,20 @@ impl<'a> Lexer<'a> {
             }
             break;
         }
-        parts.join("")
+        let mut v = parts.join("");
+        if v.len() > VALUE_LIMIT {
+            let mut cut = VALUE_LIMIT;
+            while !v.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            v.truncate(cut);
+        }
+        v
     }
 }
+
+/// Longest field value read from a BibTeX file (64 KB).
+const VALUE_LIMIT: usize = 64 * 1024;
 
 pub fn parse(text: &str) -> ParseOutput {
     let mut out = ParseOutput::default();
@@ -473,6 +489,11 @@ fn escape(s: &str) -> String {
                 o.push('\\');
                 o.push(c);
             }
+            // A backslash would start a TeX command when the file is used with LaTeX; ~ and ^
+            // also mean something there. Text from other sources stays text.
+            '\\' => o.push_str("\\textbackslash{}"),
+            '~' => o.push_str("\\textasciitilde{}"),
+            '^' => o.push_str("\\textasciicircum{}"),
             '–' => o.push_str("--"),
             '—' => o.push_str("---"),
             c => o.push(c),
@@ -652,5 +673,34 @@ mod tests {
         assert_eq!(r.issued.as_ref().unwrap().month, Some(3));
         assert_eq!(r.overflow.get("bibtex:custom").map(|s| s.as_str()), Some("kept"));
         assert_eq!(delatex("M\\\"{u}ller \\& G\\'omez"), "Müller & Gómez");
+    }
+}
+
+#[cfg(test)]
+mod expansion_tests {
+    #[test]
+    fn strings_that_double_cannot_exhaust_memory() {
+        let mut t = String::from("@string{a0 = \"xxxxxxxxxxxxxxxx\"}
+");
+        for i in 1..40 {
+            t.push_str(&format!("@string{{a{i} = a{p} # a{p}}}
+", p = i - 1));
+        }
+        t.push_str("@article{k, title = a39}
+");
+        let out = super::parse(&t);
+        assert!(out.records[0].record.title().len() <= super::VALUE_LIMIT);
+    }
+}
+
+#[cfg(test)]
+mod tex_escape_tests {
+    #[test]
+    fn backslashes_from_other_sources_do_not_become_tex_commands() {
+        let mut r = crate::model::Reference { id: "a".into(), rtype: "book".into(), citekey: "k".into(), ..Default::default() };
+        r.fields.insert("title".into(), r"A \input{/etc/passwd} test".into());
+        let out = super::export(&[&r], false, &[]);
+        assert!(!out.contains(r"\input"), "{out}");
+        assert!(out.contains(r"\textbackslash{}input"));
     }
 }

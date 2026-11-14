@@ -90,7 +90,9 @@ row in the table above and a test in `crates/prm-core/tests/migrations.rs`.
 
 `Export complete library package` writes a zip with `manifest.json` (counts, checksums, journal
 watermark), `data/<table>.json` for every entity, `notes/<id>.md`, `references.csl.json`,
-`references.bib`, `styles/`, and `files/`. Importing it into an empty folder reproduces the
+`references.bib`, `styles/`, and `files/` (each file named by its content hash,
+`files/<hash>.<ext>`, so no name can climb out of a folder when the package is unpacked elsewhere;
+packages from earlier builds used the stored path and still import). Importing it into an empty folder reproduces the
 library; the round trip is tested on every build.
 
 ## Exchange file for other Prism tools
@@ -104,3 +106,20 @@ file export, not live synchronization.
 `<name>.prism-annotations.json` next to an exported annotated PDF: format
 `prism-annotation-sidecar` version 1, the attachment hash, and every annotation with project
 scope, meaning, links, locators and review state. Each PDF annotation's name equals its id.
+
+## Data from outside the program
+
+Export packages and restored backups are made elsewhere, so their contents are checked before use:
+
+- Attachment rows are kept only when a managed path is relative with plain name parts (no `..`,
+  drive or root) and a linked path is on a lettered drive or under the base folder. Network paths
+  (`\\server\share`, `\\?\`) are refused, since opening one would make Windows offer the
+  person's sign-in to that server. Refused rows are listed in the import result or the restore log.
+- Files unpacked from a package or backup are marked as downloaded (a `Zone.Identifier` stream),
+  so Windows warns before anything runs them. "Open in default app" opens only document types whose
+  content still matches the recorded hash.
+- On every open, the database runs in SQLite's defensive mode with an untrusted schema, and any
+  trigger or view is removed (the program makes none). The mirror ignores change records that name
+  an unknown table.
+- Before deleting, renaming or copying into the files folder, the program checks the real location
+  is inside it.

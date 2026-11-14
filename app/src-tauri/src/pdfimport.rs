@@ -75,7 +75,8 @@ pub fn prepare(paths: &[PathBuf], root: Option<&Path>, progress: &dyn Fn(usize, 
 
 /// Identifier lookups (no lock). `doi_ok`/`arxiv_ok` say whether those requests are allowed.
 /// Network log lines are collected and written by the caller once it holds the lock.
-pub fn lookups(found: &[Found], doi_ok: bool, arxiv_ok: bool, log: &mut Vec<(String, String, String, bool, String)>, progress: &dyn Fn(usize, usize)) -> Vec<Looked> {
+pub fn lookups(found: &[Found], may: &dyn Fn(&str) -> bool, log: &mut Vec<(String, String, String, bool, String)>, progress: &dyn Fn(usize, usize)) -> Vec<Looked> {
+    let (doi_ok, arxiv_ok) = (may("doi"), may("arxiv"));
     found
         .iter()
         .enumerate()
@@ -86,7 +87,7 @@ pub fn lookups(found: &[Found], doi_ok: bool, arxiv_ok: bool, log: &mut Vec<(Str
             let mut logf = |k: &str, h: &str, sent: &str, ok: bool, d: &str| log.push((k.into(), h.into(), sent.into(), ok, d.into()));
             let try_kind = if doi_ok && !f.info.dois.is_empty() { Some(("doi", f.info.dois[0].clone())) } else if arxiv_ok && !f.info.arxiv.is_empty() { Some(("arxiv", f.info.arxiv[0].clone())) } else { None };
             if let Some((kind, id)) = try_kind {
-                let res = prm_core::lookup::resolve(kind, &id, &mut logf);
+                let res = prm_core::lookup::resolve(kind, &id, may, &mut logf);
                 if let Some(c) = res.candidate {
                     let t = c.title().to_lowercase();
                     if !f.info.title.is_empty() && prm_core::strsim_ratio(&t, &f.info.title.to_lowercase()) < 0.6 {
@@ -176,25 +177,27 @@ pub fn stage(st: &mut AppState, found: &[Found], looked: &[Looked], log: &[(Stri
     Ok(b)
 }
 
-/// Whether DOI and arXiv lookups are allowed for this project (brief lock).
-pub fn lookup_permissions(shared: &Shared, project_id: &str) -> (bool, bool) {
+/// Which kinds of request are allowed for this project now (brief lock).
+pub fn lookup_permissions(shared: &Shared, project_id: &str) -> Box<dyn Fn(&str) -> bool + Send + Sync> {
     match shared.lock() {
-        Ok(st) => (crate::dispatch::network_allowed(&st, "doi", project_id).is_ok(), crate::dispatch::network_allowed(&st, "arxiv", project_id).is_ok()),
-        Err(_) => (false, false),
+        Ok(st) => Box::new(crate::dispatch::kinds_allowed(&st, project_id)),
+        Err(_) => Box::new(|_: &str| false),
     }
 }
 
-/// The whole pipeline for a list of files, reporting progress to the window.
-pub fn import_paths(app: &tauri::AppHandle, shared: &Shared, paths: &[PathBuf], root: Option<&Path>, project_id: &str, name: &str, service: &str, mirror: bool) -> Result<ImportBatch, CallError> {
+/// The whole pipeline for a list of files, reporting progress to the window. Identifiers found
+/// in the files are looked up online only when `look_up` is true (the person said yes for this
+/// import, or for watched folders) and the switches allow it.
+pub fn import_paths(app: &tauri::AppHandle, shared: &Shared, paths: &[PathBuf], root: Option<&Path>, project_id: &str, name: &str, service: &str, mirror: bool, look_up: bool) -> Result<ImportBatch, CallError> {
     let emit = |phase: &str, i: usize, n: usize| {
         let _ = app.emit("import-progress", json!({"phase": phase, "done": i, "total": n}));
     };
     let found = prepare(paths, root, &|i, n| emit("Reading files", i, n));
-    let (doi_ok, arxiv_ok) = lookup_permissions(shared, project_id);
+    let may: Box<dyn Fn(&str) -> bool + Send + Sync> = if look_up { lookup_permissions(shared, project_id) } else { Box::new(|_: &str| false) };
     let mut log = vec![];
-    let looked = lookups(&found, doi_ok, arxiv_ok, &mut log, &|i, n| emit("Looking up identifiers", i, n));
+    let looked = lookups(&found, &*may, &mut log, &|i, n| emit("Looking up identifiers", i, n));
     emit("Preparing review", found.len(), found.len());
-    let mut st = shared.lock().map_err(|_| crate::dispatch::user("The program is busy; try again."))?;
+    let mut st = shared.lock().unwrap_or_else(|e| e.into_inner());
     stage(&mut st, &found, &looked, &log, project_id, name, service, mirror)
 }
 
@@ -229,7 +232,7 @@ pub fn mirror_folders(lib: &mut prm_core::library::Library, batch: &ImportBatch)
 /// last 15 seconds are left for the next pass, so downloads in progress are not taken half-written.
 pub fn scan_watched(app: &tauri::AppHandle, shared: &Shared) -> Result<Vec<serde_json::Value>, CallError> {
     let (folders, known) = {
-        let st = shared.lock().map_err(|_| crate::dispatch::user("busy"))?;
+        let st = shared.lock().unwrap_or_else(|e| e.into_inner());
         let Some(lib) = st.lib.as_ref() else { return Ok(vec![]) };
         let root = lib.root.to_string_lossy().to_string();
         let folders: Vec<_> = st.settings.watched_folders.iter().filter(|w| w.library == root).cloned().collect();
@@ -255,7 +258,7 @@ pub fn scan_watched(app: &tauri::AppHandle, shared: &Shared) -> Result<Vec<serde
             .filter(|p| std::fs::metadata(p).and_then(|m| m.modified()).map(|t| now.duration_since(t).map(|d| d.as_secs() >= 15).unwrap_or(false)).unwrap_or(false))
             .collect();
         let fresh: Vec<PathBuf> = {
-            let st = shared.lock().map_err(|_| crate::dispatch::user("busy"))?;
+            let st = shared.lock().unwrap_or_else(|e| e.into_inner());
             let Some(lib) = st.lib.as_ref() else { return Ok(out) };
             settled
                 .into_iter()
@@ -269,7 +272,8 @@ pub fn scan_watched(app: &tauri::AppHandle, shared: &Shared) -> Result<Vec<serde
             continue;
         }
         let name = format!("Watched folder: {}", Path::new(&w.path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
-        let b = import_paths(app, shared, &fresh, Some(Path::new(&w.path)), &w.project_id, &name, "watch", w.mirror)?;
+        let look_up = shared.lock().map(|st| st.settings.watch_lookups).unwrap_or(false);
+        let b = import_paths(app, shared, &fresh, Some(Path::new(&w.path)), &w.project_id, &name, "watch", w.mirror, look_up)?;
         let ev = json!({"batch_id": b.id, "count": b.records.len(), "folder": w.path});
         let _ = app.emit("watch", ev.clone());
         out.push(ev);

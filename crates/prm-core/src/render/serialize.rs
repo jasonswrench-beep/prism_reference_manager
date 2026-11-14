@@ -28,7 +28,7 @@ pub fn html_runs(runs: &[Run]) -> String {
         if r.small_caps {
             t = format!("<span style=\"font-variant:small-caps\">{t}</span>");
         }
-        if let Some(l) = &r.link {
+        if let Some(l) = r.link.as_deref().filter(|l| web_link(l)) {
             t = format!("<a href=\"{}\">{}</a>", html_escape(l), t);
         }
         o.push_str(&t);
@@ -82,6 +82,14 @@ pub fn cf_html(fragment: &str) -> String {
     format!("{header}{pre}{fragment}{post}")
 }
 
+/// Only web addresses become links in copied and exported text: a reference's address could be a
+/// file path, a network share or a program's own scheme, which a click would open. Quotes and
+/// other characters that could end the link's markup are not accepted either.
+pub fn web_link(l: &str) -> bool {
+    let low = l.trim().to_ascii_lowercase();
+    (low.starts_with("https://") || low.starts_with("http://")) && !l.contains(['"', '<', '>', '\\', '\n', '\r', '{', '}'])
+}
+
 fn rtf_escape(s: &str) -> String {
     let mut o = String::new();
     for c in s.chars() {
@@ -122,7 +130,7 @@ fn rtf_runs(runs: &[Run]) -> String {
         if r.small_caps {
             t = format!("{{\\scaps {t}}}");
         }
-        if let Some(l) = &r.link {
+        if let Some(l) = r.link.as_deref().filter(|l| web_link(l)) {
             t = format!("{{\\field{{\\*\\fldinst{{HYPERLINK \"{}\"}}}}{{\\fldrslt {}}}}}", rtf_escape(l), t);
         }
         o.push_str(&t);
@@ -171,7 +179,7 @@ pub fn markdown_runs(runs: &[Run]) -> String {
         if r.sup {
             t = format!("<sup>{t}</sup>");
         }
-        if let Some(l) = &r.link {
+        if let Some(l) = r.link.as_ref().filter(|l| web_link(l)) {
             if l == &r.text {
                 t = format!("<{l}>");
             } else {
@@ -225,7 +233,7 @@ fn docx_runs(runs: &[Run], rels: &mut Vec<String>) -> String {
             text_xml.push_str(&format!("<w:t xml:space=\"preserve\">{}</w:t>", xml_escape(line)));
         }
         let run = format!("<w:r>{}{}</w:r>", if rpr.is_empty() { String::new() } else { format!("<w:rPr>{rpr}</w:rPr>") }, text_xml);
-        if let Some(l) = &r.link {
+        if let Some(l) = r.link.as_ref().filter(|l| web_link(l)) {
             rels.push(l.clone());
             o.push_str(&format!("<w:hyperlink r:id=\"rIdL{}\">{}</w:hyperlink>", rels.len(), run));
         } else {
@@ -346,5 +354,20 @@ mod tests {
     fn rtf_unicode() {
         assert_eq!(rtf_escape("é"), "\\u233?");
         assert!(rtf_escape("𝔄").contains("\\u-"));
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+    #[test]
+    fn only_web_addresses_become_links() {
+        let run = |l: &str| Run { text: "here".into(), link: Some(l.into()), ..Default::default() };
+        for bad in ["file:///C:/Windows/notepad.exe", r"\host\share\x.pdf", "javascript:alert(1)", "https://x.example/\"onmouseover=\"x"] {
+            assert!(!html_runs(&[run(bad)]).contains("<a "), "{bad}");
+            assert!(!rtf_inline(&[run(bad)]).contains("HYPERLINK"), "{bad}");
+        }
+        assert!(html_runs(&[run("https://doi.org/10.1000/x")]).contains("<a href=\"https://doi.org/10.1000/x\">"));
+        assert!(rtf_inline(&[run("https://doi.org/10.1000/x")]).contains("HYPERLINK"));
     }
 }

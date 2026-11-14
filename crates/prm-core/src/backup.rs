@@ -30,6 +30,9 @@ pub struct Manifest {
     pub checksums: BTreeMap<String, String>,
     pub includes_files: bool,
     pub attachments_expected: usize,
+    /// Records left out on import because they were not safe, and why.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skipped: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -67,6 +70,7 @@ pub fn backup(lib: &Library, dest: &Path, include_files: bool) -> Result<Manifes
         checksums: BTreeMap::new(),
         includes_files: include_files,
         attachments_expected: lib.store.count("attachments")? as usize,
+        skipped: vec![],
     };
     if let Some(p) = dest.parent() {
         std::fs::create_dir_all(p)?;
@@ -168,9 +172,16 @@ pub fn verify(path: &Path) -> Result<VerifyReport> {
         std::io::copy(&mut e, &mut out)?;
     }
     let conn = rusqlite::Connection::open(tmpdir.join("library.db"))?;
+    crate::store::harden(&conn, false)?;
     let mut counts_ok = true;
     let mut detail = Vec::new();
     for (t, n) in &m.counts {
+        // Table names come from the backup's manifest: count only the program's own tables.
+        if !TABLES.contains(&t.as_str()) {
+            counts_ok = false;
+            detail.push(format!("{t}: not a table of this program"));
+            continue;
+        }
         let c: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0)).unwrap_or(-1);
         if c != *n {
             counts_ok = false;
@@ -221,18 +232,46 @@ pub fn restore(path: &Path, target: &Path) -> Result<VerifyReport> {
         if name.to_string_lossy() == "manifest.json" {
             continue;
         }
-        let out = target.join(name);
+        let out = target.join(&name);
         if let Some(p) = out.parent() {
             std::fs::create_dir_all(p)?;
         }
-        let mut w = std::fs::File::create(&out)?;
-        std::io::copy(&mut e, &mut w)?;
+        {
+            let mut w = std::fs::File::create(&out)?;
+            std::io::copy(&mut e, &mut w)?;
+        }
+        if name.starts_with("files") {
+            crate::library::mark_from_elsewhere(&out);
+        }
     }
-    // Rebuild caches and the mirror from the restored store.
+    // Rebuild caches and the mirror from the restored store. Attachment rows that could reach
+    // outside the library (or a network share) are removed first.
     let s = Store::open(target, "restore")?;
+    let mut removed = vec![];
+    {
+        let mut st = s.conn.prepare("SELECT id, data FROM attachments")?;
+        let rows: Vec<(String, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(|r| r.ok()).collect();
+        for (id, data) in rows {
+            let bad = match serde_json::from_str::<crate::model::Attachment>(&data) {
+                Ok(a) => crate::library::attachment_ok(&a).err().map(|w| format!("attachment {}: {w}", a.original_name)),
+                Err(_) => Some("an attachment record that could not be read".into()),
+            };
+            if let Some(why) = bad {
+                s.conn.execute("DELETE FROM attachments WHERE id=?1", [&id])?;
+                removed.push(why);
+            }
+        }
+    }
     crate::search::rebuild(&s.conn)?;
     s.rebuild_mirror()?;
-    let log = format!("Restored from {} on {}\n", path.display(), now());
+    let mut log = format!("Restored from {} on {}\n", path.display(), now());
+    for r in &removed {
+        log.push_str(&format!("Not restored: {r}\n"));
+    }
+    let mut report = report;
+    if !removed.is_empty() {
+        report.checks.push((format!("{} attachment records removed", removed.len()), true, removed.join("; ")));
+    }
     std::fs::write(target.join("restore-log.txt"), log)?;
     Ok(report)
 }
@@ -268,6 +307,7 @@ pub fn export_package(lib: &Library, dest: &Path, include_files: bool) -> Result
         checksums: BTreeMap::new(),
         includes_files: include_files,
         attachments_expected: lib.store.count("attachments")? as usize,
+        skipped: vec![],
     };
     let part = dest.with_extension("zip.part");
     {
@@ -300,7 +340,18 @@ pub fn export_package(lib: &Library, dest: &Path, include_files: bool) -> Result
             for a in lib.store.all::<crate::model::Attachment>()? {
                 let p = lib.attachment_path(&a);
                 if let Ok(bytes) = std::fs::read(&p) {
-                    let name = if a.mode == "managed" { format!("files/{}", a.path) } else { format!("linked/{}/{}", &a.hash[..16], a.original_name) };
+                    // Files are named by their content hash, so no name in the package can climb out of
+                    // a folder when someone unpacks it; the original names stay in the data.
+                    if !crate::library::hash_ok(&a.hash) {
+                        continue;
+                    }
+                    let ext: String = std::path::Path::new(if a.mode == "managed" { &a.path } else { &a.original_name })
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .filter(|e| e.len() <= 8 && e.chars().all(|c| c.is_ascii_alphanumeric()))
+                        .map(|e| format!(".{}", e.to_ascii_lowercase()))
+                        .unwrap_or_default();
+                    let name = if a.mode == "managed" { format!("files/{}{ext}", a.hash) } else { format!("linked/{}{ext}", a.hash) };
                     if !m.checksums.contains_key(&name) {
                         put(&mut z, &mut m, &name, &bytes)?;
                     }
@@ -316,15 +367,26 @@ pub fn export_package(lib: &Library, dest: &Path, include_files: bool) -> Result
 }
 
 /// Import a package into an empty library at `target`.
+/// Limits for a package someone sends: entries, total unpacked size, and one data table.
+const PACKAGE_MAX_ENTRIES: usize = 500_000;
+const PACKAGE_MAX_BYTES: u64 = 64 * 1024 * 1024 * 1024;
+const PACKAGE_MAX_TABLE: u64 = 2 * 1024 * 1024 * 1024;
+
 pub fn import_package(path: &Path, target: &Path) -> Result<Manifest> {
     if target.join(crate::store::DB_FILE).exists() {
         return Err(Error::user("Choose an empty folder; packages are imported into a new library."));
     }
     let f = std::fs::File::open(path)?;
     let mut z = zip::ZipArchive::new(f)?;
+    // A package someone sent is checked for size before anything is unpacked.
+    let declared: u64 = (0..z.len()).filter_map(|i| z.by_index_raw(i).ok().map(|e| e.size())).sum();
+    if z.len() > PACKAGE_MAX_ENTRIES || declared > PACKAGE_MAX_BYTES {
+        return Err(Error::user("This package is larger than a library package can be, so nothing was imported."));
+    }
     let mut s = String::new();
-    z.by_name("manifest.json").map_err(|_| Error::user("This file has no manifest; it is not a Prism package."))?.read_to_string(&mut s)?;
-    let m: Manifest = serde_json::from_str(&s)?;
+    z.by_name("manifest.json").map_err(|_| Error::user("This file has no manifest; it is not a Prism package."))?.take(16 * 1024 * 1024).read_to_string(&mut s)?;
+    let mut m: Manifest = serde_json::from_str(&s)?;
+    m.skipped.clear();
     if m.format != "prism-reference-manager-package" {
         return Err(Error::user("This is not a Prism export package."));
     }
@@ -342,10 +404,35 @@ pub fn import_package(path: &Path, target: &Path) -> Result<Manifest> {
     let mut tables: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
     for t in TABLES {
         let name = format!("data/{t}.json");
-        if let Ok(mut e) = z.by_name(&name) {
+        if let Ok(e) = z.by_name(&name) {
             let mut s = String::new();
-            e.read_to_string(&mut s)?;
+            e.take(PACKAGE_MAX_TABLE).read_to_string(&mut s)?;
             tables.insert(t.to_string(), serde_json::from_str(&s)?);
+        }
+    }
+    // Attachment rows come from whoever made the package: keep only safe ones.
+    if let Some(rows) = tables.get_mut("attachments") {
+        rows.retain(|r| match serde_json::from_value::<crate::model::Attachment>(r.clone()) {
+            Ok(a) => match crate::library::attachment_ok(&a) {
+                Ok(()) => true,
+                Err(why) => {
+                    m.skipped.push(format!("attachment {}: {why}", a.original_name));
+                    false
+                }
+            },
+            Err(_) => {
+                m.skipped.push("an attachment record that could not be read".into());
+                false
+            }
+        });
+    }
+    // Where each managed file goes, by its hash (only rows that passed the check above).
+    let mut by_hash: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for r in tables.get("attachments").into_iter().flatten() {
+        if let Ok(a) = serde_json::from_value::<crate::model::Attachment>(r.clone()) {
+            if a.mode == "managed" {
+                by_hash.entry(a.hash.clone()).or_default().push(a.path.clone());
+            }
         }
     }
     store.write("Import package", |tx| {
@@ -362,12 +449,23 @@ pub fn import_package(path: &Path, target: &Path) -> Result<Manifest> {
         let Some(name) = e.enclosed_name() else { continue };
         let ns = name.to_string_lossy().replace('\\', "/");
         if let Some(rel) = ns.strip_prefix("files/") {
-            let out = target.join("files").join(rel);
-            if let Some(p) = out.parent() {
-                std::fs::create_dir_all(p)?;
+            // Packages name files by content hash (files/<hash>.<ext>): each goes to the place its
+            // attachment record names inside the files folder. Older packages used that place as
+            // the name.
+            let stem = rel.split('.').next().unwrap_or("");
+            let places: Vec<String> = if !rel.contains('/') && crate::library::hash_ok(stem) { by_hash.get(stem).cloned().unwrap_or_default() } else if crate::library::plain_relative(rel) { vec![rel.to_string()] } else { vec![] };
+            let mut bytes = Vec::new();
+            if !places.is_empty() {
+                (&mut e).take(PACKAGE_MAX_BYTES).read_to_end(&mut bytes)?;
             }
-            let mut w = std::fs::File::create(&out)?;
-            std::io::copy(&mut e, &mut w)?;
+            for place in places {
+                let out = target.join("files").join(&place);
+                if let Some(p) = out.parent() {
+                    std::fs::create_dir_all(p)?;
+                }
+                std::fs::write(&out, &bytes)?;
+                crate::library::mark_from_elsewhere(&out);
+            }
         }
     }
     store.rebuild_mirror()?;

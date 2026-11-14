@@ -621,8 +621,9 @@ impl Library {
             if a.mode == "managed" {
                 let used: i64 = self.store.conn.query_row("SELECT COUNT(*) FROM attachments WHERE hash=?1", [&a.hash], |r| r.get(0))?;
                 if used == 0 {
-                    let p = self.files_dir().join(&a.path);
-                    let _ = std::fs::remove_file(&p);
+                    if let Ok(p) = self.inside_files(&a.path) {
+                        let _ = std::fs::remove_file(&p);
+                    }
                 }
             }
         }

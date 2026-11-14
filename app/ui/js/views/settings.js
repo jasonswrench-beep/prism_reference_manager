@@ -145,6 +145,7 @@ registerView("settings", {
           watched.length ? h("table.table", h("tbody", watched.map((w) => h("tr", h("td.mono.small", w.path), h("td.small", w.project_id ? (S.projects.find((p) => p.project.id === w.project_id)?.project.title || "Project") : "Library only"), h("td.small", w.mirror ? "Subfolders become collections" : ""),
             h("td", btn("Stop watching", { small: true, onClick: async () => { await call("watch.remove", { path: w.path }); go("settings", { tab: "library" }); } }))))) ) : h("p.small", "No folders are watched."),
           h("label.row.small", { for: "w-mirror" }, mirror, "Turn subfolders into collections"),
+          h("label.row.small", { for: "w-look" }, h("input", { type: "checkbox", id: "w-look", checked: !!s.watch_lookups, disabled: !s.network_enabled, on: { change: (e) => saveSettings({ watch_lookups: e.target.checked }) } }), "Look up identifiers found in new PDFs online (sends only each DOI or arXiv identifier)"),
           h("div.btn-row", btn("Watch a folder…", { small: true, kind: "primary", onClick: async () => { try { const r = await call("watch.add", { project_id: S.project?.project.id || "", mirror: mirror.checked }); if (r && !r.cancelled) { toast(`Watching ${r.path}`, "success"); go("settings", { tab: "library" }); } } catch (e) { showError(e); } } }),
             watched.length ? btn("Check now", { small: true, onClick: async () => { const r = await call("watch.scan"); toast(r.length ? `${r.reduce((n, x) => n + x.count, 0)} new PDFs staged for review` : "No new PDFs found", r.length ? "success" : "info"); } }) : null)));
         const fb = await call("files.base").catch(() => null);
@@ -290,7 +291,7 @@ registerView("settings", {
           h("td", i.kind), h("td.mono", i.host), h("td.small", i.purpose))))),
         h("div.btn-row", { style: { marginTop: "8px" } }, btn("Network activity log", { onClick: () => dialogs.network() }))),
         card("Privacy", h("ul",
-          h("li", "No telemetry and no account. Nothing is sent in the background."),
+          h("li", "No telemetry and no account. Lookups happen only when you ask, or, if you allow it, for PDFs you import and PDFs that appear in a watched folder."),
           h("li", "PDFs and notes are never sent anywhere by this program. Each project can also forbid all outside requests:"),
           S.project ? h("li", h("label.row", { for: "pol" }, h("input", { type: "checkbox", id: "pol", checked: !!S.project.project.policy_no_external, on: { change: async (e) => { await call("projects.update", { project: { ...S.project.project, policy_no_external: e.target.checked } }); await refresh(); } } }), `Block outside requests for “${S.project.project.title}”`)) : null,
           h("li", "Diagnostic bundles are created only when you ask, and you can read them before saving.")),
@@ -301,7 +302,7 @@ registerView("settings", {
       const terms = h("textarea", { rows: 3, value: (s.protected_terms || []).join("\n"), "aria-label": "Protected terms" });
       const bibExcl = h("input", { placeholder: "abstract, file, note", "aria-label": "Fields to leave out of kept BibTeX files" });
       const excl = () => bibExcl.value.split(",").map((x) => x.trim()).filter(Boolean);
-      const keepFmt = select([["bibtex", "BibTeX (.bib)"], ["biblatex", "biblatex (.bib)"], ["ris", "RIS"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xlsx", "Excel workbook"]], "bibtex", { "aria-label": "Format of the kept file" });
+      const keepFmt = select([["bibtex", "BibTeX (.bib)"], ["biblatex", "biblatex (.bib)"], ["ris", "RIS"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xlsx", "Spreadsheet (.xlsx)"]], "bibtex", { "aria-label": "Format of the kept file" });
       const keepScope = select([["project", "Active project"], ["library", "Whole library"]], S.project ? "project" : "library", { "aria-label": "Sources in the kept file" });
       const js = await call("journals.summary").catch(() => null);
       if (js) {
@@ -326,7 +327,7 @@ registerView("settings", {
         btn("Save", { kind: "primary", onClick: () => saveSettings({ citekey_pattern: pat.value }) })),
         card("Files kept up to date", h("p.small.muted", "Keep an export file current automatically, for LaTeX or Markdown writing, a shared spreadsheet or another program. It is rewritten within seconds of any change, and only when its content changes."),
           (s.bib_exports || []).length ? h("table.table", h("tbody", s.bib_exports.map((b) => h("tr", h("td.mono.small", b.path), h("td", b.project_id ? (S.projects.find((p) => p.project.id === b.project_id)?.project.title || "Project") : "Whole library"),
-            h("td", { bibtex: "BibTeX", biblatex: "biblatex", ris: "RIS", csljson: "CSL JSON", csv: "CSV", xlsx: "Excel" }[b.format || (b.biblatex ? "biblatex" : "bibtex")]), h("td.small", (b.exclude_fields || []).length ? "Leaves out " + b.exclude_fields.join(", ") : "All fields"),
+            h("td", { bibtex: "BibTeX", biblatex: "biblatex", ris: "RIS", csljson: "CSL JSON", csv: "CSV", xlsx: "Spreadsheet (.xlsx)" }[b.format || (b.biblatex ? "biblatex" : "bibtex")]), h("td.small", (b.exclude_fields || []).length ? "Leaves out " + b.exclude_fields.join(", ") : "All fields"),
             h("td", btn("Stop", { small: true, onClick: async () => { await call("bib.remove_export", { path: b.path }); await refresh(); go("settings", { tab: "citation" }); } })))))) : null,
           h("div.grid2", field("Format", keepFmt), field("Sources", keepScope)),
           field("Leave out fields", bibExcl, "Comma separated, for BibTeX and biblatex. Applies to the file you add next; to change a kept file, stop it and add it again."),

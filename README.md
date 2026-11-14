@@ -17,7 +17,7 @@ citations that can be checked before they leave the program.
   modified; annotated copies use standard PDF annotations plus a sidecar.
 - **Recoverable by design.** Transactional store with a change event per edit, persistent
   undo, a deterministic text mirror, verified backups, and an open export package.
-- **Private.** No account, no telemetry. Optional lookups are listed and logged.
+- **Private.** No account, no telemetry. Online lookups are off until you allow them; each kind has its own switch, and every request is logged with what was sent.
 
 ## Repository layout
 

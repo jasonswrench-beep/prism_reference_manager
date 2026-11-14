@@ -19,6 +19,13 @@ if (-not (Test-Path node_modules)) { npm install --no-audit --no-fund }
 node scripts/vendor.mjs
 Pop-Location
 
+# Build paths would otherwise be written into the program (in panic messages and debug data),
+# including the builder's Windows user name. Map them to neutral names; later entries win, so the
+# specific folders come after the profile as a whole.
+$cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE ".cargo" }
+$rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:USERPROFILE ".rustup" }
+$env:RUSTFLAGS = "--remap-path-prefix=$($env:USERPROFILE)=user --remap-path-prefix=$rustupHome=rustup --remap-path-prefix=$cargoHome=cargo --remap-path-prefix=$root=src"
+
 Write-Host "== Tests"
 cargo test -p prm-core --release
 if ($LASTEXITCODE -ne 0) { throw "Tests failed; release stopped." }
@@ -55,6 +62,17 @@ $version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Match
 $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force $dist | Out-Null
 $setup = Get-ChildItem "target\release\bundle\nsis\*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+# The program must not carry the builder's profile folder (and so their user name).
+Write-Host "== Checking the program for personal paths"
+$bytes = [IO.File]::ReadAllBytes((Join-Path $root "target\release\prism-reference-manager.exe"))
+$text = [Text.Encoding]::ASCII.GetString($bytes)
+$wide = [Text.Encoding]::Unicode.GetString($bytes)
+foreach ($needle in @($env:USERPROFILE, $env:USERPROFILE.Replace("\", "/"), "\Users\$($env:USERNAME)\", "/Users/$($env:USERNAME)/")) {
+  if ($text.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or $wide.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw "The program file contains the builder's profile path ($needle); nothing was copied to dist."
+  }
+}
 $checkScript = Join-Path $root "tools\check_signatures.py"
 if ($Sign) {
   # The setup file and every program packed inside it (unpacked with 7-Zip).

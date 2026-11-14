@@ -127,6 +127,12 @@ already pass are listed at the end for reference.
       combination another program already uses and check the message. Check with a screen reader.
 - [ ] Side by side: open two PDFs, choose the two-column button in the Reader toolbar, read and
       scroll both, Swap, and check the layout on a small laptop screen.
+- [ ] Policy file (IT): as an administrator, create `%ProgramData%\Prism Reference Manager\policy.json`
+      with `{"network_enabled": false}` and confirm Settings shows it as set by the administrator.
+      Then, as an ordinary account on another computer, create the same folder and file yourself and
+      confirm it is ignored (Help › Diagnostic bundle lists it under policy_ignored).
+- [ ] First start of a fresh install asks once about online lookups; "Keep lookups off" leaves
+      Settings › Network off and nothing appears in Tools › Network activity.
 - [ ] Linked files on two computers (Settings › Library and backup › File storage): link PDFs
       from a synced folder, choose that folder as the base folder, then open the library on a
       second computer where the folder is at another path. Set "On this computer the base folder

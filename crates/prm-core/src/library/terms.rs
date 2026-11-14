@@ -167,7 +167,7 @@ impl Library {
         self.write_kept_file(project_id, path, if biblatex { "biblatex" } else { "bibtex" }, exclude_fields)
     }
 
-    /// Write an export file that is kept up to date (BibTeX, biblatex, RIS, CSL JSON, CSV or Excel).
+    /// Write an export file that is kept up to date (BibTeX, biblatex, RIS, CSL JSON, CSV or spreadsheet).
     /// The file is rewritten only when its content changes, so watchers in other programs stay quiet.
     pub fn write_kept_file(&self, project_id: &str, path: &std::path::Path, format: &str, exclude_fields: &[String]) -> Result<usize> {
         let refs: Vec<Reference> = if project_id.is_empty() {

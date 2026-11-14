@@ -38,4 +38,4 @@ semver = "1"
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5"
 winreg = "0.56"
-windows = { version = "0.62", features = ["Foundation", "Foundation_Collections", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_System_WinRT"] }
+windows = { version = "0.62", features = ["Foundation", "Foundation_Collections", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_WinRT"] }

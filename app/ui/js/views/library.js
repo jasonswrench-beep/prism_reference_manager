@@ -721,7 +721,7 @@ registerView("library", {
             h("div.btn-row", { style: { marginTop: "6px" } },
               a.mime === "application/pdf" ? btn("Read", { small: true, onClick: () => go("reader", { ref: r.id, att: a.id }) }) : null,
               a.mime === "application/pdf" && !a.superseded && (a.state === "image-only" || a.text_source === "ocr") ? btn(a.text_source === "ocr" ? "Recognize again…" : "Recognize text…", { small: true, onClick: async () => { const { recognizeDialog } = await import("./reader.js"); await recognizeDialog([a], () => drawInspector()); } }) : null,
-              btn("Open in default app", { small: true, onClick: () => call("files.open_external", { id: a.id }) }),
+              btn("Open in default app", { small: true, onClick: () => call("files.open_external", { id: a.id }).catch((e) => showError(e)) }),
               btn("Show in folder", { small: true, onClick: () => call("files.reveal", { id: a.id }) }),
               btn("Replace with new version…", { small: true, onClick: () => go("reader", { ref: r.id, att: a.id, replace: true }) }),
               btn("Remove", { small: true, kind: "danger", onClick: async () => { if (await confirmDialog("Remove attachment", "Remove this file and its annotations from the source? Undo is available.", { ok: "Remove", kind: "danger" })) { await call("files.delete", { id: a.id }); drawInspector(); } } }))));

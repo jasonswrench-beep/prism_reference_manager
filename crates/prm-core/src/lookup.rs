@@ -39,8 +39,46 @@ pub struct LookupResult {
     pub ok: bool,
 }
 
+/// Whether an address is on the public internet. Requests (and every redirect) may only reach
+/// such addresses, so a web address someone else chose cannot make this program talk to the
+/// computer itself, the local network, or a router.
+pub fn is_public(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v) => {
+            let o = v.octets();
+            !(v.is_loopback() || v.is_private() || v.is_link_local() || v.is_unspecified() || v.is_broadcast() || v.is_multicast() || v.is_documentation()
+                || o[0] == 0
+                || (o[0] == 100 && (64..=127).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+                || o[0] >= 240)
+        }
+        IpAddr::V6(v) => {
+            if let Some(v4) = v.to_ipv4_mapped() {
+                return is_public(IpAddr::V4(v4));
+            }
+            let seg = v.segments();
+            !(v.is_loopback() || v.is_unspecified() || v.is_multicast() || (seg[0] & 0xfe00) == 0xfc00 || (seg[0] & 0xffc0) == 0xfe80 || seg[0] == 0x2001 && seg[1] == 0x0db8)
+        }
+    }
+}
+
+/// Resolves names to public addresses only (see `is_public`). Used for every request, so the
+/// check happens at connect time for each redirect as well.
+struct PublicOnly;
+impl ureq::Resolver for PublicOnly {
+    fn resolve(&self, netloc: &str) -> std::io::Result<Vec<std::net::SocketAddr>> {
+        use std::net::ToSocketAddrs;
+        let v: Vec<std::net::SocketAddr> = netloc.to_socket_addrs()?.filter(|a| is_public(a.ip())).collect();
+        if v.is_empty() {
+            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "that address is not on the public internet"));
+        }
+        Ok(v)
+    }
+}
+
 fn agent() -> ureq::Agent {
-    ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(10)).timeout(Duration::from_secs(25)).user_agent(USER_AGENT).build()
+    ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(10)).timeout(Duration::from_secs(25)).user_agent(USER_AGENT).resolver(PublicOnly).build()
 }
 
 /// GET with retries: exponential backoff with jitter; honours Retry-After on 429/503.
@@ -148,8 +186,8 @@ pub fn open_access(doi: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str))
 /// Download a PDF to `dest`, refusing anything that is not a PDF or is larger than 200 MB.
 pub fn download_pdf(url: &str, dest: &std::path::Path, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> Result<u64> {
     use std::io::Read;
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err(Error::user("The free copy's address is not a web address."));
+    if !url.starts_with("https://") {
+        return Err(Error::user("The free copy's address is not a secure (https) web address, so it was not downloaded."));
     }
     let host = url_host(url);
     let r = agent().get(url).set("Accept", "application/pdf").call();
@@ -235,7 +273,10 @@ pub struct LinkStatus {
 
 pub fn check_link(url: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> LinkStatus {
     let host = url_host(url);
-    let a = ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(8)).timeout(Duration::from_secs(15)).user_agent(USER_AGENT).redirects(5).build();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return LinkStatus { url: url.into(), state: "unreachable".into(), code: 0, final_url: String::new(), message: "Only web addresses are checked.".into() };
+    }
+    let a = ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(8)).timeout(Duration::from_secs(15)).user_agent(USER_AGENT).redirects(5).resolver(PublicOnly).build();
     let st = match a.head(url).call().or_else(|_| a.get(url).call()) {
         Ok(r) => {
             let fin = r.get_url().to_string();
@@ -258,8 +299,26 @@ fn urlencode_path(s: &str) -> String {
 }
 
 /// Resolve one identifier. `kind`: doi, pmid, pmcid, arxiv, isbn, url.
-pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> LookupResult {
+/// The network switch (Settings › Network) a lookup of this identifier kind falls under.
+pub fn switch_for(kind: &str) -> &'static str {
+    match kind {
+        "pmid" | "pmcid" => "pubmed",
+        "url" => "webpage",
+        "arxiv" => "arxiv",
+        "isbn" => "isbn",
+        _ => "doi",
+    }
+}
+
+/// Look up one identifier. `may` says whether a kind of request is allowed (the person's switches
+/// in Settings › Network and the project's policy): it is asked before every request, including
+/// the second DOI check, so a switch that is off stops exactly that request.
+pub fn resolve(kind: &str, id: &str, may: &dyn Fn(&str) -> bool, log: &mut dyn FnMut(&str, &str, &str, bool, &str)) -> LookupResult {
     let mut res = LookupResult { kind: kind.into(), id: id.into(), candidate: None, corroboration: vec![], conflicts: vec![], message: String::new(), ok: false };
+    if !may(switch_for(kind)) {
+        res.message = "This kind of lookup is turned off in Settings › Network.".into();
+        return res;
+    }
     let mut web_base: Option<f32> = None;
     let outcome: Result<Reference> = (|| match kind {
         "doi" => {
@@ -269,8 +328,9 @@ pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool,
             log("doi", "doi.org", &doi, body.is_ok(), body.as_ref().err().map(|e| e.to_string()).unwrap_or_default().as_str());
             let mut r = from_csl(&body?).ok_or_else(|| Error::Network("The resolver returned no usable metadata.".into()))?;
             r.fields.insert("doi".into(), doi.clone());
-            // Independent corroboration where available.
-            match get(&format!("https://api.crossref.org/works/{}", urlencode(&doi)), "application/json") {
+            // Independent corroboration where available, when that request is allowed.
+            let second = if may("doi-corroborate") { get(&format!("https://api.crossref.org/works/{}", urlencode(&doi)), "application/json") } else { Err(Error::user("turned off")) };
+            match second {
                 Ok(b) => {
                     log("doi-corroborate", "api.crossref.org", &doi, true, "");
                     if let Ok(v) = serde_json::from_str::<serde_json::Value>(&b) {
@@ -309,7 +369,10 @@ pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool,
         }
         "pmid" | "pmcid" => {
             let db = if kind == "pmid" { "pubmed" } else { "pmc" };
-            let idv = id.trim().trim_start_matches("PMC");
+            let idv = id.trim().trim_start_matches("PMC").trim_start_matches("pmc");
+            if idv.is_empty() || idv.len() > 12 || !idv.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(Error::user("A PubMed or PMC identifier is a number."));
+            }
             let url = format!("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db={db}&id={idv}&retmode=json");
             let body = get(&url, "application/json");
             log("pubmed", "eutils.ncbi.nlm.nih.gov", id, body.is_ok(), "");
@@ -394,6 +457,9 @@ pub fn resolve(kind: &str, id: &str, log: &mut dyn FnMut(&str, &str, &str, bool,
             Ok(r)
         }
         "url" => {
+            if !id.starts_with("https://") {
+                return Err(Error::user("Only secure (https) web pages are looked up."));
+            }
             let body = get(id, "text/html,application/xhtml+xml");
             let host = id.split('/').nth(2).unwrap_or("").to_string();
             log("webpage", &host, id, body.is_ok(), "");
@@ -481,4 +547,20 @@ fn urlencode(s: &str) -> String {
         }
     }
     o
+}
+
+#[cfg(test)]
+mod address_tests {
+    use super::is_public;
+    #[test]
+    fn only_public_addresses_are_reachable() {
+        for a in ["127.0.0.1", "10.0.0.5", "192.168.1.1", "172.16.0.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1"] {
+            assert!(!is_public(a.parse().unwrap()), "{a} must be refused");
+        }
+        for a in ["8.8.8.8", "151.101.1.69", "2606:4700::6810:84e5"] {
+            assert!(is_public(a.parse().unwrap()), "{a} is public");
+        }
+        // A name that resolves to this computer is refused at connect time.
+        assert!(ureq::Resolver::resolve(&super::PublicOnly, "localhost:443").is_err());
+    }
 }

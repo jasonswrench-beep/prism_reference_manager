@@ -4,7 +4,7 @@
 import { styleSelect, LOCALES } from "./styles.js";
 import { call, on } from "./api.js";
 import { h, clear, icon, iconBtn, btn, modal, toast, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml } from "./dom.js";
-import { S, refresh, go, manuscript, loadProjects, render, setProject } from "./app.js";
+import { S, refresh, go, manuscript, loadProjects, render, setProject, saveSettings } from "./app.js";
 import { sourceEditor, fieldLabel } from "./editor.js";
 
 const pid = () => S.project?.project.id || "";
@@ -251,10 +251,22 @@ async function withImportProgress(run) {
   try { return await job.promise; } finally { if (typeof off === "function") off(); back.remove(); }
 }
 
+/** The question asked before PDFs are read: may identifiers found in them be looked up online? */
+function lookupChoice(id) {
+  const box = h("input", { type: "checkbox", id, checked: !!S.settings.pdf_lookups && S.settings.network_enabled, disabled: !S.settings.network_enabled });
+  return { box, el: h("div", h("label.row", { for: id }, box, "Look up the DOIs and arXiv identifiers found in the files online"),
+    h("p.small.muted", S.settings.network_enabled ? "Sends only each identifier, to the services listed in Settings › Network. Without it the files are imported with what they contain." : "Online lookups are off in Settings › Network, so the files are imported with what they contain.")) };
+}
+
 export async function importPdfs() {
   if (!S.info?.library) return;
+  const choice = lookupChoice("ip-look");
+  const go1 = await modal("Import PDF files", h("div", h("p", "Choose PDF files; their details are read and wait for your review before anything is added."), choice.el),
+    { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Choose files…", kind: "primary", value: "go" }] }).done;
+  if (go1 !== "go") return;
+  if (choice.box.checked !== !!S.settings.pdf_lookups) saveSettings({ pdf_lookups: choice.box.checked }).catch(() => {});
   try {
-    const r = await withImportProgress(() => call("import.pick_pdfs", { project_id: pid() }));
+    const r = await withImportProgress(() => call("import.pick_pdfs", { project_id: pid(), lookups: choice.box.checked }));
     if (!r || r.cancelled) return;
     importReview(r);
   } catch (e) { showError(e); }
@@ -264,14 +276,16 @@ export async function importPdfs() {
 export async function importFolder() {
   if (!S.info?.library) return;
   const mirror = h("input", { type: "checkbox", id: "if-mirror", checked: true });
+  const choice = lookupChoice("if-look");
   const go2 = await modal("Import a folder of PDFs", h("div",
-    h("p", "Every PDF in the folder you choose and its subfolders is read, identifiers (DOI, arXiv) are looked up when network use allows, and the results wait for your review."),
-    h("label.row", { for: "if-mirror" }, mirror, "Turn subfolders into collections"),
+    h("p", "Every PDF in the folder you choose and its subfolders is read, and the results wait for your review."),
+    h("label.row", { for: "if-mirror" }, mirror, "Turn subfolders into collections"), choice.el,
     h("p.small.muted", "Files that are already in the library are recognized and marked to skip. Originals are not moved or changed; imported files are copied into the library.")),
     { size: "narrow", buttons: [{ label: "Cancel" }, { label: "Choose folder…", kind: "primary", value: "go" }] }).done;
   if (go2 !== "go") return;
   try {
-    const r = await withImportProgress(() => call("import.folder", { project_id: pid(), mirror: mirror.checked }));
+    if (choice.box.checked !== !!S.settings.pdf_lookups) saveSettings({ pdf_lookups: choice.box.checked }).catch(() => {});
+    const r = await withImportProgress(() => call("import.folder", { project_id: pid(), mirror: mirror.checked, lookups: choice.box.checked }));
     if (!r || r.cancelled) return;
     importReview(r);
   } catch (e) { showError(e); }
@@ -387,7 +401,7 @@ export async function undoImport(batchId) {
 // ---- exports and backups --------------------------------------------------------------------
 
 export async function exportRefs(ids = []) {
-  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX"], ["biblatex", "biblatex"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xlsx", "Excel workbook (.xlsx)"], ["xml", "Prism XML records"]], "ris");
+  const fmt = select([["ris", "RIS"], ["bibtex", "BibTeX"], ["biblatex", "biblatex"], ["csljson", "CSL JSON"], ["csv", "CSV spreadsheet"], ["xlsx", "Spreadsheet (.xlsx)"], ["xml", "Prism XML records"]], "ris");
   const scope = select([...(ids.length ? [["selected", `Selected sources (${ids.length})`]] : []), ...(S.project ? [["project", "Active project's sources"]] : []), ["all", "Whole library"]], ids.length ? "selected" : "all");
   const excl = h("input", { placeholder: "abstract, note" });
   // Named presets remember format, sources and left-out fields.
@@ -853,7 +867,8 @@ export async function diagnostics() {
 export function pairRequest(p) {
   modal("Allow a local connection?", h("div",
     h("p", h("strong", p.name), " on this computer is asking to connect to your library."),
-    h("p", "It would be allowed to:"), h("ul", p.scopes.map((s) => h("li", { read: "Read sources and search", format: "Format citations", write: "Add and edit sources and notes (marked as machine-created)", import: "Stage imports and look up identifiers", files: "Read and annotate attached files", export: "Export data" }[s] || s))),
+    h("p.small.muted", p.origin ? `It identified itself as ${p.origin}.` : "It is a program on this computer (not a web page)."),
+    h("p", "It would be allowed to:"), h("ul", p.scopes.map((s) => h("li", { read: "Read sources and search", format: "Format citations", write: "Add and edit sources and notes (marked as machine-created)", import: "Stage imports and look up identifiers", files: "Read the text of attached files and add or change marks (it cannot open, move, copy or delete files)", export: "Export data" }[s] || s))),
     h("p.small.muted", "You can revoke it at any time in Settings › Local connections. Only programs on this computer can connect.")),
     { size: "narrow", buttons: [{ label: "Deny", run: () => call("api.deny", { id: p.id }) }, { label: "Allow", kind: "primary", run: () => call("api.approve", { id: p.id }) }] });
 }

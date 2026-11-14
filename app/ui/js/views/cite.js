@@ -167,7 +167,7 @@ async function readiness(el, m) {
             h("td", icon(open ? "chevronDown" : "chevronRight")), h("td", h("strong", c.sources.join("; "))), h("td", c.copy.change_reason), h("td", h("span.badge.attention", icon("warn", 14), "Review")));
           if (!open) return [row];
           const detail = h("tr", h("td", { colspan: 4 }, h("div", { style: { padding: "10px" } },
-            h("div.diff", h("div.side", h("h4", "Previously copied"), h("div", { html: c.copy.payload_html ? c.copy.payload_html.replace(/<p[^>]*>/g, "<p>") : c.copy.payload_text })), h("div.arrow", icon("arrowRight", 24)), h("div.side.after", h("h4", "Current output"), h("div", { html: c.copy.current_html ? c.copy.current_html.replace(/<p[^>]*>/g, "<p>") : c.copy.current_text }))),
+            h("div.diff", h("div.side", h("h4", "Previously copied"), h("div", { style: { whiteSpace: "pre-wrap" } }, c.copy.payload_text || "")), h("div.arrow", icon("arrowRight", 24)), h("div.side.after", h("h4", "Current output"), h("div", { html: c.copy.current_html ? c.copy.current_html.replace(/<p[^>]*>/g, "<p>") : c.copy.current_text }))),
             h("div.notice", { style: { margin: "10px 0" } }, icon("info"), "Check every affected citation and its matching reference in your document."),
             h("div.btn-row", { style: { justifyContent: "center" } },
               btn("Copy updated text", { kind: "primary", icon: "copy", onClick: async () => { await call("cite.copy_text", { text: c.copy.current_text, html: c.copy.current_html }); toast("Updated text copied. Mark it as replaced once it is in your document.", "success"); } }),
@@ -176,7 +176,7 @@ async function readiness(el, m) {
           return [row, detail];
         }))) : h("div.empty", h("h3", "No copied citations have changed"), h("p", "When a source, the style or this manuscript's reference set changes, affected copies appear here with the old and new text."))),
       h("div.card", h("div.card-head", h("h3", `All copies (${rd.copies.length})`)), h("table.table", h("thead", h("tr", h("th", "Copied text"), h("th", "Mode"), h("th", "When"), h("th", "Status"), h("th", ""))),
-        h("tbody", rd.copies.slice(0, 200).map((c) => h("tr", h("td", { html: c.payload_html ? c.payload_html.replace(/<p[^>]*>/g, "").replace(/<\/p>/g, " ") : c.payload_text }), h("td.small", c.mode.replace(/_/g, " ")), h("td.small", fmtDate(c.created)),
+        h("tbody", rd.copies.slice(0, 200).map((c) => h("tr", h("td", c.payload_text || ""), h("td.small", c.mode.replace(/_/g, " ")), h("td.small", fmtDate(c.created)),
           h("td", c.imported_unknown ? h("span.badge.neutral", "History unknown") : c.changed ? h("span.badge.attention", "Changed") : h("span.badge." + (c.status === "copied" ? "info" : c.status === "discarded" ? "neutral" : "success"), { copied: "Copied (not confirmed)", used: "Confirmed used", replaced: "Replaced", discarded: "Discarded" }[c.status])),
           h("td.nowrap", c.status === "copied" ? btn("Mark used", { small: true, onClick: async () => { await call("copies.set_status", { id: c.id, status: "used" }); go("cite"); } }) : null, c.status !== "discarded" ? btn("Discard", { small: true, kind: "ghost", onClick: async () => { await call("copies.set_status", { id: c.id, status: "discarded" }); go("cite"); } }) : null)))))));
   }

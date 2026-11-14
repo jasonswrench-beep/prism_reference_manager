@@ -29,7 +29,7 @@ pub fn picked_paths() -> &'static Mutex<BTreeSet<PathBuf>> {
 }
 
 fn remember(p: &Path) {
-    picked_paths().lock().unwrap().insert(p.to_path_buf());
+    picked_paths().lock().unwrap_or_else(|e| e.into_inner()).insert(p.to_path_buf());
 }
 
 fn arg<T: DeserializeOwned>(a: &Value, k: &str) -> Result<T, CallError> {
@@ -55,7 +55,7 @@ fn filters(kind: &str) -> Vec<(&'static str, Vec<&'static str>)> {
         "zip" => vec![("Archives", vec!["zip"])],
         "any" => vec![("All files", vec!["*"])],
         "docx" => vec![("DOCX document", vec!["docx"])],
-        "xlsx" => vec![("Excel workbook", vec!["xlsx"])],
+        "xlsx" => vec![("Spreadsheet (.xlsx)", vec!["xlsx"])],
         "rtf" => vec![("Rich Text", vec!["rtf"])],
         "html" => vec![("Web page", vec!["html"])],
         "md" => vec![("Markdown", vec!["md"])],
@@ -142,8 +142,20 @@ pub fn scheduled_backup(lib: &Library, s: &settings::Settings) -> Result<String,
 }
 
 /// Scope needed by each method for local API clients.
+/// File commands only the person in the program's window may use: they copy, move, rename,
+/// delete, open or reveal files, take a folder, or show full file paths. Programs connected
+/// through the local API never get them, whatever scopes they hold.
+pub const WINDOW_ONLY_FILES: &[&str] = &[
+    "files.convert", "files.set_base", "files.base", "files.make_relative", "files.find_moved", "files.relink_folder", "files.relink_many", "files.relink_pick",
+    "files.delete_unused", "files.remove_duplicates", "files.rename", "files.open_external", "files.reveal", "files.delete", "files.replace", "files.replace_pick",
+    "files.attach_pick", "files.check", "files.storage",
+];
+
 pub fn scope_of(method: &str) -> &'static str {
     let ns = method.split('.').next().unwrap_or("");
+    if WINDOW_ONLY_FILES.contains(&method) {
+        return "admin";
+    }
     match method {
         "refs.list" | "refs.get" | "search.run" | "projects.list" | "projects.summary" | "notes.list" | "collections.list" | "labels.list" | "types.list" | "styles.list" | "library.info" | "custom.fields" | "custom.types" | "fields.values" => "read",
         "cite.render" => "format",
@@ -164,7 +176,7 @@ pub fn scope_of(method: &str) -> &'static str {
 /// Find and attach a free, legal copy of one source. Network requests run without the lock.
 fn find_open_access(shared: &Shared, id: &str, project_id: &str) -> Result<Value, CallError> {
     let (doi, title, has_pdf) = {
-        let st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+        let st = shared.lock().unwrap_or_else(|e| e.into_inner());
         network_allowed(&st, "openaccess", project_id)?;
         let l = st.lib.as_ref().ok_or(user("Open or create a library first."))?;
         let r = l.store.must::<Reference>(id).map_err(err)?;
@@ -214,7 +226,7 @@ fn find_open_access(shared: &Shared, id: &str, project_id: &str) -> Result<Value
         let _ = std::fs::remove_file(&tmp);
         return Ok(with(base, json!({"status": "download_failed", "message": e.to_string(), "landing_url": oa.landing_url, "pdf_url": oa.pdf_url, "license": oa.license, "version": oa.version, "host": oa.host})));
     }
-    let mut st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+    let mut st = shared.lock().unwrap_or_else(|e| e.into_inner());
     let l = lib_mut(&mut st)?;
     let attached = l.attach_file(id, &tmp, "managed", "full-text");
     let _ = std::fs::remove_file(&tmp);
@@ -241,7 +253,7 @@ fn write_log(shared: &Shared, log: &[(String, String, String, bool, String)], pu
 fn propose_online(app: &tauri::AppHandle, shared: &Shared, kind: &str, ids: &[String], pid: &str) -> Result<Vec<prm_core::cleanup::Proposal>, CallError> {
     let net_kind = if kind == "doi" { "doi-search" } else { "abstract" };
     let refs: Vec<Reference> = {
-        let st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+        let st = shared.lock().unwrap_or_else(|e| e.into_inner());
         network_allowed(&st, net_kind, pid)?;
         let l = st.lib.as_ref().ok_or(user("Open or create a library first."))?;
         ids.iter().filter_map(|id| l.store.get::<Reference>(id).ok().flatten()).collect()
@@ -296,6 +308,13 @@ pub fn network_allowed(st: &crate::AppState, kind: &str, project_id: &str) -> Re
         }
     }
     Ok(())
+}
+
+/// A snapshot of which kinds of request are allowed now, for code that runs without the lock.
+pub fn kinds_allowed(st: &crate::AppState, project_id: &str) -> impl Fn(&str) -> bool + Send + Sync + 'static {
+    let on = network_allowed(st, "", project_id).is_ok();
+    let off = st.settings.network_disabled_kinds.clone();
+    move |k: &str| on && !off.iter().any(|x| x == k)
 }
 
 fn open_library(st: &mut crate::AppState, path: &Path) -> Result<Value, CallError> {
@@ -364,7 +383,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
                 return if root.is_some() { Err(user("No PDF files were found in that folder or its subfolders.")) } else { ok(json!({"cancelled": true})) };
             }
             let name = root.as_ref().and_then(|r| r.file_name()).map(|n| format!("Folder: {}", n.to_string_lossy())).unwrap_or_else(|| "PDF files".into());
-            let mut b = crate::pdfimport::import_paths(app, shared, &paths, root.as_deref(), &pid, &name, if root.is_some() { "folder" } else { "pdf" }, opt(&a, "mirror"))?;
+            let mut b = crate::pdfimport::import_paths(app, shared, &paths, root.as_deref(), &pid, &name, if root.is_some() { "folder" } else { "pdf" }, opt(&a, "mirror"), opt(&a, "lookups"))?;
             if truncated {
                 b.file_name = format!("{name} (first {} PDFs)", crate::pdfimport::MAX_FILES);
             }
@@ -372,7 +391,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         }
         "watch.add" if client.is_none() => {
             let Some(dir) = pick_folder(app, "Choose a folder to watch for new PDFs") else { return ok(json!({"cancelled": true})) };
-            let mut st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+            let mut st = shared.lock().unwrap_or_else(|e| e.into_inner());
             let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).ok_or_else(|| user("Open or create a library first."))?;
             if dir.starts_with(&lib_root) {
                 return Err(user("Choose a folder outside the library folder."));
@@ -391,7 +410,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             let ids: Vec<String> = opt(&a, "ids");
             let pid = s(&a, "project_id");
             let targets: Vec<(String, String, String)> = {
-                let st = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+                let st = shared.lock().unwrap_or_else(|e| e.into_inner());
                 network_allowed(&st, "linkcheck", &pid)?;
                 let l = st.lib.as_ref().ok_or(user("Open or create a library first."))?;
                 ids.iter().filter_map(|id| l.store.get::<Reference>(id).ok().flatten()).filter(|r| r.has("url")).map(|r| (r.id.clone(), r.title().to_string(), r.f("url").to_string())).collect()
@@ -418,11 +437,11 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             for p in &v {
                 remember(p);
             }
-            return ok(crate::pdfimport::import_paths(app, shared, &v, Some(&dir), &s(&a, "project_id"), "Folder", "folder", opt(&a, "mirror"))?);
+            return ok(crate::pdfimport::import_paths(app, shared, &v, Some(&dir), &s(&a, "project_id"), "Folder", "folder", opt(&a, "mirror"), opt(&a, "lookups"))?);
         }
         #[cfg(debug_assertions)]
         "debug.watch_add" => {
-            let mut st = shared.lock().map_err(|_| user("busy"))?;
+            let mut st = shared.lock().unwrap_or_else(|e| e.into_inner());
             let lib_root = st.lib.as_ref().map(|l| l.root.to_string_lossy().to_string()).unwrap_or_default();
             st.settings.watched_folders.push(settings::WatchedFolder { path: s(&a, "path"), library: lib_root, project_id: String::new(), mirror: opt(&a, "mirror") });
             return ok(true);
@@ -447,7 +466,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         "quickcopy.set" if client.is_none() => {
             let sc = s(&a, "shortcut");
             crate::quickcopy::apply(app, &sc).map_err(|m| user(&m))?;
-            let mut st = shared.lock().map_err(|_| user("The program is busy."))?;
+            let mut st = shared.lock().unwrap_or_else(|e| e.into_inner());
             if st.policy.locked.contains_key("quick_copy_shortcut") {
                 return Err(user("The quick-copy shortcut is set by your administrator."));
             }
@@ -530,7 +549,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         return ok(json!({"cancelled": true}));
     }
 
-    let mut guard = shared.lock().map_err(|_| user("The program is busy; try again."))?;
+    let mut guard = shared.lock().unwrap_or_else(|e| e.into_inner());
     let st: &mut crate::AppState = &mut guard;
     let out = route(app, st, method, &a, pre_path, pre_paths, client);
     if let Ok(v) = &out {
@@ -560,6 +579,8 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let lib_info = st.lib.as_ref().map(|l| l.info()).transpose().map_err(err)?;
             ok(json!({
                 "version": env!("CARGO_PKG_VERSION"),
+                // Debug builds running an automated window test skip first-run questions.
+                "test_run": cfg!(debug_assertions) && std::env::var("PRM_TEST_SCRIPT").is_ok(),
                 "settings": st.settings,
                 "policy": st.policy,
                 "portable": settings::portable(),
@@ -1156,7 +1177,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "files.replace_pick" => ok(json!({"path": path.unwrap().to_string_lossy()})),
         "files.replace" => {
             let p = PathBuf::from(s(a, "path"));
-            if !picked_paths().lock().unwrap().contains(&p) {
+            if !picked_paths().lock().unwrap_or_else(|e| e.into_inner()).contains(&p) {
                 return Err(user("Choose the new version in the file dialog first."));
             }
             ok(lib_mut(st)?.replace_attachment(&s(a, "id"), &p, &opt::<Vec<String>>(a, "pages")).map_err(err)?)
@@ -1164,7 +1185,8 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "files.open_external" => {
             let l = lib_mut(st)?;
             let att = l.store.must::<Attachment>(&s(a, "id")).map_err(err)?;
-            open_with_shell(&l.attachment_path(&att).to_string_lossy());
+            let p = l.openable_path(&att).map_err(err)?;
+            open_with_shell(&p.to_string_lossy());
             ok(true)
         }
         "files.reveal" => {
@@ -1280,7 +1302,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let lib_root = l.root.to_string_lossy().to_string();
             let watched: Vec<PathBuf> = st.settings.watched_folders.iter().filter(|w| w.library == lib_root).map(|w| PathBuf::from(&w.path)).collect();
             let l = lib_mut(st)?;
-            let attached = crate::capture::after_commit(l, &b, &|p: &Path| picked_paths().lock().unwrap().contains(p) || watched.iter().any(|w| p.starts_with(w)))?;
+            let attached = crate::capture::after_commit(l, &b, &|p: &Path| picked_paths().lock().unwrap_or_else(|e| e.into_inner()).contains(p) || watched.iter().any(|w| p.starts_with(w)))?;
             let placed = crate::pdfimport::mirror_folders(l, &b)?;
             // New sources may teach journal abbreviations.
             if let Ok(refs) = l.store.all::<Reference>() {
@@ -1288,7 +1310,21 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             }
             ok(json!({"report": report, "attached": attached, "collected": placed}))
         }
-        "import.cancel" => ok(lib_mut(st)?.cancel_import(&s(a, "id")).map_err(err)?),
+        "import.cancel" => {
+            let l = lib_mut(st)?;
+            l.cancel_import(&s(a, "id")).map_err(err)?;
+            // PDFs a capture left in the inbox for this batch are no longer needed.
+            if let Ok(b) = l.store.must::<ImportBatch>(&s(a, "id")) {
+                for r in &b.records {
+                    if let Some(p) = r.record.overflow.get("pdf:path").map(PathBuf::from) {
+                        if crate::capture::in_inbox(l, &p) {
+                            let _ = std::fs::remove_file(&p);
+                        }
+                    }
+                }
+            }
+            ok(true)
+        }
         "cleanup.propose" if s(a, "kind") == "journals" => ok(lib_mut(st)?.propose_journal_names(&opt::<Vec<String>>(a, "ids")).map_err(err)?),
         "cleanup.propose" => ok(lib_mut(st)?.propose_title_case(&opt::<Vec<String>>(a, "ids")).map_err(err)?),
         "journals.summary" => {
@@ -1343,9 +1379,10 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let kind = s(a, "kind");
             let inv_kind = match kind.as_str() { "pmid" | "pmcid" => "pubmed", "url" => "webpage", k => k }.to_string();
             network_allowed(st, &inv_kind, &s(a, "project_id"))?;
+            let may = kinds_allowed(st, &s(a, "project_id"));
             let l = lib_mut(st)?;
             let store = &l.store;
-            let res = prm_core::lookup::resolve(&kind, &s(a, "id"), &mut |k, h, sent, okk, d| store.log_network(k, h, "Identifier lookup", sent, okk, d));
+            let res = prm_core::lookup::resolve(&kind, &s(a, "id"), &may, &mut |k, h, sent, okk, d| store.log_network(k, h, "Identifier lookup", sent, okk, d));
             ok(res)
         }
         "lookup.stage" => {
@@ -1376,14 +1413,14 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         "capture.check" => ok(crate::capture::check(lib_mut(st)?, &s(a, "doi"), &s(a, "title"))?),
         "capture.stage" => {
             let req: crate::capture::CaptureRequest = serde_json::from_value(a.clone()).map_err(|e| CallError { message: "The capture request was not valid.".into(), detail: e.to_string() })?;
-            let net = network_allowed(st, "doi", &req.project_id).is_ok();
+            let may = kinds_allowed(st, &req.project_id);
             let l = lib_mut(st)?;
             let b = crate::capture::stage(l, &req, |lib, kind, id| {
-                if !net {
+                if !may(prm_core::lookup::switch_for(kind)) {
                     return None;
                 }
                 let store = &lib.store;
-                prm_core::lookup::resolve(kind, id, &mut |k, h, sent, okk, d| store.log_network(k, h, "Browser capture lookup", sent, okk, d)).candidate
+                prm_core::lookup::resolve(kind, id, &may, &mut |k, h, sent, okk, d| store.log_network(k, h, "Browser capture lookup", sent, okk, d)).candidate
             })?;
             let first = b.records.first().map(|r| r.record.fields.get("title").cloned().unwrap_or_default()).unwrap_or_default();
             let _ = app.emit("capture", json!({"batch_id": b.id, "count": b.records.len(), "title": first}));
@@ -1391,8 +1428,8 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         }
         "capture.extension_folder" => {
             let dir = app.path().resource_dir().map(|d| d.join("extension")).unwrap_or_default();
-            let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("extension");
-            let target = if dir.join("manifest.json").exists() { dir } else { dev };
+            // The source folder is a fallback only when running from a debug build.
+            let target = if dir.join("manifest.json").exists() || !cfg!(debug_assertions) { dir } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("extension") };
             if !target.join("manifest.json").exists() {
                 return Err(user("The browser extension folder was not found in the install folder."));
             }
@@ -1616,6 +1653,7 @@ fn diagnostics(st: &crate::AppState, expanded: bool) -> Value {
         "arch": std::env::consts::ARCH,
         "portable": settings::portable(),
         "policy_file": redact(&st.policy.source),
+        "policy_ignored": st.policy.ignored.iter().map(|x| redact(x)).collect::<Vec<_>>(),
         "library": lib.map(|i| json!({"schema": i.schema, "read_only": i.read_only, "counts": i.counts, "sync_folder_warning": i.sync_folder_warning, "root": redact(&i.root)})),
         "settings": {
             "theme": st.settings.theme, "network_enabled": st.settings.network_enabled, "api_enabled": st.settings.api_enabled,
@@ -1624,4 +1662,31 @@ fn diagnostics(st: &crate::AppState, expanded: bool) -> Value {
         "jobs": st.jobs.iter().rev().take(20).map(|j| json!({"kind": j["kind"], "ok": j["ok"]})).collect::<Vec<_>>(),
         "note": "This bundle excludes library content, titles, notes, quotations, document text and tokens.",
     })
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::scope_of;
+
+    #[test]
+    fn connected_programs_cannot_move_open_or_delete_files() {
+        for m in super::WINDOW_ONLY_FILES {
+            assert_eq!(scope_of(m), "admin", "{m} must stay window-only");
+        }
+        for m in ["files.list", "files.page_text", "files.ocr_words", "ann.list", "ann.save"] {
+            assert_eq!(scope_of(m), "files", "{m} stays in the files scope");
+        }
+        // Every other files.* command that exists is in one list or the other on purpose.
+        let src = include_str!("dispatch.rs");
+        let mut known: Vec<&str> = vec![];
+        for part in src.split('"').filter(|p| p.starts_with("files.") && p.len() > 6 && p.len() < 40 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')) {
+            if !known.contains(&part) {
+                known.push(part);
+            }
+        }
+        let allowed = ["files.list", "files.page_text", "files.unindexed", "files.scanned", "files.ocr_words", "files.ocr_text_in", "files.set_page_text", "files.set_ocr_text", "files.clear_ocr", "files.exclude_index", "files.set_offset", "files.find_oa", "files.find_oa_many"];
+        for m in known {
+            assert!(super::WINDOW_ONLY_FILES.contains(&m) || allowed.contains(&m), "{m}: decide whether a connected program may use it");
+        }
+    }
 }

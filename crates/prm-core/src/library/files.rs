@@ -65,7 +65,13 @@ fn safe_name(s: &str) -> String {
     let t: String = s.chars().map(|c| if "\\/:*?\"<>|".contains(c) || (c as u32) < 32 { '_' } else { c }).collect();
     let t = t.trim().trim_end_matches('.').to_string();
     let t: String = t.chars().take(120).collect();
-    if t.is_empty() { "file".into() } else { t }
+    if t.is_empty() {
+        return "file".into();
+    }
+    // CON, PRN, AUX, NUL, COM1-9 and LPT1-9 (with or without an extension) are devices on Windows.
+    let stem = t.split('.').next().unwrap_or("").trim().to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.as_bytes()[3].is_ascii_digit());
+    if reserved { format!("_{t}") } else { t }
 }
 
 /// Share of recognized words that look like words or numbers (see the window's OCR module).
@@ -88,6 +94,68 @@ pub fn word_quality(toks: &[String]) -> f32 {
 
 /// Prefix marking a linked path stored relative to the base folder.
 pub const BASE_PREFIX: &str = "base:";
+
+/// A path relative to a folder that cannot leave it: plain name parts only (no `..`, no root,
+/// no drive, no `C:` prefix).
+pub fn plain_relative(p: &str) -> bool {
+    use std::path::Component;
+    !p.trim().is_empty() && !p.contains(':') && Path::new(p).components().all(|c| matches!(c, Component::Normal(_)))
+}
+
+/// Document types "Open in default app" may hand to Windows. Anything else (programs, scripts,
+/// shortcuts, installers) could run instead of opening.
+pub const OPENABLE: &[&str] = &["pdf", "epub", "docx", "doc", "odt", "rtf", "html", "htm", "txt", "md", "png", "jpg", "jpeg", "gif", "tif", "tiff"];
+
+/// Mark a file as coming from outside this computer (as a browser marks a download), so Windows
+/// warns before anything runs it. Used for files unpacked from packages and backups.
+pub fn mark_from_elsewhere(path: &Path) {
+    #[cfg(windows)]
+    {
+        let mut ads = path.as_os_str().to_owned();
+        ads.push(":Zone.Identifier");
+        let _ = std::fs::write(std::path::PathBuf::from(ads), "[ZoneTransfer]\r\nZoneId=3\r\n");
+    }
+    #[cfg(not(windows))]
+    let _ = path;
+}
+
+/// A file hash as the program writes it: 64 hexadecimal characters.
+pub fn hash_ok(h: &str) -> bool {
+    h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Whether an attachment row from outside (an export package or a restored backup) is safe to
+/// keep. A managed file must stay inside the library's files folder; a linked file must be on a
+/// lettered drive or under the base folder, never a network path (opening one would make Windows
+/// offer the person's sign-in to that server). Files the person links themselves are not checked
+/// here.
+pub fn attachment_ok(a: &Attachment) -> std::result::Result<(), String> {
+    if !hash_ok(&a.hash) {
+        return Err("its file hash is not valid".into());
+    }
+    match a.mode.as_str() {
+        "managed" => {
+            if !plain_relative(&a.path) {
+                return Err(format!("its file path {:?} leaves the library's files folder", a.path));
+            }
+        }
+        "linked" => {
+            if let Some(rel) = a.path.strip_prefix(BASE_PREFIX) {
+                if !plain_relative(rel) {
+                    return Err(format!("its linked path {:?} leaves the base folder", a.path));
+                }
+            } else {
+                let b = a.path.as_bytes();
+                let lettered = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/');
+                if !lettered || a.path.contains("..") {
+                    return Err(format!("its linked path {:?} is not a file on this computer's drives", a.path));
+                }
+            }
+        }
+        _ => return Err("its storage mode is not known".into()),
+    }
+    Ok(())
+}
 
 /// Outcome of converting attachments between managed and linked storage.
 #[derive(Debug, Clone, Default, serde::Serialize)]
@@ -114,8 +182,53 @@ fn under(path: &Path, base: &Path) -> Option<String> {
 }
 
 impl Library {
+    /// A path inside the library's files folder for a stored relative path, checked again after
+    /// resolving any links on disk. Used before every delete, rename or copy into the folder.
+    pub fn inside_files(&self, rel: &str) -> Result<PathBuf> {
+        if !plain_relative(rel) {
+            return Err(Error::user("An attachment record points outside the library's files folder, so it was not touched."));
+        }
+        let root = self.files_dir();
+        let p = root.join(rel);
+        // The deepest part that exists must resolve inside the files folder.
+        let mut probe = p.clone();
+        while !probe.exists() {
+            match probe.parent() {
+                Some(up) if up.starts_with(&root) => probe = up.to_path_buf(),
+                _ => return Ok(p),
+            }
+        }
+        match (probe.canonicalize(), root.canonicalize()) {
+            (Ok(c), Ok(r)) if c.starts_with(&r) => Ok(p),
+            (Ok(_), Ok(_)) => Err(Error::user("An attachment record points outside the library's files folder, so it was not touched.")),
+            _ => Ok(p),
+        }
+    }
+
+    /// The file to hand to Windows for "Open in default app": only a document type (judged by
+    /// the real file name on disk, not the displayed name) whose content still matches the hash
+    /// recorded when it was attached.
+    pub fn openable_path(&self, a: &Attachment) -> Result<PathBuf> {
+        let p = self.attachment_path(a);
+        let ext = p.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).unwrap_or_default();
+        if !OPENABLE.contains(&ext.as_str()) {
+            return Err(Error::user(format!("For safety, only documents (PDF, e-book, word-processor, web page, text and picture files) open in another program. This file is “{}”.", p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default())));
+        }
+        if !p.is_file() {
+            return Err(Error::user("The file is missing. Relink it from Tools › Check attached files."));
+        }
+        if !hash_ok(&a.hash) || sha256_file(&p)? != a.hash {
+            return Err(Error::user("The file on disk is not the one that was attached (its contents changed), so it was not opened. Check it under Tools › Check attached files."));
+        }
+        Ok(p)
+    }
+
     pub fn attachment_path(&self, a: &Attachment) -> PathBuf {
         if a.mode == "managed" {
+            // A managed path that could leave the files folder points nowhere instead.
+            if !plain_relative(&a.path) {
+                return self.files_dir().join("invalid-attachment-path");
+            }
             self.files_dir().join(&a.path)
         } else if let Some(rel) = a.path.strip_prefix(BASE_PREFIX) {
             match self.linked_base() {
@@ -185,6 +298,9 @@ impl Library {
 
     /// Copy a file into the managed store, checking the copy; returns its relative path.
     pub(crate) fn copy_into_store(&self, src: &Path, hash: &str, original_name: &str) -> Result<String> {
+        if !hash_ok(hash) {
+            return Err(Error::user("This attachment's record is damaged (its file hash is not valid)."));
+        }
         let rel = format!("{}/{}/{}", &hash[..2], &hash[..16], safe_name(original_name));
         let dest = self.files_dir().join(&rel);
         if !dest.exists() {
@@ -566,7 +682,7 @@ impl Library {
         let p = self.link_path(new_path);
         if a.mode == "managed" {
             // Put the found copy back into the managed store; the record stays the same.
-            let dest = self.files_dir().join(&a.path);
+            let dest = self.inside_files(&a.path)?;
             if let Some(parent) = dest.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -637,7 +753,7 @@ impl Library {
         }
         if apply {
             for (id, old_rel, new_rel) in &plan {
-                std::fs::rename(self.files_dir().join(old_rel), self.files_dir().join(new_rel))?;
+                std::fs::rename(self.inside_files(old_rel)?, self.inside_files(new_rel)?)?;
                 let mut a = self.store.must::<Attachment>(id)?;
                 a.old_names.push(a.path.clone());
                 a.path = new_rel.clone();

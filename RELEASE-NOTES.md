@@ -23,7 +23,7 @@ source; rating a selection (per project or library-wide), adding it to a collect
 or exporting its files; a project's evaluation and tags for each source; unlinking versions;
 renaming projects, choosing their colour, and renaming the library.
 
-**Export.** Excel workbooks, copying selected sources as BibTeX, biblatex, RIS or CSL JSON,
+**Export.** Spreadsheets (.xlsx), copying selected sources as BibTeX, biblatex, RIS or CSL JSON,
 named export presets, and files kept up to date in any of those formats (not only BibTeX).
 Notes export to plain text; annotations export to DOCX and structured JSON.
 
@@ -108,6 +108,14 @@ zooms on its own and shows its marks; Swap makes it the one you mark). An option
 shortcut opens a small Quick copy box over any program: find a source, choose parenthetical,
 narrative or the full reference, press Enter and paste. It uses the clipboard; nothing is typed
 into the other program.
+
+**Security.** After an independent review: policy counts only when an administrator made it and
+can only restrict; export packages and restored backups cannot reach files outside the library or
+network shares; "Open in default app" opens only unchanged documents; a database from elsewhere
+cannot run its own SQL; programs connected through the local connection cannot open, move or
+delete files; CSV cells cannot become formulas; online lookups start off and each request follows
+its own switch; requests cannot reach this computer or the local network; only web addresses
+become links in copied text.
 
 **Search.** Results are ranked by relevance while searching (title and author matches count
 most). A word that matches nothing is retried with close spellings, and the list says so.
