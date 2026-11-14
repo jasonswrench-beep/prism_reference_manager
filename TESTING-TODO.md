@@ -40,7 +40,7 @@ already pass are listed at the end for reference.
 
 ## 2. Citation correctness (release gate G01, G02)
 
-- [x] **Review the APA golden cases.** Reviewed by Jason Wrench on 2026-11-13 (Word review with
+- [x] **Review the APA golden cases.** Reviewed by Jason Wrench on 2026-11-13 (a word-processor review with
       tracked changes). Corrections applied: roman comma between periodical title and volume,
       bracketed English title translation, restored italics; 51 of 59 cases carry the reviewer's
       name. Records were made explicit for the flagged cases (retrieval-date condition, paper
@@ -110,7 +110,7 @@ already pass are listed at the end for reference.
 - [ ] Pause and resume full-text indexing of a large folder of PDFs from Tools › Background jobs,
       then cancel and retry it.
 - [ ] Links: install the build, copy a source's link (details › History › Copy link), paste it into a
-      Word document and a browser address bar, and click it with the program closed and with it
+      word-processor document and a browser address bar, and click it with the program closed and with it
       open. Check that uninstalling removes the prism-rm registration.
 - [ ] Group Policy (IT): copy `docs/policy/*.admx` and `en-US/*.adml` into PolicyDefinitions, set
       "Allow online lookups" to Disabled and a backup folder, and confirm the program shows them
@@ -123,7 +123,7 @@ already pass are listed at the end for reference.
 - [ ] Once releases are published: return to the previous version from Settings › About on a test
       computer, with a library this version had upgraded.
 - [ ] Quick copy from another program: choose a system-wide shortcut (Settings › Appearance ›
-      Quick copy from any program), press it in Word, find a source, press Enter and paste. Try a
+      Quick copy from any program), press it in your word processor, find a source, press Enter and paste. Try a
       combination another program already uses and check the message. Check with a screen reader.
 - [ ] Side by side: open two PDFs, choose the two-column button in the Reader toolbar, read and
       scroll both, Swap, and check the layout on a small laptop screen.
