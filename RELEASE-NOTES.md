@@ -1,8 +1,9 @@
 # Release notes
 
-## 0.1.0 (first build, not released)
+## 0.1.0 (pre-release, 2026-11-14)
 
-First complete build for internal testing. Signed and timestamped (Jason Wrench); not published.
+First public pre-release, for testing. The installer and the program are signed and timestamped
+(Jason Wrench). Automatic updates are off in this build.
 
 **Projects and library.** Projects with manuscripts, separate reading decisions, notes and
 outlines over one shared library. Collections, smart collections, labels, ratings, trash with
