@@ -19,7 +19,7 @@ fn records(text: &str) -> Result<Vec<(String, Vec<(String, String, String)>)>, S
     loop {
         match reader.read_event() {
             Ok(Event::Start(e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if name == "record" {
                     cur = Some((reader.buffer_position() as usize, Vec::new()));
                 }
@@ -34,13 +34,13 @@ fn records(text: &str) -> Result<Vec<(String, Vec<(String, String, String)>)>, S
                     leaf_attr = e
                         .attributes()
                         .filter_map(|a| a.ok())
-                        .find(|a| a.key.as_ref() == b"name")
-                        .map(|a| String::from_utf8_lossy(&a.value).to_string())
+                        .find(|a| a.key.as_ref() == "name")
+                        .map(|a| a.normalized_value(quick_xml::XmlVersion::Implicit1_0).map(|v| v.into_owned()).unwrap_or_else(|_| a.value.to_string()))
                         .unwrap_or_default();
                 }
             }
             Ok(Event::End(e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if name == "style" {
                     continue;
                 }
@@ -59,10 +59,17 @@ fn records(text: &str) -> Result<Vec<(String, Vec<(String, String, String)>)>, S
                 }
             }
             Ok(Event::Text(t)) => {
-                let s = t.unescape().map(|c| c.to_string()).unwrap_or_default();
-                buf_text.push_str(&s);
+                buf_text.push_str(&t.xml10_content());
             }
-            Ok(Event::CData(t)) => buf_text.push_str(&String::from_utf8_lossy(&t)),
+            // Entity and character references arrive as their own events.
+            Ok(Event::GeneralRef(r)) => {
+                if let Ok(Some(c)) = r.resolve_char_ref() {
+                    buf_text.push(c);
+                } else if let Some(v) = quick_xml::escape::resolve_predefined_entity(&r.xml10_content()) {
+                    buf_text.push_str(v);
+                }
+            }
+            Ok(Event::CData(t)) => buf_text.push_str(&t.xml10_content()),
             Ok(Event::Eof) => break,
             Err(e) => return Err(e.to_string()),
             _ => {}
@@ -219,4 +226,16 @@ pub fn export(refs: &[&Reference]) -> String {
     }
     o.push_str("</references>\n");
     o
+}
+
+#[cfg(test)]
+mod entity_tests {
+    #[test]
+    fn entities_and_character_references_become_text() {
+        let xml = r#"<xml><records><record><ref-type name="Book &amp; Chapter">17</ref-type><titles><title><style>Cats &amp; dogs &lt;3 &#169; &#x263A;</style></title></titles></record></records></xml>"#;
+        let out = super::parse(xml);
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        let rec = format!("{:?}", out.records[0].record);
+        assert!(rec.contains("Cats & dogs <3 © ☺"), "{rec}");
+    }
 }
