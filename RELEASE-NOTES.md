@@ -1,8 +1,10 @@
 # Release notes
 
-## Next version (not released yet)
+## 0.1.1 (pre-release, 2026-11-15)
 
-Fixes for faults found while writing the user guide for 0.1.0. None of them lost data.
+Fixes for faults found while writing the user guide for 0.1.0. None of them lost data. The
+installer and the program are signed and timestamped (Jason Wrench). Automatic updates are off
+in this build.
 
 - **Screen readers.** The Folder box in File › New library has a name. The page behind an open
   dialog is no longer read or reachable. The Settings › Network tick boxes have plain names
