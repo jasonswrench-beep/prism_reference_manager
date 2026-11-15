@@ -264,7 +264,7 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
       (Automated: `tools	est-installer.ps1` passed on the development machine — silent install
       into a chosen folder, per-user registration, uninstall removes only the program folder and
       its settings, neighbouring folders and the library folder untouched.)
-- [ ] Silent install `Prism-Reference-Manager-0.1.1-setup.exe /S` and uninstall `/S` from a script.
+- [ ] Silent install `Prism-Reference-Manager-0.1.2-setup.exe /S` and uninstall `/S` from a script.
 - [ ] Uninstall: confirm `%LOCALAPPDATA%\Prism Reference Manager`,
       `%APPDATA%\org.prism.referencemanager` and `%LOCALAPPDATA%\org.prism.referencemanager` are
       gone, and the library folder under Documents is untouched.

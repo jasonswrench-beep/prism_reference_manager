@@ -1,6 +1,6 @@
 # Release notes
 
-## Next version (not released yet)
+## 0.1.2 (pre-release, 2026-11-15)
 
 Fixes for problems found while refreshing the user guide for 0.1.1. None of them lost data.
 

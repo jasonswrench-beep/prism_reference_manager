@@ -1,6 +1,6 @@
 # Install the per-user build silently into a temporary folder, check it, uninstall it, and check
 # that only the program's own folder and settings were removed.
-# Usage: powershell -ExecutionPolicy Bypass -File tools\test-installer.ps1 dist\Prism-Reference-Manager-0.1.1-setup.exe
+# Usage: powershell -ExecutionPolicy Bypass -File tools\test-installer.ps1 dist\Prism-Reference-Manager-0.1.2-setup.exe
 
 param([Parameter(Mandatory = $true)][string]$Setup)
 $ErrorActionPreference = "Stop"
