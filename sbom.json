@@ -3,11 +3,11 @@
  "specVersion": "1.5",
  "version": 1,
  "metadata": {
-  "timestamp": "2026-11-15T12:31:40.907067+00:00",
+  "timestamp": "2026-11-15T16:04:07.014466+00:00",
   "component": {
    "type": "application",
    "name": "Prism Reference Manager",
-   "version": "0.1.1"
+   "version": "0.1.2"
   }
  },
  "components": [
@@ -124,17 +124,6 @@
   {
    "type": "library",
    "name": "base64",
-   "version": "0.22.1",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/base64@0.22.1"
-  },
-  {
-   "type": "library",
-   "name": "base64",
    "version": "0.23.1",
    "licenses": [
     {
@@ -142,6 +131,17 @@
     }
    ],
    "purl": "pkg:cargo/base64@0.23.1"
+  },
+  {
+   "type": "library",
+   "name": "base64",
+   "version": "0.22.1",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/base64@0.22.1"
   },
   {
    "type": "library",
@@ -179,17 +179,6 @@
   {
    "type": "library",
    "name": "block-buffer",
-   "version": "0.10.4",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/block-buffer@0.10.4"
-  },
-  {
-   "type": "library",
-   "name": "block-buffer",
    "version": "0.12.1",
    "licenses": [
     {
@@ -197,6 +186,17 @@
     }
    ],
    "purl": "pkg:cargo/block-buffer@0.12.1"
+  },
+  {
+   "type": "library",
+   "name": "block-buffer",
+   "version": "0.10.4",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/block-buffer@0.10.4"
   },
   {
    "type": "library",
@@ -553,17 +553,6 @@
   {
    "type": "library",
    "name": "crypto-common",
-   "version": "0.2.2",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/crypto-common@0.2.2"
-  },
-  {
-   "type": "library",
-   "name": "crypto-common",
    "version": "0.1.7",
    "licenses": [
     {
@@ -571,6 +560,17 @@
     }
    ],
    "purl": "pkg:cargo/crypto-common@0.1.7"
+  },
+  {
+   "type": "library",
+   "name": "crypto-common",
+   "version": "0.2.2",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/crypto-common@0.2.2"
   },
   {
    "type": "library",
@@ -1048,6 +1048,17 @@
   {
    "type": "library",
    "name": "getrandom",
+   "version": "0.4.3",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/getrandom@0.4.3"
+  },
+  {
+   "type": "library",
+   "name": "getrandom",
    "version": "0.2.17",
    "licenses": [
     {
@@ -1066,17 +1077,6 @@
     }
    ],
    "purl": "pkg:cargo/getrandom@0.3.4"
-  },
-  {
-   "type": "library",
-   "name": "getrandom",
-   "version": "0.4.3",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/getrandom@0.4.3"
   },
   {
    "type": "library",
@@ -1114,17 +1114,6 @@
   {
    "type": "library",
    "name": "hashbrown",
-   "version": "0.14.5",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/hashbrown@0.14.5"
-  },
-  {
-   "type": "library",
-   "name": "hashbrown",
    "version": "0.12.3",
    "licenses": [
     {
@@ -1132,6 +1121,17 @@
     }
    ],
    "purl": "pkg:cargo/hashbrown@0.12.3"
+  },
+  {
+   "type": "library",
+   "name": "hashbrown",
+   "version": "0.14.5",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/hashbrown@0.14.5"
   },
   {
    "type": "library",
@@ -2225,13 +2225,13 @@
   {
    "type": "library",
    "name": "schemars",
-   "version": "0.8.22",
+   "version": "1.2.3",
    "licenses": [
     {
      "expression": "MIT"
     }
    ],
-   "purl": "pkg:cargo/schemars@0.8.22"
+   "purl": "pkg:cargo/schemars@1.2.3"
   },
   {
    "type": "library",
@@ -2247,13 +2247,13 @@
   {
    "type": "library",
    "name": "schemars",
-   "version": "1.2.3",
+   "version": "0.8.22",
    "licenses": [
     {
      "expression": "MIT"
     }
    ],
-   "purl": "pkg:cargo/schemars@1.2.3"
+   "purl": "pkg:cargo/schemars@0.8.22"
   },
   {
    "type": "library",
@@ -2599,17 +2599,6 @@
   {
    "type": "library",
    "name": "syn",
-   "version": "2.0.119",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/syn@2.0.119"
-  },
-  {
-   "type": "library",
-   "name": "syn",
    "version": "3.0.10",
    "licenses": [
     {
@@ -2617,6 +2606,17 @@
     }
    ],
    "purl": "pkg:cargo/syn@3.0.10"
+  },
+  {
+   "type": "library",
+   "name": "syn",
+   "version": "2.0.119",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/syn@2.0.119"
   },
   {
    "type": "library",
@@ -2797,17 +2797,6 @@
   {
    "type": "library",
    "name": "thiserror",
-   "version": "2.0.21",
-   "licenses": [
-    {
-     "expression": "MIT OR Apache-2.0"
-    }
-   ],
-   "purl": "pkg:cargo/thiserror@2.0.21"
-  },
-  {
-   "type": "library",
-   "name": "thiserror",
    "version": "1.0.69",
    "licenses": [
     {
@@ -2818,14 +2807,14 @@
   },
   {
    "type": "library",
-   "name": "thiserror-impl",
-   "version": "1.0.69",
+   "name": "thiserror",
+   "version": "2.0.21",
    "licenses": [
     {
      "expression": "MIT OR Apache-2.0"
     }
    ],
-   "purl": "pkg:cargo/thiserror-impl@1.0.69"
+   "purl": "pkg:cargo/thiserror@2.0.21"
   },
   {
    "type": "library",
@@ -2837,6 +2826,17 @@
     }
    ],
    "purl": "pkg:cargo/thiserror-impl@2.0.21"
+  },
+  {
+   "type": "library",
+   "name": "thiserror-impl",
+   "version": "1.0.69",
+   "licenses": [
+    {
+     "expression": "MIT OR Apache-2.0"
+    }
+   ],
+   "purl": "pkg:cargo/thiserror-impl@1.0.69"
   },
   {
    "type": "library",
