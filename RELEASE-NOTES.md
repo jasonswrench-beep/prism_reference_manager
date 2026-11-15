@@ -1,5 +1,20 @@
 # Release notes
 
+## Next version (not released yet)
+
+Fixes for problems found while refreshing the user guide for 0.1.1. None of them lost data.
+
+- **Keyboard.** On a row of tabs (Settings, Cite), the arrow keys now move along the whole row,
+  and Home and End go to the first and last tab. Before, the focus fell to the page heading after
+  one move.
+- **Notes.** After File in section, the number beside the section updates at once.
+- **Compare records.** The first rows are named Type, Authors and other people, and Date, and the
+  type shows its name (for example Journal article). Refresh from the online record shows dates
+  as dates.
+- **Opening a library.** When the library is still marked open by this computer, for example after
+  the program stopped suddenly, the message says so and says the mark clears by itself within two
+  minutes. A library open on another computer gets its own message.
+
 ## 0.1.1 (pre-release, 2026-11-15)
 
 Fixes for faults found while writing the user guide for 0.1.0. None of them lost data. The

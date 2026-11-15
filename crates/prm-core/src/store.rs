@@ -810,18 +810,33 @@ pub fn lock_path(root: &Path) -> PathBuf {
     root.join("library.lock")
 }
 
+/// A lock whose last heartbeat is older than this is left over from a program that stopped.
+const LOCK_FRESH_SECS: i64 = 90;
+
+/// What the person is told when the library is marked open elsewhere.
+fn locked_message(info: &LockInfo, this_computer: bool, secs_left: i64) -> String {
+    if this_computer {
+        // Another window on this computer, or a program that stopped suddenly and left its mark.
+        let wait = if secs_left > 60 { "about two minutes".to_string() } else { format!("about {} seconds", secs_left.max(10)) };
+        format!("The library is still marked open by Prism Reference Manager on this computer (process {}). If it is open in another window, close it there first. If the program stopped suddenly, the mark clears by itself: try again in {wait}.", info.pid)
+    } else {
+        format!("The library is open on another computer ({}). Close it there first, or open a copy. If that computer stopped suddenly, the mark clears by itself within two minutes.", info.host)
+    }
+}
+
 /// Take the library lock. Fails when another device or process holds a recent lock, so two
 /// computers never write the same live database through a synchronized folder.
 pub fn acquire_lock(root: &Path, device: &str, host: &str) -> Result<()> {
     let p = lock_path(root);
     if let Ok(s) = std::fs::read_to_string(&p) {
         if let Ok(info) = serde_json::from_str::<LockInfo>(&s) {
-            let fresh = chrono::DateTime::parse_from_rfc3339(&info.heartbeat)
-                .map(|t| chrono::Utc::now().signed_duration_since(t).num_seconds() < 90)
-                .unwrap_or(false);
+            let age = chrono::DateTime::parse_from_rfc3339(&info.heartbeat)
+                .map(|t| chrono::Utc::now().signed_duration_since(t).num_seconds())
+                .unwrap_or(LOCK_FRESH_SECS);
+            let fresh = age < LOCK_FRESH_SECS;
             let ours = info.device == device && info.pid == std::process::id();
             if fresh && !ours {
-                return Err(Error::Locked(format!("{} (process {})", info.host, info.pid)));
+                return Err(Error::Locked(locked_message(&info, info.device == device, LOCK_FRESH_SECS - age.max(0))));
             }
         }
     }

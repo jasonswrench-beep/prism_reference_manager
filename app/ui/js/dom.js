@@ -337,18 +337,32 @@ export function field(label, control, help) {
   return h("div.field", h("label", { for: id }, label), control, help ? h("div.help", { id: helpId }, help) : null);
 }
 
+// A tab row the keyboard was on when its page was redrawn: the new row takes the focus back.
+let tabFocus = null;
+
 export function tabs(names, current, onPick, { seg = false, label = "Sections" } = {}) {
   const list = h("div." + (seg ? "seg" : "tabs"), { role: "tablist", "aria-label": label });
   names.forEach(([key, text], i) => {
     const t = h("button", { role: "tab", type: "button", "aria-selected": String(key === current), tabindex: key === current ? "0" : "-1", on: { click: () => onPick(key) } }, text);
     t.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        const n = names[(i + (e.key === "ArrowRight" ? 1 : names.length - 1)) % names.length][0];
-        onPick(n);
-        setTimeout(() => list.querySelector('[aria-selected="true"]')?.focus(), 0);
-      }
+      let j = null;
+      if (e.key === "ArrowRight") j = (i + 1) % names.length;
+      else if (e.key === "ArrowLeft") j = (i + names.length - 1) % names.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = names.length - 1;
+      if (j === null) return;
+      e.preventDefault();
+      tabFocus = { label, until: Date.now() + 2000 };
+      onPick(names[j][0]);
+      // The same row when the page was not redrawn.
+      if (list.isConnected) setTimeout(() => { if (list.isConnected) { tabFocus = null; list.querySelector('[aria-selected="true"]')?.focus(); } }, 60);
     });
     list.append(t);
   });
+  if (tabFocus && tabFocus.label === label && Date.now() < tabFocus.until) {
+    tabFocus = null;
+    // After the view has moved the focus to its heading.
+    setTimeout(() => { if (list.isConnected) list.querySelector('[aria-selected="true"]')?.focus(); }, 60);
+  }
   return list;
 }

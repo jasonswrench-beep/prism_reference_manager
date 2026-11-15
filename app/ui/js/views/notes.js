@@ -202,8 +202,9 @@ registerView("notes", {
             } }) : null,
             flatSections.length ? btn("File in section…", { icon: "list", onClick: async () => {
               const sel = select(flatSections.map((s) => [s.id, "  ".repeat(s.depth) + s.title]), flatSections[0].id);
-              const r = await modal("File in section", field("Section", sel), { size: "narrow", buttons: [{ label: "Cancel" }, { label: "File", kind: "primary", run: () => call("outline.file_note", { section_id: sel.value, note_id: n.id }) }] }).done;
-              if (r !== null) go("notes");
+              const r = await modal("File in section", field("Section", sel), { size: "narrow", buttons: [{ label: "Cancel" }, { label: "File", kind: "primary", run: async () => { await call("outline.file_note", { section_id: sel.value, note_id: n.id }); return "filed"; } }] }).done;
+              // The call itself returns nothing, so the dialog answers "filed" to show it was done.
+              if (r === "filed") go("notes");
             } }) : null,
             N.section ? btn("Remove from this section", { onClick: async () => { await call("outline.unfile_note", { section_id: N.section, note_id: n.id }); go("notes"); } }) : null),
           linkBox,

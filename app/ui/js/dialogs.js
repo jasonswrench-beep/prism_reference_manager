@@ -563,7 +563,8 @@ export async function compareRecords(a, b, after) {
   const A = x.ref, B = y.ref;
   const keys = [...new Set(["type", "creators", "issued", ...Object.keys(A.fields), ...Object.keys(B.fields)])];
   const person = (c) => c.name.literal || [c.name.family, c.name.given].filter(Boolean).join(", ");
-  const val = (r, k) => k === "type" ? r.type : k === "creators" ? (r.creators || []).map(person).join("; ") : k === "issued" ? dateText(r.issued) : r.fields[k] || "";
+  const typeName = (t) => (S.customTypes || []).find((x) => x.id === t)?.label || (S.types || []).find((x) => x.id === t)?.label || t;
+  const val = (r, k) => k === "type" ? typeName(r.type) : k === "creators" ? (r.creators || []).map(person).join("; ") : k === "issued" ? dateText(r.issued) : r.fields[k] || "";
   // What a reader sees: one person per line, dates as dates.
   const show = (r, k) => k === "creators" ? h("div", (r.creators || []).map((c) => h("div", person(c) + (c.role && c.role !== "author" ? ` (${c.role})` : "")))) : val(r, k);
   const choices = {};
@@ -943,13 +944,15 @@ export async function refreshFromSource(refId) {
   const c = res.candidate;
   const val = (x, k) => k === "creators" ? (x.creators || []).map((n) => n.name.literal || `${n.name.family}, ${n.name.given || ""}`).join("; ") : k === "issued" ? JSON.stringify(x.issued || null) : x.fields[k] || "";
   const keys = [...new Set(["creators", "issued", ...Object.keys(c.fields)])].filter((k) => val(c, k) && val(c, k) !== val(r, k));
+  // What the person reads: the date as a date, not its stored form.
+  const seen = (x, k) => k === "issued" ? dateText(x.issued) : val(x, k);
   if (!keys.length) return toast("The online record matches this source.", "success");
   const boxes = {};
   const rows = keys.map((k) => {
     const userEdited = r.provenance?.[k]?.user_edited;
     const cb = h("input", { type: "checkbox", checked: !userEdited && !val(r, k), "aria-label": "Use new value for " + fieldLabel(k) });
     boxes[k] = cb;
-    return h("tr", h("td", cb), h("td", h("strong", fieldLabel(k)), userEdited ? h("div.small.status-review", "You edited this field") : null), h("td.small", val(r, k) || h("em.muted", "empty")), h("td.small", val(c, k)));
+    return h("tr", h("td", cb), h("td", h("strong", fieldLabel(k)), userEdited ? h("div.small.status-review", "You edited this field") : null), h("td.small", seen(r, k) || h("em.muted", "empty")), h("td.small", seen(c, k)));
   });
   const ok = await modal("Refresh from the online record", h("div",
     h("p", `Values from ${kind.toUpperCase()} ${r.fields[kind]}. Only the fields you tick are changed; the rest stay as they are. Each change keeps its earlier value in history.`),

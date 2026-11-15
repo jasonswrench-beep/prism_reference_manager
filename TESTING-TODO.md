@@ -252,6 +252,9 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
       theme the primary buttons are easy to read; at the program's own window size, with a source
       chosen in Library, the action buttons wrap onto a second row instead of overlapping; in
       portable mode Settings › About says settings are next to the program.
+- [ ] Fixes from the 0.1.1 guide refresh (checked by script): with NVDA, in Settings and in Cite,
+      press Right several times, then Home and End, along the tabs; each tab is announced and the
+      focus stays on the tab row.
 - [ ] Known gap: selecting PDF text with the keyboard alone is limited; marks can be created with
       a mouse selection then edited by keyboard. Decide whether a caret-browsing mode is needed.
 

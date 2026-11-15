@@ -21,7 +21,9 @@ pub enum Error {
     Network(String),
     #[error("This library was created by a newer version (schema {found}); it is open read-only. Export what you need or update the program.")]
     SchemaTooNew { found: i64 },
-    #[error("The library is open in another window or on another computer ({0}). Close it there first, or open a copy.")]
+    /// The library is marked open by another program window or computer; the text says which
+    /// and what to do (see `store::acquire_lock`).
+    #[error("{0}")]
     Locked(String),
     #[error("The PDF could not be processed: {0}")]
     Pdf(String),

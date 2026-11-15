@@ -137,7 +137,23 @@ fn concurrent_writer_is_refused() {
     let libdir = root.join("lib");
     let _a = Library::open(&libdir, "device-a", "host-a").unwrap();
     match Library::open(&libdir, "device-b", "host-b") {
-        Err(prm_core::Error::Locked(_)) => {}
+        Err(prm_core::Error::Locked(m)) => assert!(m.contains("another computer (host-a)"), "{m}"),
+        other => panic!("expected lock refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+#[test]
+fn a_mark_left_on_this_computer_says_it_clears_by_itself() {
+    let root = tmp("lock-here");
+    let libdir = root.join("lib");
+    let a = Library::open(&libdir, "device-a", "host-a").unwrap();
+    a.close();
+    drop(a);
+    // As if the program had been stopped abruptly a moment ago: a fresh mark from another process.
+    let mark = serde_json::json!({"device": "device-a", "host": "host-a", "pid": 1, "heartbeat": chrono::Utc::now().to_rfc3339()});
+    std::fs::write(libdir.join("library.lock"), mark.to_string()).unwrap();
+    match Library::open(&libdir, "device-a", "host-a") {
+        Err(prm_core::Error::Locked(m)) => assert!(m.contains("on this computer") && m.contains("clears by itself"), "{m}"),
         other => panic!("expected lock refusal, got {:?}", other.map(|_| ())),
     }
 }
