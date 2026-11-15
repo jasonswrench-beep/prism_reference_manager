@@ -245,6 +245,13 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 - [ ] High contrast theme in Windows and the program's own high-contrast theme.
 - [ ] Run an automated WCAG checker over each view (for example by opening the debug build's
       developer tools) and record results.
+- [ ] Fixes from the 0.1.0 manual (checked by script; a person should confirm by eye and ear):
+      with NVDA, the page behind an open dialog is not read, and the File › New library Folder
+      box is announced as "Folder"; Escape with two dialogs open closes only the top one; Tab in
+      an open menu closes it; the Settings › Network tick boxes read as plain names; in the dark
+      theme the primary buttons are easy to read; at the program's own window size, with a source
+      chosen in Library, the action buttons wrap onto a second row instead of overlapping; in
+      portable mode Settings › About says settings are next to the program.
 - [ ] Known gap: selecting PDF text with the keyboard alone is limited; marks can be created with
       a mouse selection then edited by keyboard. Decide whether a caret-browsing mode is needed.
 

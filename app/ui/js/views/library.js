@@ -1,7 +1,7 @@
 // Library: collection tree, source list and inspector.
 
 import { call } from "../api.js";
-import { h, clear, icon, iconBtn, btn, toast, modal, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml, tabs, announce } from "../dom.js";
+import { h, clear, icon, iconBtn, btn, toast, modal, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml, tabs, announce, closeTopDialog } from "../dom.js";
 import { S, registerView, go, refresh, manuscript } from "../app.js";
 import * as dialogs from "../dialogs.js";
 import { sourceEditor, fieldLabel, needsCheck, sourceLabel, confidenceBadge } from "../editor.js";
@@ -318,11 +318,11 @@ registerView("library", {
     const builderBtn = iconBtn("filter", "Build a search", () => searchBuilder((q) => { searchBox.value = q; searchBox.dispatchEvent(new Event("input")); searchBox.focus(); }));
     const addMenuBtn = btn("Add source", { kind: "primary", icon: "plus", onClick: async () => {
       const v = await modal("Add source", h("div.btn-row", { style: { flexDirection: "column", alignItems: "stretch" } },
-        btn("By identifier (DOI, PMID, arXiv, ISBN, web page)", { icon: "search", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.lookup(); } }),
-        btn("Enter manually", { icon: "edit", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.addSource(); } }),
-        btn("Paste a bibliography", { icon: "copy", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.pasteBibliography(); } }),
-        btn("Import PDF files", { icon: "pdf", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.importPdfs(); } }),
-        btn("Import a folder of PDFs", { icon: "folder", onClick: () => { document.querySelector(".modal-back").remove(); dialogs.importFolder(); } })), { size: "narrow" }).done;
+        btn("By identifier (DOI, PMID, arXiv, ISBN, web page)", { icon: "search", onClick: () => { closeTopDialog(); dialogs.lookup(); } }),
+        btn("Enter manually", { icon: "edit", onClick: () => { closeTopDialog(); dialogs.addSource(); } }),
+        btn("Paste a bibliography", { icon: "copy", onClick: () => { closeTopDialog(); dialogs.pasteBibliography(); } }),
+        btn("Import PDF files", { icon: "pdf", onClick: () => { closeTopDialog(); dialogs.importPdfs(); } }),
+        btn("Import a folder of PDFs", { icon: "folder", onClick: () => { closeTopDialog(); dialogs.importFolder(); } })), { size: "narrow" }).done;
       void v;
     } });
     const toolbar = h("div.row", h("div.grow", { style: { position: "relative" } }, searchBox), searchHelp, builderBtn, addMenuBtn, btn("Import", { icon: "download", onClick: () => dialogs.importFile() }));
@@ -335,7 +335,7 @@ registerView("library", {
     const colsBtn = btn("Columns…", { small: true, onClick: () => columnsDialog() });
     const toolbar2 = h("div.row.small", viewSwitch, colsBtn, filtersBtn, viewsBtn);
     const filterBar = h("div", { "aria-live": "polite" });
-    const bulk = h("div.row.small", { style: { minHeight: "34px" } });
+    const bulk = h("div.row.small.bulk-bar");
     const listBox = h("div.pane", { style: { flex: "1" } });
     const bottom = h("div.pane", { style: { height: pane.bottom + "px", flex: "none" } });
     const bottomSplit = splitter("Resize abstract and notes pane", "horizontal", () => pane.bottom, (v) => { pane.bottom = v; bottom.style.height = v + "px"; }, 90, 600, savePanes);

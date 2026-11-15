@@ -3,7 +3,7 @@
 
 import { styleSelect, LOCALES } from "./styles.js";
 import { call, on } from "./api.js";
-import { h, clear, icon, iconBtn, btn, modal, toast, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml } from "./dom.js";
+import { h, clear, icon, iconBtn, btn, modal, toast, confirmDialog, promptDialog, select, field, showError, fmtDate, runsHtml, closeTopDialog } from "./dom.js";
 import { S, refresh, go, manuscript, loadProjects, render, setProject, saveSettings } from "./app.js";
 import { sourceEditor, fieldLabel } from "./editor.js";
 
@@ -538,11 +538,34 @@ export async function duplicates() {
   load();
 }
 
+/** A partial date in words: 2018, 2018-03, 2018-03-14, Spring 2018, ca. 2018, in press, ranges. */
+export function dateText(d) {
+  if (!d) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const SEASONS = ["", "Spring", "Summer", "Autumn", "Winter"];
+  const one = (p) => {
+    if (!p) return "";
+    if (!p.year) return p.status || "";
+    let t = String(p.year);
+    if (p.month) t += "-" + pad(p.month) + (p.day ? "-" + pad(p.day) : "");
+    else if (p.season) t = `${SEASONS[p.season] || ""} ${t}`.trim();
+    return t;
+  };
+  let t = one(d);
+  if (d.end) t += " to " + one(d.end);
+  if (d.approximate && t) t = "ca. " + t;
+  if (d.status && d.year) t += ` (${d.status})`;
+  return t;
+}
+
 export async function compareRecords(a, b, after) {
   const [x, y] = await Promise.all([call("refs.get", { id: a }), call("refs.get", { id: b })]);
   const A = x.ref, B = y.ref;
   const keys = [...new Set(["type", "creators", "issued", ...Object.keys(A.fields), ...Object.keys(B.fields)])];
-  const val = (r, k) => k === "type" ? r.type : k === "creators" ? (r.creators || []).map((c) => c.name.literal || `${c.name.family}, ${c.name.given || ""}`).join("; ") : k === "issued" ? JSON.stringify(r.issued || "") : r.fields[k] || "";
+  const person = (c) => c.name.literal || [c.name.family, c.name.given].filter(Boolean).join(", ");
+  const val = (r, k) => k === "type" ? r.type : k === "creators" ? (r.creators || []).map(person).join("; ") : k === "issued" ? dateText(r.issued) : r.fields[k] || "";
+  // What a reader sees: one person per line, dates as dates.
+  const show = (r, k) => k === "creators" ? h("div", (r.creators || []).map((c) => h("div", person(c) + (c.role && c.role !== "author" ? ` (${c.role})` : "")))) : val(r, k);
   const choices = {};
   let target = A.id;
   const tsel = select([[A.id, "Keep A as the canonical record"], [B.id, "Keep B as the canonical record"]], A.id, { on: { change: (e) => (target = e.target.value) } });
@@ -551,7 +574,7 @@ export async function compareRecords(a, b, after) {
     const name = "ch-" + k;
     const ra = h("input", { type: "radio", name, checked: true, on: { change: () => (choices[k] = A.id) }, "aria-label": "Use A for " + fieldLabel(k) });
     const rb = h("input", { type: "radio", name, on: { change: () => (choices[k] = B.id) }, "aria-label": "Use B for " + fieldLabel(k) });
-    return h("tr", h("td", h("strong", fieldLabel(k))), h("td", same ? null : ra, " ", val(A, k)), h("td", same ? null : rb, " ", val(B, k)), h("td", same ? h("span.small.muted", "same") : h("span.small.status-review", "differs")));
+    return h("tr", h("td", h("strong", fieldLabel(k))), h("td", same ? null : ra, " ", show(A, k)), h("td", same ? null : rb, " ", show(B, k)), h("td", same ? h("span.small.muted", "same") : h("span.small.status-review", "differs")));
   });
   const impact = (r, im) => `${im.projects.length} projects, ${im.manuscripts.length} manuscripts, ${im.notes} notes, ${im.annotations} annotations, ${im.copies} copied citations, ${r.attachments?.length || 0} files`;
   const r = await modal("Compare records", h("div",
@@ -677,7 +700,7 @@ export async function health() {
       h("p", `${r.checked} sources checked ${fmtDate(r.generated)}. Nothing is changed automatically.`),
       h("div.btn-row", h("span.badge." + (r.items.length ? "attention" : "success"), `${r.items.length} items to review`), h("span.badge.neutral", `${r.duplicates} possible duplicate pairs`), h("span.badge.neutral", `${r.missing_files} file problems`), h("span.badge.neutral", `${r.unindexed} PDFs awaiting text indexing`)),
       h("div", { style: { maxHeight: "55vh", overflow: "auto", marginTop: "10px" } }, h("table.table", h("thead", h("tr", h("th", "Check"), h("th", "Source"), h("th", "Detail"), h("th", "Action"))),
-        h("tbody", r.items.map((i) => h("tr", h("td", i.check), h("td", i.title), h("td.small", i.detail), h("td", btn(i.action, { small: true, onClick: () => { document.querySelector(".modal-back")?.remove(); go("library", { select: i.ref_id }); } }))))))));
+        h("tbody", r.items.map((i) => h("tr", h("td", i.check), h("td", i.title), h("td.small", i.detail), h("td", btn(i.action, { small: true, onClick: () => { closeTopDialog(); go("library", { select: i.ref_id }); } }))))))));
   } catch (e) { showError(e, body); }
 }
 
@@ -876,7 +899,7 @@ export function pairRequest(p) {
 export async function fieldHistory(refId, field) {
   const list = await call("refs.field_history", { id: refId, field });
   modal(`History of ${fieldLabel(field)}`, h("div", list.length ? h("table.table", h("tbody", list.map((x) => h("tr", h("td.small", x.time ? fmtDate(x.time) : "Original"), h("td.small.muted", x.actor), h("td", typeof x.value === "string" ? x.value : JSON.stringify(x.value)),
-    h("td", btn("Restore", { small: true, onClick: async () => { await call("refs.restore_field", { id: refId, field, value: x.value }); toast("Restored", "success"); document.querySelector(".modal-back")?.remove(); await refresh(); } })))))) : h("p.muted", "No changes recorded.")), { buttons: [{ label: "Close" }] });
+    h("td", btn("Restore", { small: true, onClick: async () => { await call("refs.restore_field", { id: refId, field, value: x.value }); toast("Restored", "success"); closeTopDialog(); await refresh(); } })))))) : h("p.muted", "No changes recorded.")), { buttons: [{ label: "Close" }] });
 }
 
 export function outputPreview(out) {

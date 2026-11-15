@@ -6,6 +6,7 @@
   --primary: #1554d1;
   --primary-hover: #0f45b0;
   --primary-soft: #e3ecfd;
+  --on-primary: #ffffff;
   --text: #172033;
   --text-2: #4a5568;
   --text-3: #6b7588;
@@ -37,6 +38,7 @@
   --primary: #5b8ef5;
   --primary-hover: #7aa4f8;
   --primary-soft: #1d2a4a;
+  --on-primary: #0b1020;
   --text: #e6e9f0;
   --text-2: #b8c0cf;
   --text-3: #8f99ab;
@@ -127,7 +129,7 @@ a { color: var(--primary); }
 .nav { background: var(--surface-2); border-right: 1px solid var(--divider); display: flex; flex-direction: column; padding: 10px 8px; gap: 2px; overflow: auto; }
 .nav-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--radius); border: 0; background: none; text-align: left; font-size: 15px; cursor: default; color: var(--text); }
 .nav-item:hover { background: var(--surface-3); }
-.nav-item[aria-current="page"] { background: var(--primary); color: #fff; }
+.nav-item[aria-current="page"] { background: var(--primary); color: var(--on-primary); }
 .nav-item svg { flex: none; }
 .nav .spacer { flex: 1; }
 .nav hr { width: 100%; border: 0; border-top: 1px solid var(--divider); }
@@ -145,7 +147,7 @@ main { min-width: 0; min-height: 0; overflow: auto; background: var(--surface-2)
 /* ---- components --------------------------------------------------------------------------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 7px 14px; border-radius: var(--radius); border: 1px solid var(--divider); background: var(--surface); color: var(--text); font-weight: 600; cursor: default; white-space: nowrap; min-height: 34px; }
 .btn:hover { background: var(--surface-3); }
-.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .btn.primary:hover { background: var(--primary-hover); }
 .btn.outline { border-color: var(--primary); color: var(--primary); background: var(--surface); }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
@@ -175,6 +177,8 @@ textarea { min-height: 80px; resize: vertical; line-height: 1.45; }
 input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: 2px solid var(--primary-soft); }
 .row { display: flex; gap: 10px; align-items: center; }
 .row > * { min-width: 0; }
+.bulk-bar { flex-wrap: wrap; min-height: 34px; row-gap: 6px; }
+.bulk-bar > .btn { flex-shrink: 0; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .muted { color: var(--text-2); }
 .small { font-size: 12.5px; }

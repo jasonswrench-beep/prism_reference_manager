@@ -6,6 +6,25 @@ import { S, registerView, go, saveSettings, refresh, autoIndex, loadInfo } from 
 import * as dialogs from "../dialogs.js";
 import { fieldLabel } from "../editor.js";
 
+// Plain names for the kinds of online request (the short code stays visible for the network log).
+const KIND_NAMES = {
+  doi: "DOI lookup",
+  "doi-corroborate": "DOI cross-check",
+  "doi-datacite": "Dataset and software DOI lookup",
+  pubmed: "PubMed and PMC lookup",
+  arxiv: "arXiv lookup",
+  isbn: "ISBN lookup",
+  webpage: "Web page lookup",
+  retraction: "Retraction check",
+  openaccess: "Free copy search",
+  "doi-search": "Missing DOI search",
+  abstract: "Missing abstract",
+  linkcheck: "Web address check",
+  "openaccess-download": "Free copy download",
+  update: "Update check",
+};
+const kindName = (k) => KIND_NAMES[k] || k;
+
 // Updates: built in but not set up until releases are published. Checks happen only when asked,
 // or once a day if the person turns that on; installing always needs a click.
 async function updatesCard(card) {
@@ -287,8 +306,8 @@ registerView("settings", {
         h("label.row", { for: "net" }, h("input", { type: "checkbox", id: "net", checked: s.network_enabled, disabled: "network_enabled" in locked, on: { change: (e) => saveSettings({ network_enabled: e.target.checked }) } }), h("strong", "Allow optional online lookups"), lockNote("network_enabled")),
         h("p.small.muted", "With this off, nothing leaves this computer. The library, reader, notes, citations, exports and backups all work offline."),
         h("table.table", h("thead", h("tr", h("th", "Allowed"), h("th", "Kind"), h("th", "Service"), h("th", "What it sends"))), h("tbody", inv.map((i) => h("tr",
-          h("td", h("input", { type: "checkbox", "aria-label": "Allow " + i.kind, checked: !s.network_disabled_kinds.includes(i.kind), disabled: !s.network_enabled, on: { change: (e) => saveSettings({ network_disabled_kinds: e.target.checked ? s.network_disabled_kinds.filter((k) => k !== i.kind) : [...s.network_disabled_kinds, i.kind] }) } })),
-          h("td", i.kind), h("td.mono", i.host), h("td.small", i.purpose))))),
+          h("td", h("input", { type: "checkbox", "aria-label": "Allow " + kindName(i.kind), title: i.kind, checked: !s.network_disabled_kinds.includes(i.kind), disabled: !s.network_enabled, on: { change: (e) => saveSettings({ network_disabled_kinds: e.target.checked ? s.network_disabled_kinds.filter((k) => k !== i.kind) : [...s.network_disabled_kinds, i.kind] }) } })),
+          h("td", kindName(i.kind), h("div.small.muted.mono", i.kind)), h("td.mono", i.host), h("td.small", i.purpose))))),
         h("div.btn-row", { style: { marginTop: "8px" } }, btn("Network activity log", { onClick: () => dialogs.network() }))),
         card("Privacy", h("ul",
           h("li", "No telemetry and no account. Lookups happen only when you ask, or, if you allow it, for PDFs you import and PDFs that appear in a watched folder."),
@@ -359,8 +378,10 @@ registerView("settings", {
     }
     if (tab === "about") {
       body.append(card("Prism Reference Manager", h("img", { src: "logo.svg", alt: "", style: { maxWidth: "460px", width: "100%", borderRadius: "8px" } }),
-        h("p", `Version ${S.info.version}. Licensed under the Apache License 2.0; third-party components are listed in THIRD-PARTY.md in the install folder.`),
-        h("p", "Settings are stored in your Windows profile. Libraries live only in the folders you choose. Uninstalling removes the program and its settings, never your libraries."),
+        h("p", `Version ${S.info.version}${S.info.build ? ` (build ${S.info.build})` : ""}. Licensed under the Apache License 2.0; third-party components are listed in THIRD-PARTY.md in the program folder.`),
+        h("p", S.info.portable
+          ? "Portable mode: settings are stored next to the program, not in your Windows profile. Libraries live only in the folders you choose. Deleting the program folder removes the program and its settings, never libraries kept elsewhere."
+          : "Settings are stored in your Windows profile. Libraries live only in the folders you choose. Uninstalling removes the program and its settings, never your libraries."),
         S.info.policy?.source ? h("p.small", "Administrator policy: " + S.info.policy.source) : null));
       body.append(await updatesCard(card));
     }

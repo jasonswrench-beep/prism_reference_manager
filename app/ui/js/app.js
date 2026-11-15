@@ -154,6 +154,11 @@ export function go(view, params = {}) {
   S.view = view;
   S.params = params;
   saveWorkspace();
+  // Remember the main view for the next start (only the views in the side bar).
+  if (S.info?.library && NAV.some((n) => n[0] === view) && S.settings.last_view !== view) {
+    S.settings.last_view = view;
+    call("settings.set", { settings: { last_view: view } }).then((x) => { S.settings = x; }).catch(() => {});
+  }
   render();
   setTimeout(() => mainEl?.querySelector("h1, [data-autofocus]")?.focus?.(), 30);
 }
@@ -221,7 +226,7 @@ function renderStatus() {
       return S.jobs.length ? [h("button", { type: "button", on: { click: () => dialogs.jobs() }, title: "Background jobs" }, icon("clock", 15), ` ${S.jobs.length} job${S.jobs.length === 1 ? "" : "s"}`)] : [];
     })(),
     S.undo ? h("button", { type: "button", on: { click: doUndo }, title: "Undo (Ctrl+Z)" }, icon("undo", 15), " Undo: " + S.undo) : null,
-    h("span.muted", "Interface concept build • local data"),
+    h("span.muted", `Version ${S.info?.version || ""} • local data`),
   );
 }
 
@@ -434,6 +439,10 @@ function buildMenus(bar) {
         if (e.key === "ArrowDown") { its[(i + 1) % its.length].focus(); e.preventDefault(); }
         if (e.key === "ArrowUp") { its[(i - 1 + its.length) % its.length].focus(); e.preventDefault(); }
         if (e.key === "Escape") { close(); title.focus(); }
+        // Tab leaves the menu: close it, and let Tab move on from the menu's own name.
+        if (e.key === "Tab") { close(); title.focus(); }
+        if (e.key === "Home") { its[0].focus(); e.preventDefault(); }
+        if (e.key === "End") { its[its.length - 1].focus(); e.preventDefault(); }
         if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
           const roots = [...bar.querySelectorAll(".menu-title")];
           const j = roots.indexOf(title);

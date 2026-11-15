@@ -165,9 +165,17 @@ export function toast(msg, kind = "info", opts = {}) {
     toastBox = h("div.toasts", { role: "region", "aria-label": "Notifications" });
     document.body.append(toastBox);
   }
-  const t = h("div.toast." + kind, { role: kind === "error" ? "alert" : "status" },
+  // The same notice again replaces the earlier one and counts the repeats, so notices never pile up.
+  const key = typeof msg === "string" ? kind + "\n" + msg : null;
+  let repeats = 1;
+  for (const old of [...toastBox.children]) {
+    if (key && old.dataset.key === key) { repeats += Number(old.dataset.repeats || 1); old.remove(); }
+  }
+  // At most five notices at once: the oldest goes first.
+  while (toastBox.children.length >= 5) toastBox.firstElementChild.remove();
+  const t = h("div.toast." + kind, { role: kind === "error" ? "alert" : "status", "data-key": key, "data-repeats": String(repeats) },
     icon(kind === "error" ? "warn" : kind === "success" ? "checkCircle" : "info", 18),
-    h("div.grow", h("div", msg), opts.detail ? h("details.support", h("summary", "Details for support"), h("pre", opts.detail)) : null,
+    h("div.grow", h("div", msg, repeats > 1 ? h("span.muted", ` (${repeats} times)`) : null), opts.detail ? h("details.support", h("summary", "Details for support"), h("pre", opts.detail)) : null,
       opts.action ? h("div.btn-row", { style: { marginTop: "6px" } }, btn(opts.action.label, { small: true, onClick: () => { opts.action.run(); t.remove(); } })) : null),
     iconBtn("x", "Dismiss", () => t.remove()));
   toastBox.append(t);
@@ -176,6 +184,25 @@ export function toast(msg, kind = "info", opts = {}) {
 }
 
 // ---- modal dialogs ----------------------------------------------------------------------
+// Open dialogs, bottom first. Everything except the top dialog (and the notices) is made inert,
+// so the page behind a dialog leaves the accessibility tree and cannot take focus.
+const modalStack = [];
+function updateInert() {
+  const top = modalStack[modalStack.length - 1] || null;
+  for (const el of document.body.children) {
+    if (el.matches?.(".toasts, script, style")) continue;
+    const shouldBe = !!top && el !== top;
+    if (shouldBe) { if (!el.inert) { el.inert = true; el.dataset.modalInert = "1"; } }
+    else if (el.dataset.modalInert) { el.inert = false; delete el.dataset.modalInert; }
+  }
+}
+export function topDialog() { return modalStack[modalStack.length - 1] || null; }
+/** Close the dialog on top as if Cancel were chosen. */
+export function closeTopDialog() { topDialog()?._close?.(null); }
+// A dialog removed without close() must not leave the page inert.
+new MutationObserver(() => {
+  for (const back of modalStack.filter((b) => !b.isConnected)) back._close(null);
+}).observe(document.body, { childList: true });
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function modal(title, content, { buttons = [], size = "", onClose, initial } = {}) {
@@ -188,9 +215,15 @@ export function modal(title, content, { buttons = [], size = "", onClose, initia
   const back = h("div.modal-back", dlg);
   let resolveFn;
   const done = new Promise((r) => (resolveFn = r));
+  let closed = false;
   function close(v) {
+    if (closed) return;
+    closed = true;
     back.remove();
     document.removeEventListener("keydown", onKey, true);
+    const i = modalStack.indexOf(back);
+    if (i >= 0) modalStack.splice(i, 1);
+    updateInert();
     if (prev && prev.focus) prev.focus();
     if (onClose) onClose(v);
     resolveFn(v);
@@ -211,7 +244,9 @@ export function modal(title, content, { buttons = [], size = "", onClose, initia
   if (!buttons.length) footer.remove();
   function onKey(e) {
     if (!document.body.contains(back)) return;
-    if (e.key === "Escape") { e.stopPropagation(); close(null); }
+    // Only the dialog on top answers keys, so Escape closes one dialog at a time.
+    if (modalStack[modalStack.length - 1] !== back) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(null); return; }
     if (e.key === "Tab") {
       const f = [...dlg.querySelectorAll(FOCUSABLE)].filter((x) => x.offsetParent !== null);
       if (!f.length) return;
@@ -220,7 +255,10 @@ export function modal(title, content, { buttons = [], size = "", onClose, initia
     }
   }
   document.addEventListener("keydown", onKey, true);
+  back._close = close;
   document.body.append(back);
+  modalStack.push(back);
+  updateInert();
   setTimeout(() => {
     const target = (initial && dlg.querySelector(initial)) || dlg.querySelector(".content " + FOCUSABLE) || dlg.querySelector(FOCUSABLE);
     target && target.focus();
@@ -288,9 +326,15 @@ export function select(options, value, attrs = {}) {
 }
 
 export function field(label, control, help) {
-  const id = control.id || "f" + Math.random().toString(36).slice(2);
-  control.id = id;
-  return h("div.field", h("label", { for: id }, label), control, help ? h("div.help", help) : null);
+  // A label must name the box itself: when the control is a wrapper (a row with a box and a
+  // button), point the label at the first form control inside it.
+  const isControl = /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(control.tagName);
+  const target = isControl ? control : control.querySelector("input, select, textarea") || control;
+  const id = target.id || "f" + Math.random().toString(36).slice(2);
+  target.id = id;
+  const helpId = help ? id + "-help" : null;
+  if (helpId && !target.hasAttribute("aria-describedby")) target.setAttribute("aria-describedby", helpId);
+  return h("div.field", h("label", { for: id }, label), control, help ? h("div.help", { id: helpId }, help) : null);
 }
 
 export function tabs(names, current, onPick, { seg = false, label = "Sections" } = {}) {

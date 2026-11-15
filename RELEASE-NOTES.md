@@ -1,5 +1,25 @@
 # Release notes
 
+## Next version (not released yet)
+
+Fixes for faults found while writing the user guide for 0.1.0. None of them lost data.
+
+- **Screen readers.** The Folder box in File › New library has a name. The page behind an open
+  dialog is no longer read or reachable. The Settings › Network tick boxes have plain names
+  ("Allow DOI cross-check") with the short code beside them for the network log.
+- **Keyboard.** Escape closes only the dialog on top, not every open dialog. Tab in an open menu
+  closes it and moves on; Home and End jump to the first and last item.
+- **Layout and wording.** The action buttons above the library table wrap onto a second row
+  instead of overlapping. The status bar shows the version instead of "Interface concept build".
+  Settings › About shows a build code and date, and in portable mode says the settings are next
+  to the program. The PDF import review says whether an identifier was found and whether it was
+  looked up, instead of the same note for every file. Compare records shows dates as dates and
+  one person per line.
+- **Dark theme.** Primary buttons use a dark label, so their text is easy to read (6:1).
+- **Behaviour.** The same notice shown again replaces the earlier one with a count, and at most
+  five notices show at once. The program starts on the page it was on when it closed. Archive on
+  a project card asks first.
+
 ## 0.1.0 (pre-release, 2026-11-14)
 
 First public pre-release, for testing. The installer and the program are signed and timestamped

@@ -25,6 +25,8 @@ pub struct Found {
 pub struct Looked {
     pub candidate: Option<Reference>,
     pub notes: Vec<String>,
+    /// Whether an online lookup was tried for this file.
+    pub tried: bool,
 }
 
 /// Every PDF below `root`, depth-first, skipping hidden folders. Returns (files, truncated).
@@ -86,6 +88,7 @@ pub fn lookups(found: &[Found], may: &dyn Fn(&str) -> bool, log: &mut Vec<(Strin
             let mut candidate = None;
             let mut logf = |k: &str, h: &str, sent: &str, ok: bool, d: &str| log.push((k.into(), h.into(), sent.into(), ok, d.into()));
             let try_kind = if doi_ok && !f.info.dois.is_empty() { Some(("doi", f.info.dois[0].clone())) } else if arxiv_ok && !f.info.arxiv.is_empty() { Some(("arxiv", f.info.arxiv[0].clone())) } else { None };
+            let tried = try_kind.is_some();
             if let Some((kind, id)) = try_kind {
                 let res = prm_core::lookup::resolve(kind, &id, may, &mut logf);
                 if let Some(c) = res.candidate {
@@ -97,7 +100,7 @@ pub fn lookups(found: &[Found], may: &dyn Fn(&str) -> bool, log: &mut Vec<(Strin
                 }
                 notes.extend(res.conflicts);
             }
-            Looked { candidate, notes }
+            Looked { candidate, notes, tried }
         })
         .collect()
 }
@@ -167,7 +170,7 @@ pub fn stage(st: &mut AppState, found: &[Found], looked: &[Looked], log: &[(Stri
             if rec.status == "new" {
                 rec.status = "unresolved".into();
             }
-            rec.issues.push(if l.notes.is_empty() { "No identifier was found or looked up; metadata comes from the file and needs review.".into() } else { l.notes.join(" ") });
+            rec.issues.push(if !l.notes.is_empty() { l.notes.join(" ") } else { no_lookup_note(&f.info, l.tried) });
         }
         if !f.info.message.is_empty() && f.info.state != "ok" {
             rec.issues.push(f.info.message.clone());
@@ -279,4 +282,30 @@ pub fn scan_watched(app: &tauri::AppHandle, shared: &Shared) -> Result<Vec<serde
         out.push(ev);
     }
     Ok(out)
+}
+
+/// Why a PDF has no looked-up record, in words that match what happened.
+fn no_lookup_note(info: &prm_core::pdf::PdfInfo, tried: bool) -> String {
+    let what = if !info.dois.is_empty() { Some("A DOI") } else if !info.arxiv.is_empty() { Some("An arXiv identifier") } else { None };
+    match (what, tried) {
+        (None, _) => "No DOI or arXiv identifier was found in the file; the title and authors come from the file and need review.".into(),
+        (Some(w), true) => format!("{w} was found in the file, but looking it up gave no record; the title and authors come from the file and need review."),
+        (Some(w), false) => format!("{w} was found in the file but not looked up, because online lookups for PDF imports are off; the title and authors come from the file and need review."),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::no_lookup_note;
+    use prm_core::pdf::PdfInfo;
+
+    #[test]
+    fn the_review_note_says_what_happened() {
+        let none = PdfInfo::default();
+        assert!(no_lookup_note(&none, false).starts_with("No DOI or arXiv identifier was found"));
+        let with_doi = PdfInfo { dois: vec!["10.1000/x".into()], ..Default::default() };
+        let off = no_lookup_note(&with_doi, false);
+        assert!(off.starts_with("A DOI was found in the file but not looked up"), "{off}");
+        assert!(no_lookup_note(&with_doi, true).contains("looking it up gave no record"));
+    }
 }

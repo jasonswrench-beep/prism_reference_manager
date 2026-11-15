@@ -579,6 +579,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             let lib_info = st.lib.as_ref().map(|l| l.info()).transpose().map_err(err)?;
             ok(json!({
                 "version": env!("CARGO_PKG_VERSION"),
+                "build": format!("{} {}", env!("PRM_BUILD_COMMIT"), env!("PRM_BUILD_DATE")).trim().to_string(),
                 // Debug builds running an automated window test skip first-run questions.
                 "test_run": cfg!(debug_assertions) && std::env::var("PRM_TEST_SCRIPT").is_ok(),
                 "settings": st.settings,

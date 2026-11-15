@@ -244,12 +244,24 @@ pub fn run() {
             quickcopy::start(app.handle(), &state);
 
             let icon = app.default_window_icon().cloned();
-            let win = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+            #[allow(unused_mut)]
+            let mut builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
                 .title("Prism Reference Manager")
                 .inner_size(1440.0, 920.0)
                 .min_inner_size(760.0, 560.0)
-                .disable_drag_drop_handler()
-                .build()?;
+                .disable_drag_drop_handler();
+            // Debug builds only: an automated test run opens on a second screen when there is one,
+            // and never takes focus, so it does not interrupt work on the main screen.
+            #[cfg(debug_assertions)]
+            if std::env::var("PRM_TEST_SCRIPT").is_ok() {
+                builder = builder.focused(false);
+                let primary = app.primary_monitor().ok().flatten().map(|m| *m.position());
+                if let Some(m) = app.available_monitors().unwrap_or_default().into_iter().find(|m| Some(*m.position()) != primary) {
+                    let (pos, scale) = (m.position(), m.scale_factor());
+                    builder = builder.position(pos.x as f64 / scale + 40.0, pos.y as f64 / scale + 40.0);
+                }
+            }
+            let win = builder.build()?;
             if let Some(i) = icon {
                 let _ = win.set_icon(i);
             }

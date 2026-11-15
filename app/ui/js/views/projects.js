@@ -70,7 +70,7 @@ registerView("projects", {
           showArchived ? btn("Restore", { small: true, onClick: async () => { await call("projects.archive", { id: p.project.id, archived: false }); await refresh(); } }) : btn("Copy", { small: true, onClick: () => dialogs.copyProject(p.project) }),
           showArchived ? btn("Delete", { small: true, kind: "danger", onClick: async () => {
             if (await confirmDialog("Delete project", `Delete “${p.project.title}”, its notes, manuscripts and copy history? Sources stay in the library and in other projects. Undo can bring it back during this session.`, { ok: "Delete project", kind: "danger" })) { await call("projects.delete", { id: p.project.id, confirmed: true }); await refresh(); }
-          } }) : btn("Archive", { small: true, onClick: async () => { await call("projects.archive", { id: p.project.id, archived: true }); toast("Project archived. Find it under Archived projects.", "success"); await refresh(); } })));
+          } }) : btn("Archive", { small: true, onClick: async () => { if (!(await confirmDialog(`Archive “${p.project.title}”?`, "The project leaves the active list and the project menus. Nothing is deleted: Restore it from Archived projects at any time.", { ok: "Archive" }))) return; await call("projects.archive", { id: p.project.id, archived: true }); toast("Project archived. Find it under Archived projects.", "success"); await refresh(); } })));
       rows.append(row);
     }
     const recentTable = recent.length ? h("table.table", h("thead", h("tr", h("th", "Source title"), h("th", "Project"), h("th", "Activity"), h("th", "Updated"))),
