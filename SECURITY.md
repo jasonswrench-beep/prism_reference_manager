@@ -31,7 +31,8 @@ Only the latest release receives security fixes.
   The reader runs pdf.js with code evaluation and XFA forms disabled, and PDF scripts are not
   run.
 - **Updates.** Downloads are verified against an update-signing key built into the program
-  before anything runs. The updater is not set up in early builds.
+  before anything runs. Checks go to the project's release page only when the person asks,
+  or once a day if they turn that on. Versions before 0.1.3 cannot update themselves.
 
 ## Scope
 

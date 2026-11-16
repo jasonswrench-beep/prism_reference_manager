@@ -24,8 +24,12 @@ already pass are listed at the end for reference.
 - [x] **Update channel.** Decided 2026-11-13: full updater built in, switched off. It stays
       "Not set up" until an update-signing key and a feed address are added at publishing time
       (see `docs/updates.md`). Automatic checks are off by default even then.
-- [ ] When publishing: generate and safely store the update-signing key, choose the feed address,
-      and do one real update from an installed version to a newer one on a test machine.
+- [ ] **Update key.** Run `Make update key.bat` (in the spec folder) once, then back up the
+      secret key file and its password offline. Feed address chosen 2026-11-15: the release page
+      (`releases/latest/download/latest.json`; pre-releases are skipped).
+- [ ] **First real update.** 0.1.3 has to be installed by hand. When 0.1.4 is out, use Check now
+      in 0.1.3 on a test machine: it should find 0.1.4, download it, check the signature and install
+      it with settings and libraries kept. Then try Return to the previous version.
 - [x] **Service names in the interface.** Decided 2026-11-13: real names appear in
       interoperability labels only (Connections, the import dialog, import history). Code
       comments, commits, docs and release notes stay generic, with no comparisons.

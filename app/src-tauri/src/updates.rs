@@ -1,8 +1,8 @@
 //! Program updates: built in, switched off.
 //!
-//! The update feed address and the public key that verifies update signatures are set here when
-//! releases are published. While either is empty the updater is "not set up": nothing can
-//! contact the network and the interface says so. Once set up, checks still follow the network
+//! The update feed is the project's release page; the public key that verifies update signatures
+//! is set here. While either is empty the updater is "not set up": nothing can contact the
+//! network and the interface says so. Once set up, checks still follow the network
 //! settings, are written to the network log, and happen only when the person asks or (if they
 //! turn it on) at most once a day. Downloading and installing always needs the person's go-ahead.
 
@@ -12,13 +12,13 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
 /// Update feed (a JSON manifest). `{{target}}`, `{{arch}}` and `{{current_version}}` are filled in
-/// by the updater. Empty until releases are published.
-pub const ENDPOINT: &str = "";
+/// by the updater. "latest" on the release page skips pre-releases.
+pub const ENDPOINT: &str = "https://github.com/jasonswrench-beep/prism_reference_manager/releases/latest/download/latest.json";
 /// Public half of the update-signing key (from `npx tauri signer generate`). Empty until set.
 pub const PUBKEY: &str = "";
 /// Feed for returning to the previous release (the release process publishes the earlier
-/// release's manifest there). Signed with the same key. Empty until releases are published.
-pub const ROLLBACK_ENDPOINT: &str = "";
+/// release's manifest there as previous.json). Signed with the same key.
+pub const ROLLBACK_ENDPOINT: &str = "https://github.com/jasonswrench-beep/prism_reference_manager/releases/latest/download/previous.json";
 
 pub const KIND: &str = "update";
 const PURPOSE: &str = "Check for a newer version. Sends the program's version and Windows architecture.";

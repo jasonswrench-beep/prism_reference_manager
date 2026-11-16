@@ -25,7 +25,7 @@ pub const NETWORK_INVENTORY: &[(&str, &str, &str)] = &[
     ("abstract", "api.crossref.org", "Fetch a missing abstract when you ask. Sends the DOI."),
     ("linkcheck", "(each source's own web address)", "Check that saved web addresses still work, when you ask. Sends a request for each address."),
     ("openaccess-download", "(the repository or publisher hosting the free copy)", "Download a free copy that was found. Sends a request for that file."),
-    ("update", "(the update feed, once set up)", "Check for a newer version of this program when you ask, or once a day if you turn that on. Sends the program's version and Windows architecture."),
+    ("update", "github.com (the project's release page)", "Check for a newer version of this program when you ask, or once a day if you turn that on. Sends the program's version and Windows architecture."),
 ];
 
 #[derive(Debug, Clone, Serialize)]

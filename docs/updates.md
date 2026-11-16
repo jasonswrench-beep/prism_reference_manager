@@ -1,8 +1,10 @@
 # Program updates
 
-The updater is built in and switched off. This version cannot check for updates: the update
-feed address and the update-signing public key in `app/src-tauri/src/updates.rs` are empty, and
-Settings › About shows "Not set up".
+The updater is switched on from version 0.1.3. It checks the project's release page:
+`app/src-tauri/src/updates.rs` holds the feed address
+(`.../releases/latest/download/latest.json`, which skips pre-releases) and the public half of the
+update-signing key. Versions 0.1.2 and earlier have no key built in, show "Not set up" in
+Settings › About, and must install 0.1.3 by hand.
 
 ## How it behaves once set up
 
@@ -15,32 +17,30 @@ Settings › About shows "Not set up".
   runs. The library is closed cleanly first; the per-user installer keeps settings and libraries.
 - Local API clients can never check for or install updates.
 
-## Switching it on (needs the owner)
+## Making a release with updates
 
 Update signing uses its own key pair. It is separate from Windows code signing, and both
 are needed for a smooth update.
 
-1. Generate the key pair once and keep the private key and its password offline and backed up.
-   Losing it means existing installs can no longer accept updates.
-   `npx tauri signer generate -w %USERPROFILE%\.prism-reference-manager-update.key`
-2. Put the public key in `PUBKEY` and the feed address in `ENDPOINT` in `updates.rs`, for example
-   the address where `latest.json` will be published for each release.
-3. Build with the private key in the environment and the download folder address:
-   `$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content <key file> -Raw` then
-   `tools\build-release.ps1 -UpdateBaseUrl <address where the setup files will be published>`
-   This adds `<setup>.exe.sig` and `latest.json` to `dist\`.
-4. Code-sign the installer during the build (Tauri's Windows signing settings), not afterwards:
-   the update signature covers the exact file, so signing it later would break verification.
-5. Publish the setup file and `latest.json` at the addresses used above.
-
-The first version with a key and address built in must be installed by hand. Updates work from
-that version on.
+1. Once: run `Make update key.bat` (kept outside the repository with the other owner tools). It
+   runs `npx tauri signer generate -w %USERPROFILE%\.prism-reference-manager-update.key` and asks
+   for a password. Keep the secret file and its password offline and backed up. Losing it means
+   installed copies can no longer accept updates. The public half (`.key.pub`) goes into `PUBKEY`.
+2. Each release: run `toolsuild-release.ps1 -Sign` (or `Build signed release.bat`). When the key
+   file is in the profile folder it is loaded, its public half is checked against `PUBKEY`, the
+   password is asked for, and the build adds `<setup>.exe.sig`, `latest.json` and (from the
+   second release with updates on) `previous.json` to `dist\`. The download address defaults to
+   `.../releases/download/v<version>/`, so the release's tag must be `v<version>`.
+3. Code signing happens during the build, before the update signature is made: the update
+   signature covers the exact signed file, so never sign the installer again afterwards.
+4. Attach the setup file, `latest.json` and `previous.json` to the GitHub release, and publish it
+   as a full release (not a pre-release), so `latest` points at it.
 
 ## Returning to the previous version
 
-`ROLLBACK_ENDPOINT` in `updates.rs` names a second manifest, for example `previous.json` beside
-`latest.json`. When publishing a release, copy the outgoing release's `latest.json` there (its
-installer stays published and signed). Settings › About then offers "Return to the previous
+`ROLLBACK_ENDPOINT` in `updates.rs` names a second manifest, `previous.json` beside
+`latest.json`. The release build makes it by downloading the outgoing release's `latest.json`
+(its installer stays published and signed on its own release). Settings › About then offers "Return to the previous
 version…": the updater accepts only a version older than the running one, verifies the same
 signature, and installs it after a confirmation that explains library formats. A library this
 version upgraded opens read-only in the older one until "Return to the format before the last

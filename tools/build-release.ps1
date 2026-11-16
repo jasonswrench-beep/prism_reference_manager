@@ -5,13 +5,36 @@
 # Signing during the build (tools\sign_windows.py; the account names come from OPENSTAGE_SIGN_* environment
 # variables and the sign-in from `az login`). Without -Sign the build is unsigned.
 
-# Update files: set TAURI_SIGNING_PRIVATE_KEY (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD) and pass
-# -UpdateBaseUrl to also produce the installer's update signature and latest.json. See docs\updates.md.
+# Update files: when the update-signing key is in the profile folder (.prism-reference-manager-update.key)
+# or in TAURI_SIGNING_PRIVATE_KEY, the build also makes the installer's update signature, latest.json and
+# previous.json. The key's password comes from TAURI_SIGNING_PRIVATE_KEY_PASSWORD or is asked for.
+# -UpdateBaseUrl defaults to this version's download folder on the release page. See docs\updates.md.
 param([string]$UpdateBaseUrl = "", [switch]$Sign)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+$version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+$releasePage = "https://github.com/jasonswrench-beep/prism_reference_manager/releases"
+
+$keyFile = Join-Path $env:USERPROFILE ".prism-reference-manager-update.key"
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY -and (Test-Path $keyFile)) {
+  $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content $keyFile -Raw).Trim()
+}
+if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+  # The public key built into the program must belong to this private key, or no update would verify.
+  $pubFile = "$keyFile.pub"
+  $built = (Select-String -Path "app\src-tauri\src\updates.rs" -Pattern '^pub const PUBKEY: &str = "(.*)";').Matches[0].Groups[1].Value
+  if (-not $built) { throw "The update key is present but PUBKEY in updates.rs is empty; nothing was built." }
+  if ((Test-Path $pubFile) -and ((Get-Content $pubFile -Raw).Trim() -ne $built)) {
+    throw "PUBKEY in updates.rs does not match $pubFile; nothing was built."
+  }
+  if ($null -eq $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+    $sec = Read-Host "Password for the update-signing key (press Enter if it has none)" -AsSecureString
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+  }
+  if (-not $UpdateBaseUrl) { $UpdateBaseUrl = "$releasePage/download/v$version" }
+}
 
 Write-Host "== Interface libraries"
 Push-Location app
@@ -58,7 +81,6 @@ if ($bundle.Count) {
 if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
 Pop-Location
 
-$version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
 $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force $dist | Out-Null
 $setup = Get-ChildItem "target\release\bundle\nsis\*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -94,6 +116,19 @@ if ($updates) {
     platforms = @{ "windows-x86_64" = @{ signature = $sig.Trim(); url = ($UpdateBaseUrl.TrimEnd("/") + "/" + $setupName) } }
   }
   [IO.File]::WriteAllText((Join-Path $dist "latest.json"), ($manifest | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+
+  # The outgoing release's manifest becomes previous.json, which "Return to the previous version" reads.
+  $prev = Join-Path $dist "previous.json"
+  if (Test-Path $prev) { Remove-Item $prev }
+  try {
+    $old = Invoke-RestMethod "$releasePage/latest/download/latest.json" -TimeoutSec 30
+    if ($old.version -and $old.version -ne $version) {
+      [IO.File]::WriteAllText($prev, ($old | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+      Write-Host "previous.json points at version $($old.version)."
+    }
+  } catch {
+    Write-Host "No published latest.json yet, so no previous.json (normal for the first release with updates)."
+  }
 }
 
 Write-Host "== Browser capture extension"

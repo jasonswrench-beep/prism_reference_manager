@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.1.3 (not yet released)
+
+- **Updates.** Settings › About › Check now looks for a newer version on the project's release
+  page, and offers to download and install it. The download's signature is checked before the
+  installer runs. Nothing is checked unless you click Check now or turn on the once-a-day check,
+  and both follow Settings › Network. Install 0.1.3 by hand once; later versions can update
+  themselves from it.
+
 ## 0.1.2 (2026-11-15, first full release)
 
 Fixes for problems found while refreshing the user guide for 0.1.1. None of them lost data.
