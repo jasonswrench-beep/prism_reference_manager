@@ -1,6 +1,6 @@
 # Release notes
 
-## 0.1.3 (not yet released)
+## 0.1.3 (2026-11-15)
 
 - **Updates.** Settings › About › Check now looks for a newer version on the project's release
   page, and offers to download and install it. The download's signature is checked before the
