@@ -26,6 +26,8 @@ if ($env:TAURI_SIGNING_PRIVATE_KEY) {
   $pubFile = "$keyFile.pub"
   $built = (Select-String -Path "app\src-tauri\src\updates.rs" -Pattern '^pub const PUBKEY: &str = "(.*)";').Matches[0].Groups[1].Value
   if (-not $built) { throw "The update key is present but PUBKEY in updates.rs is empty; nothing was built." }
+  $conf = (Get-Content "app\src-tauri\tauri.conf.json" -Raw | ConvertFrom-Json).plugins.updater.pubkey
+  if ($conf -ne $built) { throw "The updater pubkey in tauri.conf.json differs from PUBKEY in updates.rs; nothing was built." }
   if ((Test-Path $pubFile) -and ((Get-Content $pubFile -Raw).Trim() -ne $built)) {
     throw "PUBKEY in updates.rs does not match $pubFile; nothing was built."
   }
@@ -59,6 +61,13 @@ if ($LASTEXITCODE -ne 0) { throw "A dependency license needs review; release sto
 
 $signScript = Join-Path $root "tools\sign_windows.py"
 if ($Sign) {
+  # A window opened before the signing account was saved to Windows lacks its settings; read them from there.
+  foreach ($n in "OPENSTAGE_SIGN_ENDPOINT", "OPENSTAGE_SIGN_ACCOUNT", "OPENSTAGE_SIGN_PROFILE", "OPENSTAGE_SIGN_PUBLISHER") {
+    if (-not [Environment]::GetEnvironmentVariable($n, "Process")) {
+      $v = [Environment]::GetEnvironmentVariable($n, "User")
+      if ($v) { [Environment]::SetEnvironmentVariable($n, $v, "Process") }
+    }
+  }
   Write-Host "== Signing: checking everything it needs"
   python -I $signScript --ready
   if ($LASTEXITCODE -ne 0) { throw "Signing is not ready (see above); nothing was built." }
