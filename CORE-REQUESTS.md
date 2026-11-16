@@ -7,14 +7,14 @@ Prism Reference Manager's development list has two items that other tools depend
 
 This file says where each of the other tools stands on those two items and what it still needs. It covers PrismQDA, PrismStatistics and OpenStage Guide. For each need it says who owes it: this program, the shared core (`openstage-core`), or the tool itself.
 
-Checked 2026-11-16 against the code each tool has on this computer:
+Checked 2026-11-16 against each tool's current code:
 
-| Tool | Where | Version read |
+| Tool | Source | Version read |
 |---|---|---|
-| PrismQDA | `C:\Dev\prismqda` | `CORE-REQUESTS.md` R5, decision 195 |
-| PrismStatistics | its own folder | 0.2.2 (commit 5ca9f9a) |
-| OpenStage Guide | `C:\Dev\OpenStageGuide` | `CORE-REQUESTS.md` G6 |
-| Shared core | `C:\Dev\openstage-core` | commit 27315b9 |
+| PrismQDA | its repository | `CORE-REQUESTS.md` R5, decision 195 |
+| PrismStatistics | its repository | 0.2.2 (commit 5ca9f9a) |
+| OpenStage Guide | its repository | `CORE-REQUESTS.md` G6 |
+| Shared core | its repository | commit 27315b9 |
 
 The shared core has started neither the exchange file nor an API client. Its notes and roadmap mention neither.
 
