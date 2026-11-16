@@ -14,8 +14,8 @@ use tauri_plugin_updater::UpdaterExt;
 /// Update feed (a JSON manifest). `{{target}}`, `{{arch}}` and `{{current_version}}` are filled in
 /// by the updater. "latest" on the release page skips pre-releases.
 pub const ENDPOINT: &str = "https://github.com/jasonswrench-beep/prism_reference_manager/releases/latest/download/latest.json";
-/// Public half of the update-signing key (from `npx tauri signer generate`). Empty until set.
-pub const PUBKEY: &str = "";
+/// Public half of the update-signing key (key id 176D156BDF837627, from `npx tauri signer generate`).
+pub const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE3NkQxNTZCREY4Mzc2MjcKUldRbmRvUGZheFZ0RjJ3MEJMZExzbXdXN3l5VElISTlNVndWQUxmUTlyTnliRms0eGV3a3EwN2kK";
 /// Feed for returning to the previous release (the release process publishes the earlier
 /// release's manifest there as previous.json). Signed with the same key.
 pub const ROLLBACK_ENDPOINT: &str = "https://github.com/jasonswrench-beep/prism_reference_manager/releases/latest/download/previous.json";
