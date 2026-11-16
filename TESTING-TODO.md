@@ -294,6 +294,11 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
       batch undo.
 - [ ] CSV import with column mapping from a spreadsheet saved by a spreadsheet program
       (UTF-8 with BOM, and semicolon-separated).
+- [ ] Cite from OpenStage Guide through the local API (`CORE-REQUESTS.md`, P7). Turn on local
+      connections, pair Guide and choose Allow in this program, then cite one design choice whose
+      work is in the library and one whose work is not. The first should be found and the second
+      added under Library › Machine-created. Both should come back with an APA reference entry and an
+      in-text citation that match what this program shows.
 
 ## 8. Browser capture extension (spec CAP-001 to CAP-003)
 
