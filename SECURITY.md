@@ -21,7 +21,8 @@ Only the latest release receives security fixes.
 - **Local API.** Off by default. When on, it listens only on `127.0.0.1`, refuses requests from
   web pages, and needs a token the person approves in the window. Tokens are stored only as
   hashes. Scopes limit each client; administrative methods are never available. Records that
-  clients create are marked as machine-created.
+  clients create are marked as machine-created. One call, `GET /v1/status`, needs no token: it
+  gives only the program's name and version, the API version, and whether a library is open.
 - **Browser capture extension.** Reads a page only when the person clicks it, and connects only
   to the local API on `127.0.0.1`. It asks for access to a PDF's site when a PDF is saved.
 - **Network.** Every outbound request is optional, listed in Settings › Network with a switch for

@@ -5,6 +5,7 @@
 //!
 //! POST /v1/pair      {"name": "...", "scopes": ["read","format"]}  -> {"id": "..."}
 //! GET  /v1/pair/<id>                                               -> {"state": "...", "token"?: "..."}
+//! GET  /v1/status    (no token)  -> {"program", "version", "api_version": 1, "library_open"}
 //! POST /v1/call      Authorization: Bearer <token>  {"method": "...", "args": {...}}
 
 use crate::Shared;
@@ -67,6 +68,11 @@ pub fn acceptable(host: &str, origin: &str, content_type: &str, is_post: bool, p
     Ok(())
 }
 
+/// The answer to `GET /v1/status`.
+pub fn status_body(library_open: bool) -> Value {
+    json!({"program": "Prism Reference Manager", "version": env!("CARGO_PKG_VERSION"), "api_version": 1, "library_open": library_open})
+}
+
 fn read_body(req: &mut tiny_http::Request, limit: u64) -> Option<String> {
     let mut body = String::new();
     let n = req.as_reader().take(limit + 1).read_to_string(&mut body).ok()?;
@@ -84,15 +90,22 @@ pub fn start(app: tauri::AppHandle, shared: Shared) {
                 let st = shared.lock().unwrap_or_else(|e| e.into_inner());
                 (st.settings.api_enabled, st.settings.api_port)
             };
+            let before = running.as_ref().map(|(p, _)| *p);
+            let mut error = None;
             match (&running, enabled) {
-                (None, true) => {
-                    if let Ok(srv) = tiny_http::Server::http(("127.0.0.1", port)) {
-                        running = Some((port, std::sync::Arc::new(srv)));
-                    }
-                }
+                (None, true) => match tiny_http::Server::http(("127.0.0.1", port)) {
+                    Ok(srv) => running = Some((port, std::sync::Arc::new(srv))),
+                    Err(_) => error = Some(format!("Port {port} could not be opened. Another program may be using it; choose another port.")),
+                },
                 (Some((p, _)), true) if *p != port => running = None,
                 (Some(_), false) => running = None,
                 _ => {}
+            }
+            let now = running.as_ref().map(|(p, _)| *p);
+            if now != before || error.is_some() || (!enabled && before.is_none()) {
+                let mut st = shared.lock().unwrap_or_else(|e| e.into_inner());
+                st.api_listening = now;
+                st.api_error = if enabled { error.unwrap_or_default() } else { String::new() };
             }
             let Some((port, srv)) = &running else {
                 std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -116,6 +129,13 @@ fn handle(mut req: tiny_http::Request, app: &tauri::AppHandle, shared: &Shared, 
     let url = req.url().to_string();
     let auth = header(&req, "Authorization").trim_start_matches("Bearer ").trim().to_string();
 
+    if *req.method() == tiny_http::Method::Get && url == "/v1/status" {
+        // Needs no token, so a program can tell that this is the right port before pairing.
+        // It says nothing about the library beyond whether one is open.
+        let library_open = shared.lock().unwrap_or_else(|e| e.into_inner()).lib.is_some();
+        respond(req, 200, status_body(library_open));
+        return;
+    }
     if is_post && url == "/v1/pair" {
         let Some(body) = read_body(&mut req, PAIR_BODY_LIMIT) else {
             respond(req, 413, json!({"error": "The pairing request is too large."}));
@@ -216,5 +236,15 @@ mod tests {
         assert!(acceptable("rebind.example:27115", "", "application/json", true, 27115).is_err(), "a name that resolves to this computer");
         assert!(acceptable("127.0.0.1:27115", "", "text/plain", true, 27115).is_err(), "a simple cross-site form post");
         assert!(acceptable("127.0.0.1:27115", "", "", false, 27115).is_ok(), "a GET needs no content type");
+    }
+
+    #[test]
+    fn status_says_only_what_it_should() {
+        let v = super::status_body(true);
+        assert_eq!(v["api_version"], 1);
+        assert_eq!(v["library_open"], true);
+        assert_eq!(v["program"], "Prism Reference Manager");
+        let keys: Vec<&String> = v.as_object().unwrap().keys().collect();
+        assert_eq!(keys.len(), 4, "no library details: {keys:?}");
     }
 }

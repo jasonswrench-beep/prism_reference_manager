@@ -63,7 +63,8 @@ everyone with Group Policy or an administrator-owned `policy.json` (`{"network_e
 
 The optional local API listens on 127.0.0.1 only, is off by default, and requires the person to
 approve each program and its permissions. Tokens are stored as SHA-256 hashes. Requests from web
-pages are refused.
+pages are refused. The one call that needs no approval, `GET /v1/status`, says only which program
+and version is listening and whether a library is open; nothing from the library.
 
 ## Diagnostics
 

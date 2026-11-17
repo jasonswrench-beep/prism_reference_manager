@@ -1,5 +1,16 @@
 # Release notes
 
+## Not yet released
+
+- **Local connections.** Settings › Local connections shows the address the program is listening
+  at, with a Copy address button, or says why its port could not be opened. Other programs can ask
+  `GET /v1/status` whether the program is running before they pair. `docs/local-api.md` now gives
+  the arguments and answers of the calls used for citing.
+- **Exchange file for Prism research tools, version 1.1.** It now includes the project's sources
+  that have no excerpt (you can turn this off; excluded sources are always left out) and each
+  source's screening decision. An excerpt taken from a source that was later merged now names the
+  surviving record. The format is specified in `docs/exchange-format.md`, with a sample file.
+
 ## 0.1.3 (2026-11-15)
 
 - **Updates.** Settings › About › Check now looks for a newer version on the project's release

@@ -18,6 +18,12 @@ Checked 2026-11-16 against each tool's current code:
 
 The shared core has started neither the exchange file nor an API client. Its notes and roadmap mention neither.
 
+**Status, 2026-11-17: P1 to P7 are done here.** What changed is under each heading below.
+- The exchange file is now version 1.1, specified in `docs/exchange-format.md`, with a sample in `docs/examples/prism-exchange.json`.
+- The local API has `GET /v1/status`, the address is shown in Settings, and `docs/local-api.md` gives the shapes of the citing calls.
+- PrismQDA's own reader opened the sample, and Guide's own client cited through a debug build.
+- C1 and C2 below are still open in the shared core.
+
 ## Where things stand
 
 | | Item 3: citing through the local API | Item 4: reading the exchange file |
@@ -45,6 +51,8 @@ The shared core has started neither the exchange file nor an API client. Its not
 
 ### P1. A written specification of the exchange file
 
+**Done 2026-11-17:** `docs/exchange-format.md`. It covers every member, the value sets, what is left out, the version rule and the name, and it answers R5's questions 1 and 2.
+
 The format is described in five lines, and both readers worked from the code. The specification should cover:
 - every member and its type
 - the value sets:
@@ -60,6 +68,16 @@ It answers PrismQDA's R5 questions 1 and 2. If the core takes the format (C1), t
 
 ### P2. A sample file from a real build, and a test
 
+**Done 2026-11-17:**
+- `crates/prm-core/tests/exchange.rs` builds a project with:
+  - a quotation with a locator
+  - a paraphrase with no locator, written by an AI tool
+  - a summary from a record later merged
+  - a thought and a trashed comment
+  - a source with no excerpt and an excluded source
+- It exports the project and holds the file to the specification. With `PRM_WRITE_EXCHANGE_SAMPLE=1` it writes `docs/examples/prism-exchange.json`, and a second test holds the committed sample to the same rules.
+- PrismQDA's real reader (`prismqda-import`, `parse_exchange`) opened the sample: 5 documents, 4 cases, no warnings.
+
 PrismQDA has never seen a file this program made. It needs:
 - a test in `prm-core` that builds a small project, writes the file and checks its shape
 - the file it writes committed as `docs/examples/prism-exchange.json`
@@ -68,17 +86,29 @@ That file is the sample PrismQDA asked for. There is no test of `export_family_e
 
 ### P3. Sources without excerpts
 
+**Done 2026-11-17:**
+- The export includes every project source that is not excluded. A checkbox in the export dialog turns this off.
+- Each source carries its screening decision (`inclusion`), and `manifest.sources_scope` says which was chosen. The version is now 1.1; readers of 1.0 read it unchanged.
+- Found on the way and fixed: an excerpt from a record that was later merged named the old id, so PrismQDA would have filed it under "no source in this file". It now names the surviving record.
+
 The file holds only sources that an excerpt names, so a project's sources with no excerpt never reach PrismQDA. A literature review coded in PrismQDA usually wants every source in the project. PrismQDA's reader already handles such a source and makes a document of its title, details and abstract.
 
 Proposed: an option, on by default, to include every source in the project. This needs no version change, since 1.0 readers already accept it.
 
 ### P4. What "return links" means
 
+**Done 2026-11-17:** the manifest note now says nothing is sent back in this version, and that receivers keep `sources[].id` and `excerpts[].id` so that a later version can name them.
+
 The manifest note says receivers "return links as separate data". Nothing in this program reads such data, and no reader writes it.
 
 Proposed answer for 1.0: nothing is returned. Receivers keep `sources[].id` and `excerpts[].id` so that a later version can name them. Remove the sentence or say this in the note. PrismQDA already keeps both ids.
 
 ### P5. A status call before pairing, and a way to find the port (Guide G6)
+
+**Done 2026-11-17:**
+- `GET /v1/status` answers without a token, with `{"program", "version", "api_version": 1, "library_open"}` and nothing else. A unit test holds it to those four members.
+- Settings › Local connections shows "Listening at http://127.0.0.1:<port>" with a Copy address button, or says that the port could not be opened. Before this change a busy port failed silently.
+- No port file was added. The person copies the address into the other program.
 
 Today a tool cannot tell whether this program is running, which version it is, or whether a library is open, without a token. Guide probes by sending an unsigned call and reading the 401.
 
@@ -90,11 +120,31 @@ The security limits stay as they are: 127.0.0.1 only, no web origin, and token h
 
 ### P6. Request and answer shapes for every call (Guide G6)
 
+**Done 2026-11-17 for the citing path:**
+- `docs/local-api.md` now has "Finding the program", a table of status codes, and a call reference for `library.info`, `styles.list`, `capture.check`, `refs.list`, `search.run`, `refs.get`, `refs.add`, `cite.render` and `import.stage`.
+- Its two citation examples are checked by a test (`local_api_doc_examples_hold`).
+- The other methods are still listed by scope only.
+
 `docs/local-api.md` lists the methods by scope but not their arguments or answers. Guide took them from `dispatch.rs`.
 
 Proposed: one entry for each method a client may call, with its arguments, its answer and its errors. Start with the citing path: `capture.check`, `refs.add`, `refs.get`, `cite.render`, `styles.list`.
 
 ### P7. Guide against the real program
+
+**Done 2026-11-17, as far as a program can check it.** Guide's own `src/prm-client.mjs` ran against a debug build on a test port. A script in the program's window clicked Allow in the real pairing dialog. 20 checks passed:
+- status without a token
+- refusal of a web page
+- Guide's probe
+- pairing, with the token given once
+- an existing work found by DOI and not added
+- a new article added and then found by DOI
+- an edited book with no DOI added and then found by title
+- APA entries and in-text citations returned
+- an administrative call refused
+- the added works marked `origin: agent`
+- Guide listed among approved programs
+
+Guide's own screens and a person's click are still on `TESTING-TODO.md`.
 
 This needs a person, because pairing has to be approved in the window. It is added to `TESTING-TODO.md`.
 
@@ -122,8 +172,8 @@ Guide's `prm-client.mjs` is the starting point and would be deleted once it move
 
 ### PrismQDA
 
-1. **For item 4:** the sample file and specification (P1, P2), then a test against them (C1). Until then its reader rests on hand-made files.
-2. **For item 4:** with P3, sources without excerpts arrive. The reader already handles them, so no work is needed there.
+1. **For item 4:** the sample file and specification now exist (P1, P2). Its reader already opens the sample correctly. What is left is a test in PrismQDA on `docs/examples/prism-exchange.json`, and the shared conformance set when the core makes it (C1).
+2. **For item 4:** with P3, sources without excerpts arrive, and the reader already handles them. It may want to show `sources[].inclusion` (new in 1.1) as a variable of the case.
 3. **For item 3:** nothing on its list. If its reports or literature-review memos should carry formatted citations, it would use the shared client (C2) with `read` and `format`. It already keeps each document's library id and citation key from the exchange file, so it can name the work without a lookup.
 
 ### PrismStatistics
@@ -149,6 +199,8 @@ Guide's `prm-client.mjs` is the starting point and would be deleted once it move
    - the status call and port (P5)
    - the documented shapes (P6), so its client stops relying on this program's code
    - moving onto the shared client when the core has one (C2)
+
+   P5 and P6 are now done here, and its client passed against a debug build (P7). It can use `GET /v1/status` in place of its probe.
 
    One small point: it asks for the `import` scope and never uses it. Asking for `read`, `format` and `write` would show the person a shorter list at pairing.
 

@@ -294,11 +294,17 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
       batch undo.
 - [ ] CSV import with column mapping from a spreadsheet saved by a spreadsheet program
       (UTF-8 with BOM, and semicolon-separated).
-- [ ] Cite from OpenStage Guide through the local API (`CORE-REQUESTS.md`, P7). Turn on local
-      connections, pair Guide and choose Allow in this program, then cite one design choice whose
-      work is in the library and one whose work is not. The first should be found and the second
-      added under Library › Machine-created. Both should come back with an APA reference entry and an
-      in-text citation that match what this program shows.
+- [ ] Cite from OpenStage Guide through the local API, from Guide's own window (`CORE-REQUESTS.md`,
+      P7). Turn on local connections, copy the address from Settings › Local connections, connect
+      Guide, and choose Allow here. Cite one design choice whose work is in the library and one whose
+      work is not. The first should be found and the second added under Library › Machine-created.
+      Both should come back with an APA reference entry and an in-text citation that match what this
+      program shows. (Automated on 2026-11-17: Guide's client against a debug build, with the Allow
+      button clicked by a test script: 20 checks passed. What is left is Guide's own screens and a
+      person's click.)
+- [ ] Exchange file: in a project with excerpts, Notes › Exchange file for Prism research tools,
+      with "Also include the project's sources that have no excerpt" on and off. Open both files in
+      PrismQDA: with it on, every source that is not excluded becomes a document.
 
 ## 8. Browser capture extension (spec CAP-001 to CAP-003)
 

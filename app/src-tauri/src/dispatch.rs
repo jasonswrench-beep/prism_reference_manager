@@ -1040,7 +1040,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
             ok(json!({"path": p.to_string_lossy()}))
         }
         "family.export" => {
-            let bytes = lib_mut(st)?.export_family_exchange(&s(a, "project_id"), &opt::<Vec<String>>(a, "note_ids")).map_err(err)?;
+            let bytes = lib_mut(st)?.export_family_exchange(&s(a, "project_id"), &opt::<Vec<String>>(a, "note_ids"), a.get("all_sources").and_then(Value::as_bool).unwrap_or(true)).map_err(err)?;
             let p = path.unwrap();
             write_out(&p, &bytes)?;
             ok(json!({"path": p.to_string_lossy()}))
@@ -1604,7 +1604,7 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
         }
 
         // ---- local API administration ---------------------------------------------------------
-        "api.state" => ok(json!({"enabled": st.settings.api_enabled, "port": st.settings.api_port, "clients": st.settings.api_clients, "pending": st.pending_pairs, "log": st.api_log.iter().rev().take(200).collect::<Vec<_>>()})),
+        "api.state" => ok(json!({"enabled": st.settings.api_enabled, "port": st.settings.api_port, "listening": st.api_listening, "error": st.api_error, "clients": st.settings.api_clients, "pending": st.pending_pairs, "log": st.api_log.iter().rev().take(200).collect::<Vec<_>>()})),
         "api.approve" => {
             let id = s(a, "id");
             let Some(pos) = st.pending_pairs.iter().position(|p| p.id == id) else { return Err(user("That request is no longer waiting.")) };

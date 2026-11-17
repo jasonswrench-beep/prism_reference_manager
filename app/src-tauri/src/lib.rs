@@ -28,6 +28,9 @@ pub struct AppState {
     pub host: String,
     pub pending_pairs: Vec<api::PairRequest>,
     pub api_log: Vec<serde_json::Value>,
+    /// The port the local API is listening on, or why it could not open its port.
+    pub api_listening: Option<u16>,
+    pub api_error: String,
     pub jobs: Vec<serde_json::Value>,
     /// A prism-rm:// link the program was started with, handed to the window once it is ready.
     pub pending_link: Option<String>,
@@ -143,6 +146,8 @@ pub fn run() {
                 host: hostname(),
                 pending_pairs: vec![],
                 api_log: vec![],
+                api_listening: None,
+                api_error: String::new(),
                 jobs: vec![],
                 pending_link: link_arg(&std::env::args().collect::<Vec<_>>()),
             }));
