@@ -546,27 +546,57 @@ impl Library {
         })
     }
 
-    /// Versioned exchange file for other Prism research tools: selected sources (as CSL JSON
-    /// with stable ids) and source-linked excerpts. This is a file export, not live sync.
-    pub fn export_family_exchange(&self, project_id: &str, note_ids: &[String]) -> Result<Vec<u8>> {
+    /// Versioned exchange file for other Prism research tools: sources (as CSL JSON with stable
+    /// ids) and source-linked excerpts. This is a file export, not live sync; the format is
+    /// specified in `docs/exchange-format.md`.
+    ///
+    /// `note_ids` empty means every live note of the project. With `all_sources`, the file holds
+    /// every source of the project that is not excluded, as well as the sources the excerpts
+    /// name; without it, only the sources the excerpts name.
+    pub fn export_family_exchange(&self, project_id: &str, note_ids: &[String], all_sources: bool) -> Result<Vec<u8>> {
         let p = self.store.must::<Project>(project_id)?;
-        let notes: Vec<Note> = if note_ids.is_empty() { self.notes(project_id, false)? } else { note_ids.iter().filter_map(|id| self.store.get::<Note>(id).ok().flatten()).collect() };
-        let ref_ids: Vec<String> = notes.iter().flat_map(|n| n.ref_ids.clone()).collect();
-        let refs = self.references(&ref_ids)?;
+        let notes: Vec<Note> = if note_ids.is_empty() {
+            self.notes(project_id, false)?
+        } else {
+            note_ids.iter().filter_map(|id| self.store.get::<Note>(id).ok().flatten()).filter(|n| n.trashed_at.is_none()).collect()
+        };
+        // A note keeps the id a source had when the note was made; a merged source answers to
+        // its surviving record's id, so the excerpts name the ids the file carries.
+        let source_ids_of = |n: &Note| -> Vec<String> {
+            let mut out: Vec<String> = Vec::new();
+            for id in &n.ref_ids {
+                let r = self.resolve_id(id).unwrap_or_else(|_| id.clone());
+                if !out.contains(&r) {
+                    out.push(r);
+                }
+            }
+            out
+        };
+        let members: Vec<ProjectSource> = self.store.by("project_id", &p.id)?;
+        let mut ref_ids: Vec<String> = Vec::new();
+        if all_sources {
+            let mut ms: Vec<&ProjectSource> = members.iter().filter(|m| m.inclusion != "excluded").collect();
+            ms.sort_by(|a, b| a.added.cmp(&b.added).then(a.ref_id.cmp(&b.ref_id)));
+            ref_ids.extend(ms.iter().map(|m| m.ref_id.clone()));
+        }
+        ref_ids.extend(notes.iter().flat_map(&source_ids_of));
+        let refs: Vec<Reference> = self.references(&ref_ids)?.into_iter().filter(|r| r.trashed_at.is_none()).collect();
+        let inclusion = |id: &str| members.iter().find(|m| m.ref_id == id).map(|m| m.inclusion.clone()).unwrap_or_default();
         let v = serde_json::json!({
             "manifest": {
                 "format": "prism-family-exchange",
-                "version": "1.0",
+                "version": "1.1",
                 "producer": "Prism Reference Manager",
                 "producer_version": env!("CARGO_PKG_VERSION"),
                 "created": now(),
                 "library_id": self.store.meta("library_id"),
                 "project": {"id": p.id, "title": p.title},
-                "note": "Reference Manager owns bibliographic identity and citation rendering. Receivers keep source ids and return links as separate data.",
+                "sources_scope": if all_sources { "project" } else { "excerpts" },
+                "note": "Reference Manager owns bibliographic identity and citation rendering. Nothing is sent back in this version; receivers keep sources[].id and excerpts[].id so that a later version can name them.",
             },
-            "sources": refs.iter().map(|r| serde_json::json!({"id": r.id, "citekey": r.citekey, "csl": crate::formats::csljson::to_csl(r)})).collect::<Vec<_>>(),
+            "sources": refs.iter().map(|r| serde_json::json!({"id": r.id, "citekey": r.citekey, "inclusion": inclusion(&r.id), "csl": crate::formats::csljson::to_csl(r)})).collect::<Vec<_>>(),
             "excerpts": notes.iter().map(|n| serde_json::json!({
-                "id": n.id, "type": n.kind, "source_ids": n.ref_ids, "exact_text": n.exact_text, "exact_text_edited": n.exact_text_edited,
+                "id": n.id, "type": n.kind, "source_ids": source_ids_of(n), "exact_text": n.exact_text, "exact_text_edited": n.exact_text_edited,
                 "user_text": n.body, "locator": {"label": n.locator_label, "value": n.locator}, "anchor_state": n.anchor_state, "origin": n.origin, "annotation_id": n.annotation_id
             })).collect::<Vec<_>>(),
         });

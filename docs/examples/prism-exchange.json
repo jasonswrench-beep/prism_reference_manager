@@ -1,0 +1,191 @@
+{
+  "manifest": {
+    "format": "prism-family-exchange",
+    "version": "1.1",
+    "producer": "Prism Reference Manager",
+    "producer_version": "0.1.3",
+    "created": "2026-11-17T23:45:37.271Z",
+    "library_id": "56b95320-86f7-4161-a676-0c593c18a643",
+    "project": {
+      "id": "8f018cb9-2e5e-42f3-8a93-1445067630e6",
+      "title": "Waiting for the bus: a literature review"
+    },
+    "sources_scope": "project",
+    "note": "Reference Manager owns bibliographic identity and citation rendering. Nothing is sent back in this version; receivers keep sources[].id and excerpts[].id so that a later version can name them."
+  },
+  "sources": [
+    {
+      "id": "cd9e41df-9176-498e-93e8-33787f7d867f",
+      "citekey": "hernandez2021bus",
+      "inclusion": "candidate",
+      "csl": {
+        "id": "cd9e41df-9176-498e-93e8-33787f7d867f",
+        "citation-key": "hernandez2021bus",
+        "type": "article-journal",
+        "title": "Bus reliability and daily stress",
+        "container-title": "Journal of Transit Studies",
+        "volume": "14",
+        "page": "33-51",
+        "abstract": "Late buses raise riders' reported stress.",
+        "author": [
+          {
+            "family": "Hernandez",
+            "given": "Maria"
+          },
+          {
+            "family": "Li",
+            "given": "Wei"
+          }
+        ],
+        "issued": {
+          "date-parts": [
+            [
+              2021
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "0e0f230e-0646-473a-b90c-7136f71eea49",
+      "citekey": "okafor2019waiting",
+      "inclusion": "candidate",
+      "csl": {
+        "id": "0e0f230e-0646-473a-b90c-7136f71eea49",
+        "citation-key": "okafor2019waiting",
+        "type": "book",
+        "title": "Waiting",
+        "author": [
+          {
+            "family": "Okafor",
+            "given": "Ada"
+          }
+        ],
+        "issued": {
+          "date-parts": [
+            [
+              2019
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "8691b408-a39d-4b68-a61d-d62c88f5f29f",
+      "citekey": "transitauthority2022rider",
+      "inclusion": "candidate",
+      "csl": {
+        "id": "8691b408-a39d-4b68-a61d-d62c88f5f29f",
+        "citation-key": "transitauthority2022rider",
+        "type": "report",
+        "title": "Rider survey 2022",
+        "author": [
+          {
+            "family": "Transit Authority"
+          }
+        ],
+        "issued": {
+          "date-parts": [
+            [
+              2022
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "a377a71f-5fb4-49f7-95e2-9b943b187b82",
+      "citekey": "novak2018timetables",
+      "inclusion": "included",
+      "csl": {
+        "id": "a377a71f-5fb4-49f7-95e2-9b943b187b82",
+        "citation-key": "novak2018timetables",
+        "type": "article-journal",
+        "title": "Timetables and trust",
+        "container-title": "Urban Mobility",
+        "author": [
+          {
+            "family": "Novak",
+            "given": "Petra"
+          }
+        ],
+        "issued": {
+          "date-parts": [
+            [
+              2018
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "excerpts": [
+    {
+      "id": "ebce97f0-f3e8-4058-a974-b8bd684ead56",
+      "type": "thought",
+      "source_ids": [],
+      "exact_text": "",
+      "exact_text_edited": false,
+      "user_text": "Ask the interviewees about winter.",
+      "locator": {
+        "label": "",
+        "value": ""
+      },
+      "anchor_state": "",
+      "origin": "user",
+      "annotation_id": ""
+    },
+    {
+      "id": "d6bb4b72-e69f-4553-952b-9205deb96554",
+      "type": "summary",
+      "source_ids": [
+        "8691b408-a39d-4b68-a61d-d62c88f5f29f"
+      ],
+      "exact_text": "",
+      "exact_text_edited": false,
+      "user_text": "A third of riders gave up on the route.",
+      "locator": {
+        "label": "section",
+        "value": "2"
+      },
+      "anchor_state": "",
+      "origin": "user",
+      "annotation_id": ""
+    },
+    {
+      "id": "eb36e733-f159-49b4-a8a4-0f3269ed0229",
+      "type": "paraphrase",
+      "source_ids": [
+        "cd9e41df-9176-498e-93e8-33787f7d867f",
+        "0e0f230e-0646-473a-b90c-7136f71eea49"
+      ],
+      "exact_text": "",
+      "exact_text_edited": false,
+      "user_text": "Both link delay to stress.",
+      "locator": {
+        "label": "",
+        "value": ""
+      },
+      "anchor_state": "unresolved",
+      "origin": "ai",
+      "annotation_id": ""
+    },
+    {
+      "id": "36cdd3bc-462c-42f4-b219-0c10c572914e",
+      "type": "quotation",
+      "source_ids": [
+        "cd9e41df-9176-498e-93e8-33787f7d867f"
+      ],
+      "exact_text": "Riders waited a mean of 14 minutes.",
+      "exact_text_edited": false,
+      "user_text": "Compare with our own counts.",
+      "locator": {
+        "label": "page",
+        "value": "36"
+      },
+      "anchor_state": "resolved",
+      "origin": "user",
+      "annotation_id": ""
+    }
+  ]
+}

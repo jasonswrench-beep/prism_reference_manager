@@ -97,9 +97,10 @@ library; the round trip is tested on every build.
 
 ## Exchange file for other Prism tools
 
-`prism-family-exchange` version 1.0: a manifest, `sources` (stable ids, citation keys, CSL JSON)
+`prism-family-exchange` version 1.1: a manifest, `sources` (stable ids, citation keys, CSL JSON)
 and `excerpts` (type, source ids, exact text, user text, locator, anchor state, origin). It is a
-file export, not live synchronization.
+file export, not live synchronization. The full specification is in
+[`exchange-format.md`](exchange-format.md), with a sample in `examples/prism-exchange.json`.
 
 ## Annotation sidecar
 

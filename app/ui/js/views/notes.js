@@ -39,7 +39,14 @@ registerView("notes", {
     el.append(h("div.btn-row", { style: { marginTop: "12px" } },
       btn("Export outline", { icon: "download", onClick: () => exportNotes(true) }),
       btn("Export notes", { icon: "download", onClick: () => exportNotes(false) }),
-      btn("Exchange file for Prism research tools", { icon: "upload", onClick: async () => { const r = await call("family.export", { project_id: pid }); if (r && !r.cancelled) toast("Saved " + r.path + ". This is a file export; nothing is synchronized.", "success"); } }),
+      btn("Exchange file for Prism research tools", { icon: "upload", onClick: async () => {
+        const all = h("input", { type: "checkbox", id: "xall", checked: true });
+        const go_ = await confirmDialog("Exchange file for Prism research tools", h("div",
+          h("p", "Saves this project's notes and excerpts, with their sources, as a file that other Prism research tools can open. It is a file export; nothing is synchronized and nothing comes back."),
+          h("label.row", { for: "xall" }, all, "Also include the project's sources that have no excerpt (excluded sources are left out)")), { ok: "Save…" });
+        if (!go_) return;
+        try { const r = await call("family.export", { project_id: pid, all_sources: all.checked }); if (r && !r.cancelled) toast("Saved " + r.path + ". This is a file export; nothing is synchronized.", "success"); } catch (e) { showError(e); }
+      } }),
       h("span.small.muted", "Direct sending to other Prism tools is planned for a later version; the exchange file works now.")));
 
     // ---- outline ----------------------------------------------------------------------------
