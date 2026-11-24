@@ -40,7 +40,7 @@ async function updatesCard(card) {
     if (!ok) return;
     clear(out); out.append(h("p", "Downloading…"));
     const off = await on("update-progress", (p) => { clear(out); out.append(h("p", p.total ? `Downloading… ${Math.round((p.received / p.total) * 100)}%` : `Downloading… ${Math.round(p.received / 1024)} KB`)); });
-    try { await call("update.install"); } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); } finally { if (typeof off === "function") off(); }
+    try { const r = await call("update.install", { version }); if (r && r.installed === false) { clear(out); out.append(h("p", r.message)); } } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); } finally { if (typeof off === "function") off(); }
   };
   const check = async () => {
     clear(out); out.append(h("p", "Checking…"));
@@ -71,7 +71,7 @@ async function rollbackFlow(u, out) {
     const ok = await confirmDialog(`Return to version ${r.version}?`, `Version ${r.version} replaces ${u.version}; its signature is checked first, and settings and libraries are kept. If this version upgraded a library's format, the earlier version opens that library read-only: use Settings › Library and backup › Format history › Return to the format before the last upgrade first (changes since the upgrade stay in the kept file).`, { ok: "Return to " + r.version });
     if (!ok) return;
     out.append(h("p", "Downloading…"));
-    await call("update.rollback");
+    await call("update.rollback", { version: r.version });
   } catch (e) { clear(out); out.append(h("div.notice.error", e.message)); }
 }
 

@@ -207,3 +207,68 @@ fn a_lookup_whose_switch_is_off_sends_nothing() {
     assert_eq!(sent, 0);
     assert!(!res.ok);
 }
+
+#[test]
+fn a_package_cannot_put_its_own_markup_in_the_copy_history() {
+    use prm_core::library::CiteRequest;
+    let r = root("copies");
+    let mut src = Library::open(&r.join("maker"), "d", "h").unwrap();
+    let p = src.create_project("Copies", "apa-7", None).unwrap();
+    let mut b = Reference { rtype: "book".into(), ..Default::default() };
+    b.creators.push(Creator { role: "author".into(), name: Name::person("Okafor", "Ada") });
+    b.issued = Some(PartialDate::year(2019));
+    b.fields.insert("title".into(), "Waiting".into());
+    let b = src.add_reference(b, Some(&p.id)).unwrap();
+    let req = CiteRequest { manuscript_id: p.active_manuscript.clone(), items: vec![CiteItem { ref_id: b.id.clone(), ..Default::default() }], mode: OutputMode::Parenthetical, ..Default::default() };
+    let out = src.render(&req).unwrap();
+    src.record_copy(&req, &out).unwrap();
+    let pkg = r.join("pkg.zip");
+    prm_core::backup::export_package(&src, &pkg, false).unwrap();
+    src.close();
+
+    const PLANTED: &str = "<img src=x class=planted><form>Sign in</form>";
+    let hostile = r.join("hostile.zip");
+    tamper(&pkg, &hostile, |t, rows| {
+        if t != "copy_events" {
+            return;
+        }
+        let good = rows[0].clone();
+        let plant = |id: &str, f: &dyn Fn(&mut serde_json::Value)| {
+            let mut v = good.clone();
+            v["id"] = id.into();
+            v["changed"] = true.into();
+            v["current_html"] = PLANTED.into();
+            v["current_text"] = PLANTED.into();
+            f(&mut v);
+            v
+        };
+        *rows = vec![
+            plant("renders", &|v| v["payload_text"] = "(Old, 1999)".into()),
+            plant("no-manuscript", &|v| v["manuscript_id"] = "gone".into()),
+            plant("no-source", &|v| v["items"][0]["ref_id"] = "gone".into()),
+            plant("discarded", &|v| v["status"] = "discarded".into()),
+            plant("unknown", &|v| v["imported_unknown"] = true.into()),
+        ];
+    });
+    let dest = r.join("imported");
+    prm_core::backup::import_package(&hostile, &dest).unwrap();
+    let mut lib = Library::open(&dest, "d", "h").unwrap();
+    assert_eq!(lib.store.all::<CopyEvent>().unwrap().len(), 5);
+    // Copying or replacing never uses what the row holds, even before the rows are recomputed.
+    assert_eq!(lib.current_copy_output("renders").unwrap().text, "(Okafor, 2019)");
+    assert!(!lib.current_copy_output("renders").unwrap().html.contains("planted"));
+    assert!(lib.current_copy_output("no-manuscript").is_err());
+    assert!(lib.set_copy_status("no-manuscript", CopyStatus::Replaced).is_err(), "nothing to replace it with");
+    lib.recompute_copies(None).unwrap();
+    for c in lib.store.all::<CopyEvent>().unwrap() {
+        assert_eq!(c.current_html, "", "{}", c.id);
+        assert!(!c.current_text.contains('<'), "{}: {}", c.id, c.current_text);
+    }
+    assert_eq!(lib.store.must::<CopyEvent>("renders").unwrap().current_text, "(Okafor, 2019)");
+    let done = lib.set_copy_status("renders", CopyStatus::Replaced).unwrap();
+    assert_eq!(done.payload_text, "(Okafor, 2019)");
+    assert!(!done.payload_html.contains("planted"));
+    // The view shows stored copy text as text only.
+    let view = include_str!("../../../app/ui/js/views/cite.js");
+    assert!(!view.contains("current_html") && !view.contains("payload_html"), "stored HTML is never put in the page");
+}

@@ -167,11 +167,11 @@ async function readiness(el, m) {
             h("td", icon(open ? "chevronDown" : "chevronRight")), h("td", h("strong", c.sources.join("; "))), h("td", c.copy.change_reason), h("td", h("span.badge.attention", icon("warn", 14), "Review")));
           if (!open) return [row];
           const detail = h("tr", h("td", { colspan: 4 }, h("div", { style: { padding: "10px" } },
-            h("div.diff", h("div.side", h("h4", "Previously copied"), h("div", { style: { whiteSpace: "pre-wrap" } }, c.copy.payload_text || "")), h("div.arrow", icon("arrowRight", 24)), h("div.side.after", h("h4", "Current output"), h("div", { html: c.copy.current_html ? c.copy.current_html.replace(/<p[^>]*>/g, "<p>") : c.copy.current_text }))),
+            h("div.diff", h("div.side", h("h4", "Previously copied"), h("div", { style: { whiteSpace: "pre-wrap" } }, c.copy.payload_text || "")), h("div.arrow", icon("arrowRight", 24)), h("div.side.after", h("h4", "Current output"), h("div", { style: { whiteSpace: "pre-wrap" } }, c.copy.current_text || "This citation cannot be produced now: its manuscript, a source or its style is missing."))),
             h("div.notice", { style: { margin: "10px 0" } }, icon("info"), "Check every affected citation and its matching reference in your document."),
             h("div.btn-row", { style: { justifyContent: "center" } },
-              btn("Copy updated text", { kind: "primary", icon: "copy", onClick: async () => { await call("cite.copy_text", { text: c.copy.current_text, html: c.copy.current_html }); toast("Updated text copied. Mark it as replaced once it is in your document.", "success"); } }),
-              btn("Mark as replaced", { kind: "outline", icon: "check", onClick: async () => { await call("copies.set_status", { id: c.copy.id, status: "replaced" }); toast("Marked as replaced", "success"); C.expanded = null; go("cite"); } })),
+              btn("Copy updated text", { kind: "primary", icon: "copy", disabled: !c.copy.current_text, onClick: async () => { try { await call("copies.copy_current", { id: c.copy.id }); toast("Updated text copied. Mark it as replaced once it is in your document.", "success"); } catch (e) { showError(e); } } }),
+              btn("Mark as replaced", { kind: "outline", icon: "check", disabled: !c.copy.current_text, onClick: async () => { try { await call("copies.set_status", { id: c.copy.id, status: "replaced" }); toast("Marked as replaced", "success"); C.expanded = null; go("cite"); } catch (e) { showError(e); } } })),
             h("p.small.muted", { style: { textAlign: "center" } }, "Copying does not confirm that text was pasted or replaced."))));
           return [row, detail];
         }))) : h("div.empty", h("h3", "No copied citations have changed"), h("p", "When a source, the style or this manuscript's reference set changes, affected copies appear here with the old and new text."))),

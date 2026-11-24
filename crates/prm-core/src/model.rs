@@ -624,6 +624,8 @@ pub struct CopyEvent {
     pub changed: bool,
     #[serde(default)]
     pub current_text: String,
+    /// No longer written or shown (current output is rendered when needed). Kept so that rows from
+    /// earlier versions still load; cleared whenever copies are recomputed.
     #[serde(default)]
     pub current_html: String,
     #[serde(default)]

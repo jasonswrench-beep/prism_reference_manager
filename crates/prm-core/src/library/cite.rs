@@ -436,41 +436,52 @@ impl Library {
         };
         let mut flagged = 0;
         for mut c in copies {
-            if !matches!(c.status, CopyStatus::Copied | CopyStatus::Used) || c.imported_unknown {
-                continue;
+            // Rows can come from a package or backup made elsewhere, so nothing stored as "current"
+            // is kept unless it was rendered here: HTML never is, text only after a render.
+            let before = c.clone();
+            c.current_html.clear();
+            let live = matches!(c.status, CopyStatus::Copied | CopyStatus::Used) && !c.imported_unknown;
+            match if live { self.render_copy(&c).ok() } else { None } {
+                Some(cur) => {
+                    c.changed = cur.text != c.payload_text;
+                    c.change_reason = if c.changed { self.change_reason(&c, &cur)? } else { String::new() };
+                    c.current_text = if c.changed { cur.text } else { String::new() };
+                }
+                None => c.current_text.clear(),
             }
-            let req = CiteRequest {
-                manuscript_id: c.manuscript_id.clone(),
-                items: c.items.clone(),
-                mode: c.mode.clone(),
-                quote: c.quote.clone(),
-                set: "selected".into(),
-                ref_ids: c.items.iter().map(|i| i.ref_id.clone()).collect(),
-                exact_version: false,
-                style: String::new(),
-            };
-            if !c.manuscript_id.is_empty() && self.store.get::<Manuscript>(&c.manuscript_id)?.is_none() {
-                continue;
-            }
-            let cur = match self.render(&req) {
-                Ok(o) => o,
-                Err(_) => continue,
-            };
-            let changed = cur.text != c.payload_text;
-            let reason = if changed { self.change_reason(&c, &cur)? } else { String::new() };
-            if changed != c.changed || (changed && (cur.text != c.current_text || reason != c.change_reason)) {
-                c.changed = changed;
-                c.current_text = if changed { cur.text.clone() } else { String::new() };
-                c.current_html = if changed { cur.html.clone() } else { String::new() };
-                c.change_reason = reason;
+            if c != before {
                 let s = crate::util::canonical_json(&serde_json::to_value(&c)?);
                 self.store.conn.execute("UPDATE copy_events SET data=?1 WHERE id=?2", rusqlite::params![s, c.id])?;
             }
-            if changed {
+            if live && c.changed {
                 flagged += 1;
             }
         }
         Ok(flagged)
+    }
+
+    /// What a copied citation would be now, rendered from the records it names.
+    fn render_copy(&self, c: &CopyEvent) -> Result<CiteOutput> {
+        if !c.manuscript_id.is_empty() {
+            self.store.must::<Manuscript>(&c.manuscript_id)?;
+        }
+        self.render(&CiteRequest {
+            manuscript_id: c.manuscript_id.clone(),
+            items: c.items.clone(),
+            mode: c.mode.clone(),
+            quote: c.quote.clone(),
+            set: "selected".into(),
+            ref_ids: c.items.iter().map(|i| i.ref_id.clone()).collect(),
+            exact_version: false,
+            style: String::new(),
+        })
+    }
+
+    /// The current output of a copy, always rendered afresh. The stored row is never the source of
+    /// markup, because it may have come from a package or backup made elsewhere.
+    pub fn current_copy_output(&self, id: &str) -> Result<CiteOutput> {
+        let c = self.store.must::<CopyEvent>(id)?;
+        self.render_copy(&c).map_err(|_| Error::user("This citation cannot be produced now: its manuscript, a source or its style is missing."))
     }
 
     fn change_reason(&self, c: &CopyEvent, cur: &CiteOutput) -> Result<String> {
@@ -504,8 +515,9 @@ impl Library {
     pub fn set_copy_status(&mut self, id: &str, status: CopyStatus) -> Result<CopyEvent> {
         let mut c = self.store.must::<CopyEvent>(id)?;
         if status == CopyStatus::Replaced && c.changed {
-            c.payload_text = c.current_text.clone();
-            c.payload_html = c.current_html.clone();
+            let cur = self.current_copy_output(id)?;
+            c.payload_text = cur.text;
+            c.payload_html = cur.html;
             c.payload_hash = sha256_hex(c.payload_text.as_bytes());
             for (id, rev) in c.ref_revisions.iter_mut() {
                 if let Ok(r) = self.reference(id) {

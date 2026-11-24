@@ -1,4 +1,4 @@
-//! Program updates: built in, switched off.
+//! Program updates.
 //!
 //! The update feed is the project's release page; the public key that verifies update signatures
 //! is set here. While either is empty the updater is "not set up": nothing can contact the
@@ -62,6 +62,18 @@ pub fn is_rollback(current: &str, offered: &str) -> bool {
         (Ok(c), Ok(o)) => o < c,
         _ => false,
     }
+}
+
+/// Installing goes ahead only for the version the person confirmed. The feed is asked again at that
+/// point, and may by then offer another one.
+pub fn same_as_confirmed(confirmed: &str, offered: &str) -> Result<(), String> {
+    if confirmed.trim().is_empty() {
+        return Err("No version was confirmed, so nothing was installed. Check for updates again.".into());
+    }
+    if confirmed != offered {
+        return Err(format!("The release page now offers version {offered}, not version {confirmed}, so nothing was installed. Check again to see what is new."));
+    }
+    Ok(())
 }
 
 fn host() -> String {
@@ -155,13 +167,18 @@ pub fn check(app: &tauri::AppHandle, shared: &Shared) -> Result<Value, String> {
 }
 
 /// Download, verify the signature, and run the installer. The program closes when it starts.
-pub fn install(app: &tauri::AppHandle, shared: &Shared) -> Result<Value, String> {
+/// `confirmed` is the version the person agreed to install.
+pub fn install(app: &tauri::AppHandle, shared: &Shared, confirmed: &str) -> Result<Value, String> {
     if let Some(why) = shared.lock().ok().and_then(|st| blocked(&st)) {
         return Err(why);
     }
     let up = updater(app, shared)?;
     let found = tauri::async_runtime::block_on(up.check()).map_err(|e| format!("Could not check for updates: {e}"))?;
     let Some(u) = found else { return Ok(json!({"installed": false, "message": "Already up to date."})) };
+    if let Err(why) = same_as_confirmed(confirmed, &u.version) {
+        log(shared, false, &why);
+        return Err(why);
+    }
     let h = app.clone();
     let mut got: usize = 0;
     let res = tauri::async_runtime::block_on(u.download_and_install(
@@ -184,8 +201,9 @@ pub fn install(app: &tauri::AppHandle, shared: &Shared) -> Result<Value, String>
 }
 
 /// Return to the previous release: offered only when the rollback feed names an older version,
-/// verified with the same signature, and installed only with the person's go-ahead.
-pub fn rollback(app: &tauri::AppHandle, shared: &Shared, install: bool) -> Result<Value, String> {
+/// verified with the same signature, and installed only with the person's go-ahead. With
+/// `confirmed` (the version the person agreed to) it installs; without, it only looks.
+pub fn rollback(app: &tauri::AppHandle, shared: &Shared, confirmed: Option<&str>) -> Result<Value, String> {
     if !rollback_configured() {
         return Err("Returning to the previous version is not set up in this version.".into());
     }
@@ -195,9 +213,13 @@ pub fn rollback(app: &tauri::AppHandle, shared: &Shared, install: bool) -> Resul
     let up = updater_for(app, shared, &rollback_endpoint(), true)?;
     let found = tauri::async_runtime::block_on(up.check()).map_err(|e| format!("Could not reach the release feed: {e}"))?;
     let Some(u) = found else { return Ok(json!({"available": false, "message": "No earlier version is offered."})) };
-    if !install {
+    let Some(confirmed) = confirmed else {
         log(shared, true, &format!("Previous version {} offered", u.version));
         return Ok(json!({"available": true, "version": u.version, "notes": u.body.clone().unwrap_or_default()}));
+    };
+    if let Err(why) = same_as_confirmed(confirmed, &u.version) {
+        log(shared, false, &why);
+        return Err(why);
     }
     let res = tauri::async_runtime::block_on(u.download_and_install(|_, _| {}, || {}));
     match res {
@@ -220,6 +242,24 @@ mod tests {
         assert!(!super::is_rollback("0.2.0", "0.2.0"));
         assert!(!super::is_rollback("0.2.0", "0.3.0"));
         assert!(!super::is_rollback("0.2.0", "not a version"));
+    }
+
+    #[test]
+    fn install_refuses_a_version_the_person_did_not_confirm() {
+        assert!(super::same_as_confirmed("0.1.4", "0.1.4").is_ok());
+        let e = super::same_as_confirmed("0.1.4", "0.1.5").unwrap_err();
+        assert!(e.contains("0.1.5") && e.contains("nothing was installed"), "{e}");
+        assert!(super::same_as_confirmed("", "0.1.4").is_err());
+        assert!(super::same_as_confirmed("", "").is_err());
+    }
+
+    #[test]
+    fn the_updater_config_matches_the_built_in_key_and_needs_a_signed_version() {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let u = &conf["plugins"]["updater"];
+        assert_eq!(u["requireSignedVersion"], true);
+        assert_eq!(u["pubkey"], super::PUBKEY);
+        assert_eq!(u["endpoints"], serde_json::json!([super::ENDPOINT]));
     }
 }
 

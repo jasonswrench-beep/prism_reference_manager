@@ -459,7 +459,7 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
         }
         // Network work for updates runs without holding the state lock. Never for API clients.
         "update.check" | "update.install" if client.is_none() => {
-            let r = if method == "update.check" { crate::updates::check(app, shared) } else { crate::updates::install(app, shared) };
+            let r = if method == "update.check" { crate::updates::check(app, shared) } else { crate::updates::install(app, shared, &s(&a, "version")) };
             return r.map_err(|m| user(&m));
         }
         // The quick-copy launcher: never for local API clients.
@@ -483,7 +483,8 @@ pub fn dispatch(app: &tauri::AppHandle, shared: &Shared, method: &str, a: Value,
             return ok(true);
         }
         "update.rollback_check" | "update.rollback" if client.is_none() => {
-            return crate::updates::rollback(app, shared, method == "update.rollback").map_err(|m| user(&m));
+            let confirmed = s(&a, "version");
+            return crate::updates::rollback(app, shared, if method == "update.rollback" { Some(&confirmed) } else { None }).map_err(|m| user(&m));
         }
         _ => {}
     }
@@ -971,11 +972,10 @@ fn route(app: &tauri::AppHandle, st: &mut crate::AppState, method: &str, a: &Val
                 Err(e) => Err(CallError { message: format!("{e} The preview is unchanged; you can retry, or export the text to a file."), detail: String::new() }),
             }
         }
-        "cite.copy_text" => {
-            // Copy text exactly as shown (for "Copy updated text" in the ledger).
-            let text = s(a, "text");
-            let html = s(a, "html");
-            crate::clipboard::write(&text, if html.is_empty() { None } else { Some(&html) }, None).map_err(|e| user(&e))?;
+        "copies.copy_current" => {
+            // "Copy updated text" in the ledger: rendered from the records, not from the stored row.
+            let out = lib_mut(st)?.current_copy_output(&s(a, "id")).map_err(err)?;
+            crate::clipboard::write(&out.text, Some(&out.html), None).map_err(|e| user(&e))?;
             ok(true)
         }
         "cite.export_bibliography" => {
