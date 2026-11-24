@@ -10,6 +10,13 @@
   that have no excerpt (you can turn this off; excluded sources are always left out) and each
   source's screening decision. An excerpt taken from a source that was later merged now names the
   surviving record. The format is specified in `docs/exchange-format.md`, with a sample file.
+- **Updates.** An update installs only if it is the version you confirmed, and its signature must
+  name the version it was made for.
+- **Copy history.** "Current output" is always produced from your own records when it is shown as
+  text, copied or marked as replaced. Formatted text stored in a library or package made elsewhere
+  is never put on the page or the clipboard, and is cleared.
+- **Components.** The database engine is SQLite 3.54.1. The third-party notices now list every
+  component in the Windows program; about 20 were missing.
 
 ## 0.1.3 (2026-11-15)
 

@@ -3,11 +3,26 @@
 Run from the repository root:  python tools/third_party.py
 Exits with status 1 if a dependency's license is not on the allow-list, so a build stops
 instead of shipping an unreviewed license.
+
+A file is rewritten only when its content changes (not for a new date alone), so running this on a
+committed, up-to-date tree leaves the tree clean, as tools/build-release.ps1 requires.
 """
 import json, subprocess, sys, os, re, datetime
 
 ALLOWED = {"MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0", "Unicode-DFS-2016",
            "MPL-2.0", "CC0-1.0", "0BSD", "BSL-1.0", "Unlicense", "Apache-2.0 WITH LLVM-exception", "OFL-1.1", "CDLA-Permissive-2.0", "NCSA", "bzip2-1.0.6"}
+
+# The graph is resolved for the platform that ships, so platform conditions are cargo's to judge.
+TARGET = "x86_64-pc-windows-msvc"
+
+def write_if_changed(path, text, stamp):
+    """Write text unless the file differs from it only in what the stamp pattern matches."""
+    try:
+        old = open(path, encoding="utf-8").read()
+    except FileNotFoundError:
+        old = None
+    if old is None or re.sub(stamp, "", old) != re.sub(stamp, "", text):
+        open(path, "w", encoding="utf-8", newline="\n").write(text)
 
 def license_ok(expr):
     if not expr:
@@ -19,7 +34,7 @@ def license_ok(expr):
             return True
     return False
 
-meta = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1", "--locked"], text=True, encoding="utf-8"))
+meta = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1", "--locked", "--filter-platform", TARGET], text=True, encoding="utf-8"))
 pkgs = {p["id"]: p for p in meta["packages"]}
 nodes = {n["id"]: n for n in meta["resolve"]["nodes"]}
 root = next(p["id"] for p in meta["packages"] if p["name"] == "prism-reference-manager")
@@ -31,11 +46,10 @@ while stack:
     seen.add(i)
     for d in nodes[i]["deps"]:
         kinds = [k["kind"] for k in d["dep_kinds"]]
-        target_ok = any((k.get("target") or "") in ("", "cfg(windows)", "cfg(target_os = \"windows\")") or "windows" in (k.get("target") or "") for k in d["dep_kinds"])
-        if any(k is None for k in kinds) and target_ok:
+        if any(k is None for k in kinds):
             stack.append(d["pkg"])
 
-shipped = sorted((pkgs[i] for i in seen if not pkgs[i]["name"].startswith("prm-") and pkgs[i]["name"] != "prism-reference-manager"), key=lambda p: p["name"])
+shipped = sorted((pkgs[i] for i in seen if not pkgs[i]["name"].startswith("prm-") and pkgs[i]["name"] != "prism-reference-manager"), key=lambda p: (p["name"], tuple(int(n) for n in re.findall(r"\d+", p["version"]))))
 web = [
     {"name": "pdfjs-dist", "version": json.load(open("app/node_modules/pdfjs-dist/package.json"))["version"] if os.path.exists("app/node_modules/pdfjs-dist/package.json") else "4.10.38", "license": "Apache-2.0", "repository": "https://github.com/mozilla/pdf.js", "note": "PDF rendering in the reader"},
     {"name": "pdf.js character maps (cmaps)", "version": "bundled with pdfjs-dist", "license": "BSD-3-Clause", "repository": "https://github.com/adobe-type-tools/cmap-resources", "note": "CJK text rendering"},
@@ -56,13 +70,13 @@ lines += ["", "## Citation styles and locales", "",
           "They are licensed under Creative Commons Attribution-ShareAlike 3.0 (https://creativecommons.org/licenses/by-sa/3.0/). Each style's authors are credited in the style file itself. "
           "Styles a person imports keep the licence stated in their own file, which the program shows in the style catalog.", ""]
 lines += ["", "The Windows WebView2 runtime that displays the interface is part of Windows and is not distributed with this program.", ""]
-open("THIRD-PARTY.md", "w", encoding="utf-8", newline="\n").write("\n".join(lines))
+write_if_changed("THIRD-PARTY.md", "\n".join(lines), r"Generated \d{4}-\d\d-\d\d")
 
 sbom = {"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
         "metadata": {"timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), "component": {"type": "application", "name": "Prism Reference Manager", "version": next(p["version"] for p in meta["packages"] if p["name"] == "prism-reference-manager")}},
         "components": [{"type": "library", "name": p["name"], "version": p["version"], "licenses": [{"expression": p.get("license") or "NOASSERTION"}], "purl": f"pkg:cargo/{p['name']}@{p['version']}"} for p in shipped]
         + [{"type": "library", "name": w["name"], "version": w["version"], "licenses": [{"expression": w["license"]}]} for w in web]}
-json.dump(sbom, open("sbom.json", "w", encoding="utf-8"), indent=1)
+write_if_changed("sbom.json", json.dumps(sbom, indent=1), r'"timestamp": "[^"]*"')
 print(f"{len(shipped)} Rust components, {len(web)} interface components")
 if bad:
     print("LICENSES NEEDING REVIEW:")
