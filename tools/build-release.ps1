@@ -199,9 +199,10 @@ if ($Sign) {
 # Checksums of this version's files only, to attach to the release.
 $made += (Split-Path -Leaf $zip), (Split-Path -Leaf $extZip)
 $sums = Join-Path $dist "SHA256SUMS-$version.txt"
-$made | Sort-Object | ForEach-Object {
+$lines = $made | Sort-Object | ForEach-Object {
   "{0}  {1}" -f (Get-FileHash (Join-Path $dist $_) -Algorithm SHA256).Hash.ToLower(), $_
-} | Set-Content $sums -Encoding ascii
+}
+[IO.File]::WriteAllText($sums, ($lines -join "`n") + "`n")
 Write-Host "== Files for the release"
 Get-Content $sums
 Write-Host "Built from commit $short, tagged v$version. The release tag must be this commit."

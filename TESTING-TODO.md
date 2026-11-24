@@ -27,6 +27,11 @@ already pass are listed at the end for reference.
 - [ ] **Update key.** Run `Make update key.bat` (in the spec folder) once, then back up the
       secret key file and its password offline. Feed address chosen 2026-11-15: the release page
       (`releases/latest/download/latest.json`; pre-releases are skipped).
+- [ ] **Next signed release build.** Tag the commit first. Near the end `Build signed release.bat`
+      asks for the update key's password (it no longer asks at the start); it should then print
+      "Update signature OK" and write `.sig`, `latest.json`, `previous.json` and
+      `SHA256SUMS-<version>.txt`. (Tried on 2026-11-24 without signing and without the real key:
+      the refusals, an unsigned build from a tagged copy, and the signing step with a throwaway key.)
 - [ ] **First real update.** 0.1.3 has to be installed by hand. When 0.1.4 is out, use Check now
       in 0.1.3 on a test machine: it should find 0.1.4, download it, check the signature and install
       it with settings and libraries kept. Then try Return to the previous version.
