@@ -3363,11 +3363,13 @@ dependencies = [
 name = "prm-core"
 version = "0.1.3"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "csv",
  "hayagriva",
  "hex",
  "lopdf",
+ "minisign-verify",
  "quick-xml",
  "regex",
  "rusqlite",

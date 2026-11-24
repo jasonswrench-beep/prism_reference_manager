@@ -1,13 +1,16 @@
 # Build a release: tests, notices and SBOM, the per-user installer, and a portable zip.
 # Output: dist\  (installer, portable zip, SHA-256 checksums). Nothing here publishes anything.
 #
+# It builds only from a clean tree whose commit carries the release tag (v<version>), so the tag always
+# names the source the build came from. It never tags or commits.
+#
 # -Sign signs the program, the installer's parts, the uninstaller and the setup file with Azure Artifact
 # Signing during the build (tools\sign_windows.py; the account names come from OPENSTAGE_SIGN_* environment
 # variables and the sign-in from `az login`). Without -Sign the build is unsigned.
 
-# Update files: when the update-signing key is in the profile folder (.prism-reference-manager-update.key)
-# or in TAURI_SIGNING_PRIVATE_KEY, the build also makes the installer's update signature, latest.json and
-# previous.json. The key's password comes from TAURI_SIGNING_PRIVATE_KEY_PASSWORD or is asked for.
+# Update files: when the update-signing key is in the profile folder (.prism-reference-manager-update.key),
+# the build also makes the installer's update signature, latest.json and previous.json. The key is used
+# only at the end, on the finished setup (tools\sign-update.ps1), and its password is asked for then.
 # -UpdateBaseUrl defaults to this version's download folder on the release page. See docs\updates.md.
 param([string]$UpdateBaseUrl = "", [switch]$Sign)
 
@@ -17,11 +20,28 @@ Set-Location $root
 $version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
 $releasePage = "https://github.com/jasonswrench-beep/prism_reference_manager/releases"
 
-$keyFile = Join-Path $env:USERPROFILE ".prism-reference-manager-update.key"
-if (-not $env:TAURI_SIGNING_PRIVATE_KEY -and (Test-Path $keyFile)) {
-  $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content $keyFile -Raw).Trim()
+function Assert-Clean([string]$when) {
+  $dirty = git status --porcelain
+  if ($LASTEXITCODE -ne 0) { throw "git status failed; nothing was built." }
+  if ($dirty) { throw "There are uncommitted changes $when, so the build would not match any commit. Commit them, tag that commit, and run again:`n$($dirty -join "`n")" }
 }
-if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+
+Assert-Clean "in the source folder"
+$head = git rev-parse HEAD
+$short = git rev-parse --short=7 HEAD
+if (@(git tag --points-at HEAD) -notcontains "v$version") {
+  throw "Commit $short is not tagged v$version. Tag the commit first (git tag v$version), then build; nothing was built."
+}
+Write-Host "Building v$version from commit $short"
+
+# No update-signing secret may be in the environment while dependencies' build scripts run.
+foreach ($n in "TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PATH", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD") {
+  if (Test-Path "Env:$n") { Remove-Item "Env:$n"; Write-Host "$n was set; it is not used and was removed for this build." }
+}
+
+$keyFile = Join-Path $env:USERPROFILE ".prism-reference-manager-update.key"
+$updates = Test-Path $keyFile
+if ($updates) {
   # The public key built into the program must belong to this private key, or no update would verify.
   $pubFile = "$keyFile.pub"
   $built = (Select-String -Path "app\src-tauri\src\updates.rs" -Pattern '^pub const PUBKEY: &str = "(.*)";').Matches[0].Groups[1].Value
@@ -30,10 +50,6 @@ if ($env:TAURI_SIGNING_PRIVATE_KEY) {
   if ($conf -ne $built) { throw "The updater pubkey in tauri.conf.json differs from PUBKEY in updates.rs; nothing was built." }
   if ((Test-Path $pubFile) -and ((Get-Content $pubFile -Raw).Trim() -ne $built)) {
     throw "PUBKEY in updates.rs does not match $pubFile; nothing was built."
-  }
-  if ($null -eq $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-    $sec = Read-Host "Password for the update-signing key (press Enter if it has none)" -AsSecureString
-    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
   }
   if (-not $UpdateBaseUrl) { $UpdateBaseUrl = "$releasePage/download/v$version" }
 }
@@ -52,7 +68,7 @@ $rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:U
 $env:RUSTFLAGS = "--remap-path-prefix=$($env:USERPROFILE)=user --remap-path-prefix=$rustupHome=rustup --remap-path-prefix=$cargoHome=cargo --remap-path-prefix=$root=src"
 
 Write-Host "== Tests"
-cargo test -p prm-core --release
+cargo test -p prm-core --release --locked
 if ($LASTEXITCODE -ne 0) { throw "Tests failed; release stopped." }
 
 Write-Host "== Third-party notices, SBOM and license check"
@@ -73,11 +89,12 @@ if ($Sign) {
   if ($LASTEXITCODE -ne 0) { throw "Signing is not ready (see above); nothing was built." }
 }
 
+# The notices are packed into the installer, so remaking them must not have changed anything.
+Assert-Clean "after the interface libraries, tests and notices were made"
+
 Write-Host "== Installer"
 Push-Location app
-$updates = [bool]$env:TAURI_SIGNING_PRIVATE_KEY -and [bool]$UpdateBaseUrl
 $bundle = [ordered]@{}
-if ($updates) { $bundle.createUpdaterArtifacts = $true }
 # Tauri runs the sign command for each file it signs (the program, NSIS plugins, the uninstaller, the setup).
 if ($Sign) { $bundle.windows = @{ signCommand = @{ cmd = "python"; args = @("-I", $signScript, "--description", "Prism Reference Manager", "%1") } } }
 if ($bundle.Count) {
@@ -89,6 +106,8 @@ if ($bundle.Count) {
 }
 if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
 Pop-Location
+Assert-Clean "after the build"
+if ((git rev-parse HEAD) -ne $head) { throw "The commit changed while building; nothing was copied to dist." }
 
 $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force $dist | Out-Null
@@ -104,6 +123,8 @@ foreach ($needle in @($env:USERPROFILE, $env:USERPROFILE.Replace("\", "/"), "\Us
     throw "The program file contains the builder's profile path ($needle); nothing was copied to dist."
   }
 }
+# Settings > About must show the commit that was tagged.
+if ($text.IndexOf("$short ", [StringComparison]::Ordinal) -lt 0) { throw "The program does not carry the build code $short; nothing was copied to dist." }
 $checkScript = Join-Path $root "tools\check_signatures.py"
 if ($Sign) {
   # The setup file and every program packed inside it (unpacked with 7-Zip).
@@ -111,13 +132,19 @@ if ($Sign) {
   python -I $checkScript $setup.FullName
   if ($LASTEXITCODE -ne 0) { throw "A file is not signed and timestamped; nothing was copied to dist." }
 }
-Copy-Item $setup.FullName (Join-Path $dist "Prism-Reference-Manager-$version-setup.exe") -Force
+$setupName = "Prism-Reference-Manager-$version-setup.exe"
+$distSetup = Join-Path $dist $setupName
+Copy-Item $setup.FullName $distSetup -Force
+$made = @($setupName)
 
 if ($updates) {
   Write-Host "== Update signature and latest.json"
-  $setupName = "Prism-Reference-Manager-$version-setup.exe"
-  $sig = Get-Content ($setup.FullName + ".sig") -Raw
-  Copy-Item ($setup.FullName + ".sig") (Join-Path $dist "$setupName.sig") -Force
+  & (Join-Path $root "tools\sign-update.ps1") -Setup $distSetup -Version $version -KeyFile $keyFile
+  # Checked as an installed copy will check it: the built-in key, and this version in the signed comment.
+  cargo run -q -p prm-core --release --locked --example verify_update -- $distSetup "$distSetup.sig" $version
+  if ($LASTEXITCODE -ne 0) { Remove-Item "$distSetup.sig"; throw "The update signature is not valid; it was removed." }
+  $sig = Get-Content "$distSetup.sig" -Raw
+  $made += "$setupName.sig", "latest.json"
   $manifest = [ordered]@{
     version   = $version
     notes     = "See the release notes for this version."
@@ -134,6 +161,7 @@ if ($updates) {
     if ($old.version -and $old.version -ne $version) {
       [IO.File]::WriteAllText($prev, ($old | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
       Write-Host "previous.json points at version $($old.version)."
+      $made += "previous.json"
     }
   } catch {
     Write-Host "No published latest.json yet, so no previous.json (normal for the first release with updates)."
@@ -168,8 +196,13 @@ if ($Sign) {
   if ($LASTEXITCODE -ne 0) { throw "The portable zip holds a program that is not signed and timestamped." }
 }
 
-Get-ChildItem $dist -File | Where-Object { $_.Extension -ne ".txt" } | ForEach-Object {
-  "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
-} | Set-Content (Join-Path $dist "SHA256SUMS.txt") -Encoding ascii
-Get-ChildItem $dist
+# Checksums of this version's files only, to attach to the release.
+$made += (Split-Path -Leaf $zip), (Split-Path -Leaf $extZip)
+$sums = Join-Path $dist "SHA256SUMS-$version.txt"
+$made | Sort-Object | ForEach-Object {
+  "{0}  {1}" -f (Get-FileHash (Join-Path $dist $_) -Algorithm SHA256).Hash.ToLower(), $_
+} | Set-Content $sums -Encoding ascii
+Write-Host "== Files for the release"
+Get-Content $sums
+Write-Host "Built from commit $short, tagged v$version. The release tag must be this commit."
 if ($Sign) { Write-Host "Done. The program and installer are signed and timestamped." } else { Write-Host "Done. These builds are unsigned." }

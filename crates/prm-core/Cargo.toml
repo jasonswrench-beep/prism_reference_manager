@@ -25,3 +25,8 @@ lopdf.workspace = true
 ureq.workspace = true
 rust_xlsxwriter = { version = "0.102.0", default-features = false }
 hayagriva = { version = "0.10.1", default-features = false, features = ["csl-json", "archive"] }
+
+[dev-dependencies]
+# Only for examples/verify_update.rs, the release check of update signatures.
+minisign-verify = "0.3"
+base64 = "0.22"

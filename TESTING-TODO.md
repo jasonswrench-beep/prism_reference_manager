@@ -265,7 +265,7 @@ parenthetical, Copy narrative, Copy reference and Copy bibliography.
 ## 6. Installation and recovery (release gate G10, G12, G13)
 
 - [ ] Install with the per-user installer on a clean Windows account without administrator rights.
-      (Automated: `tools	est-installer.ps1` passed on the development machine — silent install
+      (Automated: `tools\test-installer.ps1` passed on the development machine — silent install
       into a chosen folder, per-user registration, uninstall removes only the program folder and
       its settings, neighbouring folders and the library folder untouched.)
 - [ ] Silent install `Prism-Reference-Manager-0.1.2-setup.exe /S` and uninstall `/S` from a script.
