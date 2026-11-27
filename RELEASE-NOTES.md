@@ -1,6 +1,6 @@
 # Release notes
 
-## Not yet released
+## 0.1.4 (2026-11-27)
 
 - **Local connections.** Settings › Local connections shows the address the program is listening
   at, with a Copy address button, or says why its port could not be opened. Other programs can ask
