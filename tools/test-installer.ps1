@@ -2,8 +2,23 @@
 # that only the program's own folder and settings were removed.
 # Usage: powershell -ExecutionPolicy Bypass -File tools\test-installer.ps1 dist\Prism-Reference-Manager-0.1.4-setup.exe
 
+#
+# It refuses to run where Prism Reference Manager is really installed or has settings. The test copy has the same name, so installing it
+# takes over the real copy's entry in Windows' installed apps list, its Start menu shortcut and its prism-rm link, and uninstalling it then
+# removes all of those and deletes the real settings: the real copy stays on disk but Windows and the hubs no longer see it.
+# Run it in a Windows account that does not have the app (or remove the app first).
+
 param([Parameter(Mandatory = $true)][string]$Setup)
 $ErrorActionPreference = "Stop"
+$realEntry = Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction SilentlyContinue | Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -eq "Prism Reference Manager" } | Select-Object -First 1
+$realCopy = Join-Path $env:LOCALAPPDATA "Prism Reference Manager\prism-reference-manager.exe"
+$realSettings = Join-Path $env:APPDATA "org.prism.referencemanager"
+if ($realEntry -or (Test-Path $realCopy) -or (Test-Path $realSettings)) {
+    "Prism Reference Manager is installed in this Windows account, or has settings here. This test installs and removes a copy with the same name,"
+    "which would take away the real copy's Windows entry, shortcut and link, and delete its settings. Nothing was done."
+    "Run it in a Windows account that does not have Prism Reference Manager."
+    exit 2
+}
 $target = Join-Path $env:TEMP ("prm-install-test-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
 $settings = Join-Path $env:APPDATA "org.prism.referencemanager"
 $webcache = Join-Path $env:LOCALAPPDATA "org.prism.referencemanager"
